@@ -1,2 +1,2 @@
-# sbs_neural_network
+# SBS Neural Network
 Implementation of Spike-by-spike neural network for embedded systems
