@@ -6,7 +6,7 @@
  */
 
 
-#include "sbs_nn.h"
+#include "sbs_neural_network.h"
 #include "stdlib.h"
 #include "stdio.h"
 #include "string.h"
