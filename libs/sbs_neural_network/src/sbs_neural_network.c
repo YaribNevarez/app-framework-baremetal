@@ -6,13 +6,15 @@
  */
 
 
-#include "sbs_neural_network.h"
 #include "stdlib.h"
 #include "stdio.h"
 #include "string.h"
 #include "assert.h"
 #include "stddef.h"
 #include "stdarg.h"
+
+#include "sbs_neural_network.h"
+#include "mt19937int.h"
 
 #define ASSERT(expr)  assert(expr)
 
@@ -37,7 +39,7 @@ typedef struct
 
   uint16_t    kernel_size;
   uint16_t    kernel_stride;
-  uint16_t    neurons_prev_Layer;
+  uint16_t    neurons_previous_Layer;
   WeightShift weight_shift;
   float       epsilon;
 } SbsBaseLayer;
@@ -104,10 +106,32 @@ void Multivector_delete(Multivector ** multivector)
     *multivector = NULL;
   }
 }
+/*****************************************************************************/
+
+void SbsInferencePopulation_initialize(float * state_vector, uint16_t size)
+{
+
+}
+
+void SbsInferencePopulation_update(float * state_vector, float * weight_vector, uint16_t size, float * epsilon)
+{
+
+}
+
+uint16_t SbsInferencePopulation_genSpike(float * state_vector, uint16_t size)
+{
+  return size - 1;
+}
 
 /*****************************************************************************/
 
-SbsBaseLayer * SbsBaseLayer_new(uint16_t rows, uint16_t columns, uint16_t neurons)
+SbsBaseLayer * SbsBaseLayer_new(uint16_t rows,
+                                uint16_t columns,
+                                uint16_t neurons,
+                                uint16_t kernel_size,
+                                uint16_t kernel_stride,
+                                WeightShift weight_shift,
+                                uint16_t    neurons_previous_Layer)
 {
   SbsBaseLayer * layer = malloc(sizeof(SbsBaseLayer));
 
@@ -121,10 +145,53 @@ SbsBaseLayer * SbsBaseLayer_new(uint16_t rows, uint16_t columns, uint16_t neuron
 
     state_matrix = Multivector_new(3, rows, columns, neurons);
 
+    ASSERT(state_matrix != NULL);
+    ASSERT(state_matrix->dimensional == 3);
+    ASSERT(state_matrix->data != NULL);
+    ASSERT(state_matrix->dimensional_size[0] == rows);
+    ASSERT(state_matrix->dimensional_size[1] == columns);
+    ASSERT(state_matrix->dimensional_size[2] == neurons);
+
     layer->state_matrix = state_matrix;
+
+    layer->kernel_size   = kernel_size;
+    layer->kernel_stride = kernel_stride;
+    layer->weight_shift  = weight_shift;
+    layer->neurons_previous_Layer = neurons_previous_Layer;
   }
 
   return layer;
+}
+
+void SbsBaseLayer_setWeights(SbsBaseLayer * layer, Multivector * weight_matrix)
+{
+  ASSERT(layer != NULL);
+  /*ASSERT(weight_matrix != NULL);*/ /*NULL is allowed*/
+
+  if (layer != NULL)
+    layer->weight_matrix = weight_matrix;
+}
+
+Multivector * SbsBaseLayer_generateSpikes(SbsBaseLayer * layer)
+{
+  Multivector * spike_matrix = NULL;
+  ASSERT(layer != NULL);
+  ASSERT(layer->spike_matrix != NULL);
+  ASSERT(layer->state_matrix != NULL);
+
+  if (   (layer != NULL)
+      && (layer->spike_matrix != NULL)
+      && (layer->state_matrix != NULL))
+  {
+      Multivector * state_matrix = layer->state_matrix;
+      Multivector * spike_matrix = layer->spike_matrix;
+
+      uint16_t rows    = state_matrix->dimensional_size[0];
+      uint16_t columns = state_matrix->dimensional_size[1];
+      uint16_t neurons = state_matrix->dimensional_size[2];
+  }
+
+  return spike_matrix;
 }
 
 /*****************************************************************************/

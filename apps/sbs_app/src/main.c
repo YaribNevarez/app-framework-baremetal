@@ -2,6 +2,23 @@
 
 int main(void)
 {
+  Result rc;
 
-  return 0;
+  SnnApp * app = SnnApp_instance();
+
+  rc = (app != NULL)? OK: ERROR;
+
+  if (rc == OK)
+  {
+    rc = app->initialize();
+
+    if (rc == OK)
+    {
+      rc = app->run();
+    }
+
+    app->dispose();
+  }
+
+  return rc;
 }

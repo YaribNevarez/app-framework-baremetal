@@ -19,6 +19,8 @@
  */
 //------------------------------------------------------------------------------
 // INCLUDES --------------------------------------------------------------------
+#include "sbs_neural_network.h"
+#include "sbs_app.h"
 
 // FORWARD DECLARATIONS --------------------------------------------------------
 
@@ -30,3 +32,27 @@
 
 // DEFINITIONs -----------------------------------------------------------------
 
+Result SnnApp_initialize(void)
+{
+  return OK;
+}
+
+Result SnnApp_run(void)
+{
+  sbs_test();
+  return OK;
+}
+
+void SnnApp_dispose(void)
+{
+
+}
+
+static SnnApp SnnApp_obj = { SnnApp_initialize,
+                             SnnApp_run,
+                             SnnApp_dispose };
+
+SnnApp * SnnApp_instance(void)
+{
+  return & SnnApp_obj;
+}

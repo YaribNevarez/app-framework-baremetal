@@ -23,7 +23,11 @@
 #define SBS_APP_H_
 
 // INCLUDES --------------------------------------------------------------------
+//#include "xil_types.h"
+#include "stdint.h"
+#include "stddef.h"
 
+#include "result.h"
 // FORWARD DECLARATIONS --------------------------------------------------------
 
 // TYPEDEFS AND DEFINES --------------------------------------------------------
@@ -32,4 +36,12 @@
 
 // DECLARATIONS ----------------------------------------------------------------
 
+typedef struct
+{
+  Result  (* initialize)(void);
+  Result  (* run)(void);
+  void    (* dispose)(void);
+} SnnApp;
+
+SnnApp * SnnApp_instance(void);
 #endif /* SBS_APP_H_ */
