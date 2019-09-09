@@ -1,2 +1,1 @@
-# SBS Neural Network
-Implementation of Spike-by-spike neural network for embedded systems
+#  Software framework for bare-metal applications
