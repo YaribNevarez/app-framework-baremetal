@@ -28,7 +28,7 @@ typedef struct
   void *   data;
   uint8_t  data_type_size;
   uint8_t  dimensionality;
-  uint16_t dimension_size[1]; /*[0] = x, [1] = y, [2] = z... [n] = N*/
+  uint16_t dimension_size[1]; /*[0] = rows, [1] = columns, [2] = neurons... [n] = N*/
 } Multivector;
 
 typedef enum
@@ -49,6 +49,12 @@ typedef struct
   WeightShift weight_shift;
   float       epsilon;
 } SbsBaseLayer;
+
+typedef struct
+{
+  uint8_t         size;
+  SbsBaseLayer ** layer_array;
+} SbsNetwork;
 
 /*****************************************************************************/
 
@@ -359,16 +365,6 @@ Multivector * SbsBaseLayer_generateSpikes(SbsBaseLayer * layer)
   return spike_matrix;
 }
 
-void Multivector_setValue(Multivector * multivector, void * value, ...)
-{
-
-}
-
-void * Multivector_getValue(Multivector * multivector, ...)
-{
-  return NULL;
-}
-
 void SbsBaseLayer_update(SbsBaseLayer * layer, Multivector * input_spike_matrix)
 {
   ASSERT(layer != NULL);
@@ -467,19 +463,105 @@ void SbsBaseLayer_update(SbsBaseLayer * layer, Multivector * input_spike_matrix)
 
 /*****************************************************************************/
 
-//Multivector * SbsNetwork_new(void)
-//{
-//  return Multivector_new(1);
-//}
-
-void SbsNetwork_delete(Multivector ** sbsNetwork)
+SbsNetwork * SbsNetwork_new(void)
 {
-  Multivector_delete(sbsNetwork);
+  SbsNetwork * network = NULL;
+
+  network = malloc(sizeof(SbsNetwork));
+
+  ASSERT(network != NULL);
+
+  if (network != NULL)
+  {
+      memset(network, 0x0, sizeof(SbsNetwork));
+  }
+
+  ASSERT(network->size == 0);
+  ASSERT(network->layer_array == NULL);
+
+  return network;
 }
 
-void SbsNetwork_addLayer()
+void SbsNetwork_delete(SbsNetwork ** network)
 {
+  ASSERT(network != NULL);
+  ASSERT(*network != NULL);
 
+  if ((network != NULL) && (*network != NULL))
+  {
+    free(*network);
+    *network = NULL;
+  }
+}
+
+void SbsNetwork_addLayer(SbsNetwork * network, SbsBaseLayer * layer)
+{
+  ASSERT(network != NULL);
+  ASSERT(layer != NULL);
+
+  if ((network != NULL) && (layer != NULL))
+  {
+    SbsBaseLayer ** layer_array = network->layer_array;
+    uint8_t size = network->size;
+
+    ASSERT(size < 0xFF);
+
+    layer_array = realloc(layer_array, (size + 1) * sizeof(SbsBaseLayer *));
+
+    ASSERT(layer_array != NULL);
+
+    if (layer_array != NULL)
+    {
+        layer_array[size] = layer;
+
+        network->layer_array = layer_array;
+        network->size ++;
+    }
+  }
+}
+
+void SbsNetwork_updateCycle(SbsNetwork * network, uint16_t cycles)
+{
+  ASSERT(network != NULL);
+  ASSERT(3 <= network->size);
+  ASSERT(network->layer_array != NULL);
+  ASSERT(0 < cycles);
+
+  if ((network != NULL) && (3 <= network->size)
+      && (network->layer_array != NULL) && (cycles != 0))
+  {
+    uint8_t i;
+    /* Initialize all layers except the input-layer */
+    for (i = 1; i < network->size; i ++)
+    {
+      ASSERT(network->layer_array[i] != NULL);
+      SbsBaseLayer_initialize(network->layer_array[i]);
+    }
+
+    Multivector ** spike_array = malloc((network->size - 1)* sizeof(Multivector *));
+
+    ASSERT(spike_array != NULL);
+
+    if (spike_array != NULL)
+    {
+      while (cycles --)
+      {
+        for (i = 0; i < network->size - 1; i ++)
+        {
+          spike_array[i] = SbsBaseLayer_generateSpikes(network->layer_array[i]);
+        }
+
+        for (i = 1; i < network->size; i ++)
+        {
+          SbsBaseLayer_update(network->layer_array[i], spike_array[i]);
+        }
+
+        if (cycles % 100 == 0) printf(" - Spike cycle: %d", cycles);
+      }
+
+      free(spike_array);
+    }
+  }
 }
 
 /*****************************************************************************/
