@@ -536,6 +536,47 @@ static void SbsNetwork_addLayer(SbsNetwork * network, SbsBaseLayer * layer)
   }
 }
 
+static void SbsNetwork_loadInput(SbsNetwork * network, char * file_name)
+{
+  ASSERT(network != NULL);
+  ASSERT(1 <= network->size);
+  ASSERT(network->layer_array != NULL);
+  ASSERT(*network->layer_array != NULL);
+
+  ASSERT(file_name != NULL);
+
+  if ((network != NULL)
+      && (1 <= network->size)
+      && (network->layer_array != NULL) && (*network->layer_array != NULL)
+      && (file_name != NULL))
+  {
+    FILE * file = fopen(file_name, "rb");
+
+    ASSERT(file != NULL);
+
+    if (file != NULL)
+    {
+      SbsBaseLayer * input_layer = network->layer_array[0];
+      uint16_t rows = input_layer->state_matrix->dimension_size[0];
+      uint16_t columns = input_layer->state_matrix->dimension_size[1];
+      uint16_t neurons = input_layer->state_matrix->dimension_size[2];
+      NeuronState * data = input_layer->state_matrix->data;
+
+      uint16_t row;
+      uint16_t column;
+
+      for (column = 0; column < columns; column++)
+        for (row = 0; row < rows; row++)
+        {
+          fread (&data[column * neurons + row * columns], sizeof(NeuronState),
+                 neurons, file);
+        }
+
+      fclose(file);
+    }
+  }
+}
+
 static void SbsNetwork_updateCycle(SbsNetwork * network, uint16_t cycles)
 {
   ASSERT(network != NULL);
@@ -627,20 +668,40 @@ SbsOutputLayer SbsOutputLayer_new(uint16_t neurons,
 
 SbsWeightMatrix SbsWeightMatrix_new(uint16_t rows, uint16_t columns, char * file_name)
 {
-  Multivector * weight_watrix = Multivector_new(sizeof(Weight), 2, rows, columns);
+  Multivector * weight_watrix = NULL;
 
-  ASSERT(weight_watrix != NULL);
-  ASSERT(weight_watrix->dimensionality == 2);
-  ASSERT(weight_watrix->data != NULL);
-  ASSERT(weight_watrix->dimension_size[0] == rows);
-  ASSERT(weight_watrix->dimension_size[1] == columns);
+  ASSERT(file_name != NULL);
 
-  if ((weight_watrix != NULL)
-      && (weight_watrix->dimensionality == 2)
-      && (weight_watrix->data != NULL)
-      && (weight_watrix->dimension_size[0] == rows)
-      && (weight_watrix->dimension_size[1] == columns))
+  if (file_name != NULL)
   {
+    weight_watrix = Multivector_new(sizeof(Weight), 2, rows, columns);
+
+    ASSERT(weight_watrix != NULL);
+    ASSERT(weight_watrix->dimensionality == 2);
+    ASSERT(weight_watrix->data != NULL);
+    ASSERT(weight_watrix->dimension_size[0] == rows);
+    ASSERT(weight_watrix->dimension_size[1] == columns);
+
+    if ((weight_watrix != NULL)
+        && (weight_watrix->dimensionality == 2)
+        && (weight_watrix->data != NULL)
+        && (weight_watrix->dimension_size[0] == rows)
+        && (weight_watrix->dimension_size[1] == columns))
+    {
+      FILE * file = fopen(file_name, "rb");
+
+      ASSERT(file != NULL);
+
+      if (file != NULL)
+      {
+        size_t data_size = rows * columns * sizeof(Weight);
+        size_t read_result = fread(weight_watrix->data, data_size, 1, file);
+        ASSERT(data_size == read_result);
+        fclose(file);
+      }
+      else
+        Multivector_delete(&weight_watrix);
+    }
   }
 
   return weight_watrix;
@@ -662,48 +723,48 @@ void sbs_test(void)
   SbsInputLayer input_layer = SbsInputLayer_new(24, 24, 50);
   SbsNetwork_addLayer(network, input_layer);
 
-//  sbs::Weights P_IN_H1(2 * 5 * 5, 32, "/home/nevarez/Downloads/MNIST/W_X_H1_Iter0.bin");
-//
-//  sbs::ConvolutionLayer H1(24, 24, 32, 1, sbs::BaseLayer::WeightSectionShift::ROW_SHIFT, 50);
-//  H1.setEpsilon(0.1);
-//  H1.setWeights(&P_IN_H1);
-//  network.push_back(&H1);
-//
-//  sbs::Weights P_H1_H2(32 * 2 * 2, 32, "/home/nevarez/Downloads/MNIST/W_H1_H2.bin");
-//
-//  sbs::PoolingLayer H2(12, 12, 32, 2, sbs::BaseLayer::WeightSectionShift::COLUMN_SHIFT, 32);
-//  H2.setEpsilon(0.1 / 4.0);
-//  H2.setWeights(&P_H1_H2);
-//  network.push_back(&H2);
-//
-//  sbs::Weights P_H2_H3(32 * 5 * 5, 64, "/home/nevarez/Downloads/MNIST/W_H2_H3_Iter0.bin");
-//
-//  sbs::ConvolutionLayer H3(8, 8, 64, 5, sbs::BaseLayer::WeightSectionShift::COLUMN_SHIFT, 32);
-//  H3.setEpsilon(0.1 / 25.0);
-//  H3.setWeights(&P_H2_H3);
-//  network.push_back(&H3);
-//
-//  sbs::Weights P_H3_H4(64 * 2 * 2, 64, "/home/nevarez/Downloads/MNIST/W_H3_H4.bin");
-//
-//  sbs::PoolingLayer H4(4, 4, 64, 2, sbs::BaseLayer::WeightSectionShift::COLUMN_SHIFT, 64);
-//  H4.setEpsilon(0.1 / 4.0);
-//  H4.setWeights(&P_H3_H4);
-//  network.push_back(&H4);
-//
-//  sbs::Weights P_H4_H5(64 * 4 * 4, 1024, "/home/nevarez/Downloads/MNIST/W_H4_H5_Iter0.bin");
-//
-//  sbs::FullyConnectedLayer H5(1024, 4, sbs::BaseLayer::WeightSectionShift::ROW_SHIFT, 64);
-//  H5.setEpsilon(0.1 / 16.0);
-//  H5.setWeights(&P_H4_H5);
-//  network.push_back(&H5);
-//
-//  sbs::Weights P_H5_HY(1024, 10, "/home/nevarez/Downloads/MNIST/W_H5_HY_Iter0.bin");
-//
-//  sbs::OutputLayer HY(10, sbs::BaseLayer::WeightSectionShift::ROW_SHIFT, 0);
-//  HY.setEpsilon(0.1);
-//  HY.setWeights(&P_H5_HY);
-//  network.push_back(&HY);
-//
+  SbsWeightMatrix P_IN_H1 = SbsWeightMatrix_new(2 * 5 * 5, 32, "/home/nevarez/Downloads/MNIST/W_X_H1_Iter0.bin");
+
+  SbsConvolutionLayer H1 = SbsConvolutionLayer_new(24, 24, 32, 1, ROW_SHIFT, 50);
+  SbsBaseLayer_setEpsilon(H1, 0.1);
+  SbsBaseLayer_setWeights(H1, P_IN_H1);
+  SbsNetwork_addLayer(network, H1);
+
+  SbsWeightMatrix P_H1_H2 = SbsWeightMatrix_new(32 * 2 * 2, 32, "/home/nevarez/Downloads/MNIST/W_H1_H2.bin");
+
+  SbsPoolingLayer H2 = SbsPoolingLayer_new(12, 12, 32, 2, COLUMN_SHIFT, 32);
+  SbsBaseLayer_setEpsilon(H2, 0.1 / 4.0);
+  SbsBaseLayer_setWeights(H2, P_H1_H2);
+  SbsNetwork_addLayer(network, H2);
+
+  SbsWeightMatrix P_H2_H3 = SbsWeightMatrix_new(32 * 5 * 5, 64, "/home/nevarez/Downloads/MNIST/W_H2_H3_Iter0.bin");
+
+  SbsConvolutionLayer H3 = SbsConvolutionLayer_new(8, 8, 64, 5, COLUMN_SHIFT, 32);
+  SbsBaseLayer_setEpsilon(H3, 0.1 / 25.0);
+  SbsBaseLayer_setWeights(H3, P_H2_H3);
+  SbsNetwork_addLayer(network, H3);
+
+  SbsWeightMatrix P_H3_H4 = SbsWeightMatrix_new(64 * 2 * 2, 64, "/home/nevarez/Downloads/MNIST/W_H3_H4.bin");
+
+  SbsPoolingLayer H4 = SbsPoolingLayer_new(4, 4, 64, 2, COLUMN_SHIFT, 64);
+  SbsBaseLayer_setEpsilon(H4, 0.1 / 4.0);
+  SbsBaseLayer_setWeights(H4, P_H3_H4);
+  SbsNetwork_addLayer(network, H4);
+
+  SbsWeightMatrix P_H4_H5 = SbsWeightMatrix_new(64 * 4 * 4, 1024, "/home/nevarez/Downloads/MNIST/W_H4_H5_Iter0.bin");
+
+  SbsFullyConnectedLayer H5 = SbsFullyConnectedLayer_new(1024, 4, ROW_SHIFT, 64);
+  SbsBaseLayer_setEpsilon(H5, 0.1 / 16.0);
+  SbsBaseLayer_setWeights(H5, P_H4_H5);
+  SbsNetwork_addLayer(network, H5);
+
+  SbsWeightMatrix P_H5_HY = SbsWeightMatrix_new(1024, 10, "/home/nevarez/Downloads/MNIST/W_H5_HY_Iter0.bin");
+
+  SbsOutputLayer HY = SbsOutputLayer_new(10, ROW_SHIFT, 0);
+  SbsBaseLayer_setEpsilon(HY, 0.1);
+  SbsBaseLayer_setWeights(HY, P_H5_HY);
+  SbsNetwork_addLayer(network, HY);
+
 //  // Perform Network load pattern and update cycle
 //  network.loadInput("/home/nevarez/Downloads/MNIST/Pattern/Input_33.bin");
 //  network.updateCycle(1000);
