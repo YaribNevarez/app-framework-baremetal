@@ -30,7 +30,6 @@ typedef uint16_t  SpikeID;
 typedef struct
 {
   void *   data;
-  uint8_t  data_type_size;
   uint8_t  dimensionality;
   uint16_t dimension_size[1]; /*[0] = rows, [1] = columns, [2] = neurons... [n] = N*/
 } Multivector;
@@ -110,7 +109,7 @@ static Multivector * Multivector_new(uint8_t data_type_size, uint8_t dimensional
       va_start(argument_list, dimensionality);
 
       for (data_size = 1, arg = 0; arg < dimensionality; arg ++)
-        data_size *= (multivector->dimension_size[arg] = (uint8_t) va_arg(argument_list, int));
+        data_size *= (multivector->dimension_size[arg] = (uint16_t) va_arg(argument_list, int));
 
       va_end(argument_list);
 
@@ -202,7 +201,7 @@ static void SbsBaseLayer_delete(SbsBaseLayer ** layer)
   {
     Multivector_delete(&((*layer)->state_matrix));
     Multivector_delete(&((*layer)->spike_matrix));
-    if ((*layer)->weight_matrix != NULL) Multivector_delete(&((*layer)->spike_matrix));
+    if ((*layer)->weight_matrix != NULL) Multivector_delete(&((*layer)->weight_matrix));
     free(*layer);
     *layer = NULL;
   }
@@ -272,7 +271,7 @@ static SpikeID SbsBaseLayer_generateSpikeIP(NeuronState * state_vector, uint16_t
 
   if ((state_vector != NULL) && (0 < size))
   {
-    NeuronState random_s = genrand() / 0xFFFFFFFF;
+    NeuronState random_s = ((NeuronState)genrand()) / ((NeuronState)0xFFFFFFFF);
     NeuronState sum      = 0.0f;
     SpikeID     spikeID;
 
@@ -309,15 +308,13 @@ static void SbsBaseLayer_initialize(SbsBaseLayer * layer)
     uint16_t row;
     uint16_t column;
     size_t   current_row_index;
-    size_t   current_row_column_index;
 
     for (row = 0; row < rows; row++)
     {
-      current_row_index = columns * row;
+      current_row_index = row * columns * neurons;
       for (column = 0; column < columns; column++)
       {
-        current_row_column_index = current_row_index + column;
-        SbsBaseLayer_initializeIP(&state_matrix_data[current_row_column_index * neurons], neurons);
+        SbsBaseLayer_initializeIP(&state_matrix_data[current_row_index + column * neurons], neurons);
       }
     }
   }
@@ -510,8 +507,8 @@ static void SbsNetwork_delete(SbsNetwork ** network)
 
   if ((network != NULL) && (*network != NULL))
   {
-    while ((*network)->size --)
-      SbsBaseLayer_delete(&(*network)->layer_array[(*network)->size]);
+    while (0 < (*network)->size)
+      SbsBaseLayer_delete(&(*network)->layer_array[--((*network)->size)]);
 
     free(*network);
     *network = NULL;
@@ -576,17 +573,23 @@ static void SbsNetwork_loadInput(SbsNetwork * network, char * file_name)
 
       uint8_t good_reading_flag = 1;
 
+      size_t inference_population_size = sizeof(NeuronState) * neurons;
+
       for (column = 0; (column < columns) && good_reading_flag; column++)
         for (row = 0; (row < rows) && good_reading_flag; row++)
         {
-          read_result = fread (&data[column * neurons + row * columns * neurons],
-                                sizeof(NeuronState), neurons, file);
+          read_result = fread (&data[column * neurons + row * columns * neurons], 1,
+              inference_population_size, file);
 
-          good_reading_flag = read_result == neurons * sizeof(NeuronState);
+          good_reading_flag = read_result == inference_population_size;
         }
 
       if (good_reading_flag)
-        fread(&network->input_label, sizeof(uint8_t), 1, file);
+      {
+        read_result = fread(&network->input_label, 1, sizeof(uint8_t), file);
+        network->input_label --;
+        good_reading_flag = read_result == sizeof(uint8_t);
+      }
 
       fclose(file);
       ASSERT(good_reading_flag);
@@ -628,10 +631,10 @@ static void SbsNetwork_updateCycle(SbsNetwork * network, uint16_t cycles)
 
         for (i = 1; i < network->size; i ++)
         {
-          SbsBaseLayer_update(network->layer_array[i], spike_array[i]);
+          SbsBaseLayer_update(network->layer_array[i], spike_array[i - 1]);
         }
 
-        if (cycles % 100 == 0) printf(" - Spike cycle: %d", cycles);
+        if (cycles % 100 == 0) printf(" - Spike cycle: %d\n", cycles);
       }
       /************************ Ends Update cycle ****************************/
 
@@ -796,7 +799,7 @@ SbsWeightMatrix SbsWeightMatrix_new(uint16_t rows, uint16_t columns, char * file
       if (file != NULL)
       {
         size_t data_size = rows * columns * sizeof(Weight);
-        size_t read_result = fread(weight_watrix->data, data_size, 1, file);
+        size_t read_result = fread(weight_watrix->data, 1, data_size, file);
         ASSERT(data_size == read_result);
         fclose(file);
       }
@@ -871,7 +874,7 @@ void sbs_test(void)
   SbsNetwork_giveLayer(network, HY);
 
     // Perform Network load pattern and update cycle
-  SbsNetwork_loadInput(network, "/home/nevarez/Downloads/MNIST/Pattern/Input_33.bin");
+  SbsNetwork_loadInput(network, "/home/nevarez/Downloads/MNIST/Pattern/Input_5.bin");
   SbsNetwork_updateCycle(network, 1000);
 
   printf("\n==========  Results ===========================\n");
