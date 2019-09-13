@@ -35,6 +35,7 @@ typedef struct
 
 typedef struct
 {
+  SbsLayer      vtbl;
   Multivector * state_matrix;
   Multivector * weight_matrix;
   Multivector * spike_matrix;
@@ -48,8 +49,7 @@ typedef struct
 
 typedef struct
 {
-  struct SbsNetwork_VTable vtbl;
-
+  SbsNetwork        vtbl;
   uint8_t           size;
   SbsBaseLayer **   layer_array;
   uint8_t           input_label;
@@ -127,13 +127,13 @@ static void Multivector_delete(Multivector ** multivector)
 /*****************************************************************************/
 /*****************************************************************************/
 
-static SbsBaseLayer * SbsBaseLayer_new(uint16_t rows,
-                                       uint16_t columns,
-                                       uint16_t neurons,
-                                       uint16_t kernel_size,
-                                       uint16_t kernel_stride,
-                                       WeightShift weight_shift,
-                                       uint16_t    neurons_previous_Layer)
+static SbsLayer * SbsBaseLayer_new(uint16_t rows,
+                                   uint16_t columns,
+                                   uint16_t neurons,
+                                   uint16_t kernel_size,
+                                   uint16_t kernel_stride,
+                                   WeightShift weight_shift,
+                                   uint16_t    neurons_previous_Layer)
 {
   SbsBaseLayer * layer = malloc(sizeof(SbsBaseLayer));
 
@@ -145,6 +145,8 @@ static SbsBaseLayer * SbsBaseLayer_new(uint16_t rows,
     Multivector * spike_matrix = NULL;
 
     memset(layer, 0x00, sizeof(SbsBaseLayer));
+
+    layer->vtbl = _SbsLayer;
 
     /* Instantiate state_matrix */
     state_matrix = Multivector_new(sizeof(NeuronState), 3, rows, columns, neurons);
@@ -176,15 +178,16 @@ static SbsBaseLayer * SbsBaseLayer_new(uint16_t rows,
     layer->neurons_previous_Layer = neurons_previous_Layer;
   }
 
-  return layer;
+  return (SbsLayer *) layer;
 }
 
-static void SbsBaseLayer_delete(SbsBaseLayer ** layer)
+static void SbsBaseLayer_delete(SbsLayer ** layer_ptr)
 {
-  ASSERT(layer!= NULL);
-  ASSERT(*layer!= NULL);
-  if ((layer!= NULL) && (*layer!= NULL))
+  ASSERT(layer_ptr!= NULL);
+  ASSERT(*layer_ptr!= NULL);
+  if ((layer_ptr!= NULL) && (*layer_ptr!= NULL))
   {
+    SbsBaseLayer ** layer = (SbsBaseLayer **)layer_ptr;
     Multivector_delete(&((*layer)->state_matrix));
     Multivector_delete(&((*layer)->spike_matrix));
     if ((*layer)->weight_matrix != NULL) Multivector_delete(&((*layer)->weight_matrix));
@@ -306,16 +309,16 @@ static void SbsBaseLayer_initialize(SbsBaseLayer * layer)
   }
 }
 
-void SbsBaseLayer_giveWeights(void * layer, void * weight_matrix)
+static void SbsBaseLayer_giveWeights(SbsLayer * layer, SbsWeightMatrix weight_matrix)
 {
   ASSERT(layer != NULL);
   ASSERT(weight_matrix != NULL);
 
   if (layer != NULL)
-    ((SbsBaseLayer *)layer)->weight_matrix = weight_matrix;
+    ((SbsBaseLayer *)layer)->weight_matrix = (Multivector *) weight_matrix;
 }
 
-void SbsBaseLayer_setEpsilon(void * layer, float epsilon)
+static void SbsBaseLayer_setEpsilon(SbsLayer * layer, float epsilon)
 {
   ASSERT(layer != NULL);
   /*ASSERT(epsilon != 0.0f);*/ /* 0.0 is allowed? */
@@ -465,7 +468,7 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, Multivector * input_spike_
 
 /*****************************************************************************/
 
-static SbsBaseNetwork * SbsBaseNetwork_new(void)
+static SbsNetwork * SbsBaseNetwork_new(void)
 {
   SbsBaseNetwork * network = NULL;
 
@@ -476,7 +479,7 @@ static SbsBaseNetwork * SbsBaseNetwork_new(void)
   if (network != NULL)
   {
       memset(network, 0x0, sizeof(SbsBaseNetwork));
-      network->vtbl = SbsNetwork_vtable;
+      network->vtbl = _SbsNetwork;
       network->input_label = (uint8_t)-1;
       network->inferred_output = (uint8_t)-1;
   }
@@ -484,31 +487,33 @@ static SbsBaseNetwork * SbsBaseNetwork_new(void)
   ASSERT(network->size == 0);
   ASSERT(network->layer_array == NULL);
 
-  return network;
+  return (SbsNetwork *) network;
 }
 
-static void SbsBaseNetwork_delete(SbsBaseNetwork ** network)
+static void SbsBaseNetwork_delete(SbsNetwork ** network_ptr)
 {
-  ASSERT(network != NULL);
-  ASSERT(*network != NULL);
+  ASSERT(network_ptr != NULL);
+  ASSERT(*network_ptr != NULL);
 
-  if ((network != NULL) && (*network != NULL))
+  if ((network_ptr != NULL) && (*network_ptr != NULL))
   {
+    SbsBaseNetwork ** network = (SbsBaseNetwork **) network_ptr;
     while (0 < (*network)->size)
-      SbsBaseLayer_delete(&(*network)->layer_array[--((*network)->size)]);
+      SbsBaseLayer_delete((SbsLayer **)&(*network)->layer_array[--((*network)->size)]);
 
     free(*network);
     *network = NULL;
   }
 }
 
-static void SbsBaseNetwork_giveLayer(SbsBaseNetwork * network, SbsBaseLayer * layer)
+static void SbsBaseNetwork_giveLayer(SbsNetwork * network_ptr, SbsLayer * layer)
 {
-  ASSERT(network != NULL);
+  ASSERT(network_ptr != NULL);
   ASSERT(layer != NULL);
 
-  if ((network != NULL) && (layer != NULL))
+  if ((network_ptr != NULL) && (layer != NULL))
   {
+    SbsBaseNetwork * network = (SbsBaseNetwork *) network_ptr;
     SbsBaseLayer ** layer_array = network->layer_array;
     uint8_t size = network->size;
 
@@ -520,7 +525,7 @@ static void SbsBaseNetwork_giveLayer(SbsBaseNetwork * network, SbsBaseLayer * la
 
     if (layer_array != NULL)
     {
-        layer_array[size] = layer;
+        layer_array[size] = (SbsBaseLayer *)layer;
 
         network->layer_array = layer_array;
         network->size ++;
@@ -528,8 +533,9 @@ static void SbsBaseNetwork_giveLayer(SbsBaseNetwork * network, SbsBaseLayer * la
   }
 }
 
-static void SbsBaseNetwork_loadInput(SbsBaseNetwork * network, char * file_name)
+static void SbsBaseNetwork_loadInput(SbsNetwork * network_ptr, char * file_name)
 {
+  SbsBaseNetwork * network = (SbsBaseNetwork *) network_ptr;
   ASSERT(network != NULL);
   ASSERT(1 <= network->size);
   ASSERT(network->layer_array != NULL);
@@ -584,8 +590,9 @@ static void SbsBaseNetwork_loadInput(SbsBaseNetwork * network, char * file_name)
   }
 }
 
-static void SbsBaseNetwork_updateCycle(SbsBaseNetwork * network, uint16_t cycles)
+static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles)
 {
+  SbsBaseNetwork * network = (SbsBaseNetwork *) network_ptr;
   ASSERT(network != NULL);
   ASSERT(3 <= network->size);
   ASSERT(network->layer_array != NULL);
@@ -655,34 +662,35 @@ static void SbsBaseNetwork_updateCycle(SbsBaseNetwork * network, uint16_t cycles
   }
 }
 
-static uint8_t SbsBaseNetwork_getInferredOutput(SbsBaseNetwork * network)
+static uint8_t SbsBaseNetwork_getInferredOutput(SbsNetwork * network)
 {
   uint8_t inferred_output = (uint8_t)-1;
 
   ASSERT(network != NULL);
   if (network != NULL)
   {
-    inferred_output = network->inferred_output;
+    inferred_output = ((SbsBaseNetwork *) network)->inferred_output;
   }
 
   return inferred_output;
 }
 
-static uint8_t SbsBaseNetwork_getInputLabel(SbsBaseNetwork * network)
+static uint8_t SbsBaseNetwork_getInputLabel(SbsNetwork * network)
 {
   uint8_t input_label = (uint8_t)-1;
 
   ASSERT(network != NULL);
   if (network != NULL)
   {
-    input_label = network->input_label;
+    input_label = ((SbsBaseNetwork *) network)->input_label;
   }
 
   return input_label;
 }
 
-static void SbsBaseNetwork_getOutputVector(SbsBaseNetwork * network, NeuronState ** output_vector, uint16_t * output_vector_size)
+static void SbsBaseNetwork_getOutputVector(SbsNetwork * network_ptr, NeuronState ** output_vector, uint16_t * output_vector_size)
 {
+  SbsBaseNetwork * network = (SbsBaseNetwork *) network_ptr;
   ASSERT(network != NULL);
   ASSERT(0 < network->size);
   ASSERT(network->layer_array != NULL);
@@ -714,50 +722,52 @@ static void SbsBaseNetwork_getOutputVector(SbsBaseNetwork * network, NeuronState
 
 /*****************************************************************************/
 
-SbsInputLayer SbsInputLayer_new(uint16_t rows, uint16_t columns, uint16_t neurons)
+static SbsLayer * SbsInputLayer_new(uint16_t rows, uint16_t columns, uint16_t neurons)
 {
-  return SbsBaseLayer_new(rows, columns, neurons, 0, 0, ROW_SHIFT, 0);
+  return (SbsLayer *) SbsBaseLayer_new(rows, columns, neurons, 0, 0, ROW_SHIFT, 0);
 }
 
-SbsConvolutionLayer SbsConvolutionLayer_new(uint16_t rows,
+static SbsLayer * SbsConvolutionLayer_new(uint16_t rows,
                                             uint16_t columns,
                                             uint16_t neurons,
                                             uint16_t kernel_size,
                                             WeightShift weight_shift,
                                             uint16_t neurons_prev_Layer)
 {
-  return SbsBaseLayer_new (rows, columns, neurons, kernel_size, 1, weight_shift,
+  return (SbsLayer *) SbsBaseLayer_new (rows, columns, neurons, kernel_size, 1, weight_shift,
                            neurons_prev_Layer);
 }
 
-SbsPoolingLayer SbsPoolingLayer_new(uint16_t rows,
+static SbsLayer * SbsPoolingLayer_new(uint16_t rows,
                                     uint16_t columns,
                                     uint16_t neurons,
                                     uint16_t kernel_size,
                                     WeightShift weight_shift,
                                     uint16_t neurons_prev_Layer)
 {
-  return SbsBaseLayer_new (rows, columns, neurons, kernel_size, kernel_size,
-                           weight_shift, neurons_prev_Layer);
+  return (SbsLayer *) SbsBaseLayer_new (rows, columns, neurons, kernel_size,
+                                        kernel_size, weight_shift, neurons_prev_Layer);
 }
 
-SbsFullyConnectedLayer SbsFullyConnectedLayer_new(uint16_t neurons,
+static SbsLayer * SbsFullyConnectedLayer_new(uint16_t neurons,
                                                   uint16_t kernel_size,
                                                   WeightShift weight_shift,
                                                   uint16_t neurons_prev_Layer)
 {
-  return SbsBaseLayer_new(1, 1, neurons, kernel_size, 1, weight_shift, neurons_prev_Layer);
+  return (SbsLayer *) SbsBaseLayer_new (1, 1, neurons, kernel_size, 1,
+                                        weight_shift, neurons_prev_Layer);
 }
 
-SbsOutputLayer SbsOutputLayer_new(uint16_t neurons,
+static SbsLayer * SbsOutputLayer_new(uint16_t neurons,
                                   WeightShift weight_shift,
                                   uint16_t neurons_prev_Layer)
 {
-  return SbsBaseLayer_new(1, 1, neurons, 1, 1, weight_shift, neurons_prev_Layer);
+  return (SbsLayer *) SbsBaseLayer_new (1, 1, neurons, 1, 1, weight_shift,
+                                        neurons_prev_Layer);
 }
 /*****************************************************************************/
 
-SbsWeightMatrix SbsWeightMatrix_new(uint16_t rows, uint16_t columns, char * file_name)
+static SbsWeightMatrix SbsWeightMatrix_new(uint16_t rows, uint16_t columns, char * file_name)
 {
   Multivector * weight_watrix = NULL;
 
@@ -800,97 +810,21 @@ SbsWeightMatrix SbsWeightMatrix_new(uint16_t rows, uint16_t columns, char * file
 
 /*****************************************************************************/
 
-struct SbsNetwork_VTable SbsNetwork_vtable = {SbsBaseNetwork_new,
-                                              SbsBaseNetwork_delete,
-                                              SbsBaseNetwork_giveLayer,
-                                              SbsBaseNetwork_loadInput,
-                                              SbsBaseNetwork_updateCycle,
-                                              SbsBaseNetwork_getInferredOutput,
-                                              SbsBaseNetwork_getInputLabel,
-                                              SbsBaseNetwork_getOutputVector};
+SbsNetwork _SbsNetwork = {SbsBaseNetwork_new,
+                          SbsBaseNetwork_delete,
+                          SbsBaseNetwork_giveLayer,
+                          SbsBaseNetwork_loadInput,
+                          SbsBaseNetwork_updateCycle,
+                          SbsBaseNetwork_getInferredOutput,
+                          SbsBaseNetwork_getInputLabel,
+                          SbsBaseNetwork_getOutputVector};
 
-//struct SbsWeightMatrix_VTable SbsWeightMatrix_vtable = {SbsWeightMatrix_new};
+SbsLayer _SbsLayer = {SbsBaseLayer_new, SbsBaseLayer_delete,
+    SbsBaseLayer_setEpsilon, SbsBaseLayer_giveWeights};
 
-void sbs_test(void)
-{
-//  NeuronState * output_vector;
-//  uint16_t output_vector_size;
-//
-//  sgenrand(666);
-//
-//  /*********************/
-//  // ********** Create SBS Neural Network **********
-//  printf("\n==========  SbS Neural Network  ===============\n");
-//  printf("\n==========  MNIST example  ====================\n");
-//
-//  SbsNetwork * network = SbsNetwork_new();
-//
-//  // Instantiate SBS Network objects
-//  SbsInputLayer input_layer = SbsInputLayer_new(24, 24, 50);
-//  SbsNetwork_giveLayer(network, input_layer);
-//
-//  SbsWeightMatrix P_IN_H1 = SbsWeightMatrix_new(2 * 5 * 5, 32, "/home/nevarez/Downloads/MNIST/W_X_H1_Iter0.bin");
-//
-//  SbsConvolutionLayer H1 = SbsConvolutionLayer_new(24, 24, 32, 1, ROW_SHIFT, 50);
-//  SbsBaseLayer_setEpsilon(H1, 0.1);
-//  SbsBaseLayer_giveWeights(H1, P_IN_H1);
-//  SbsNetwork_giveLayer(network, H1);
-//
-//  SbsWeightMatrix P_H1_H2 = SbsWeightMatrix_new(32 * 2 * 2, 32, "/home/nevarez/Downloads/MNIST/W_H1_H2.bin");
-//
-//  SbsPoolingLayer H2 = SbsPoolingLayer_new(12, 12, 32, 2, COLUMN_SHIFT, 32);
-//  SbsBaseLayer_setEpsilon(H2, 0.1 / 4.0);
-//  SbsBaseLayer_giveWeights(H2, P_H1_H2);
-//  SbsNetwork_giveLayer(network, H2);
-//
-//  SbsWeightMatrix P_H2_H3 = SbsWeightMatrix_new(32 * 5 * 5, 64, "/home/nevarez/Downloads/MNIST/W_H2_H3_Iter0.bin");
-//
-//  SbsConvolutionLayer H3 = SbsConvolutionLayer_new(8, 8, 64, 5, COLUMN_SHIFT, 32);
-//  SbsBaseLayer_setEpsilon(H3, 0.1 / 25.0);
-//  SbsBaseLayer_giveWeights(H3, P_H2_H3);
-//  SbsNetwork_giveLayer(network, H3);
-//
-//  SbsWeightMatrix P_H3_H4 = SbsWeightMatrix_new(64 * 2 * 2, 64, "/home/nevarez/Downloads/MNIST/W_H3_H4.bin");
-//
-//  SbsPoolingLayer H4 = SbsPoolingLayer_new(4, 4, 64, 2, COLUMN_SHIFT, 64);
-//  SbsBaseLayer_setEpsilon(H4, 0.1 / 4.0);
-//  SbsBaseLayer_giveWeights(H4, P_H3_H4);
-//  SbsNetwork_giveLayer(network, H4);
-//
-//  SbsWeightMatrix P_H4_H5 = SbsWeightMatrix_new(64 * 4 * 4, 1024, "/home/nevarez/Downloads/MNIST/W_H4_H5_Iter0.bin");
-//
-//  SbsFullyConnectedLayer H5 = SbsFullyConnectedLayer_new(1024, 4, ROW_SHIFT, 64);
-//  SbsBaseLayer_setEpsilon(H5, 0.1 / 16.0);
-//  SbsBaseLayer_giveWeights(H5, P_H4_H5);
-//  SbsNetwork_giveLayer(network, H5);
-//
-//  SbsWeightMatrix P_H5_HY = SbsWeightMatrix_new(1024, 10, "/home/nevarez/Downloads/MNIST/W_H5_HY_Iter0.bin");
-//
-//  SbsOutputLayer HY = SbsOutputLayer_new(10, ROW_SHIFT, 0);
-//  SbsBaseLayer_setEpsilon(HY, 0.1);
-//  SbsBaseLayer_giveWeights(HY, P_H5_HY);
-//  SbsNetwork_giveLayer(network, HY);
-//
-//    // Perform Network load pattern and update cycle
-//  SbsNetwork_loadInput(network, "/home/nevarez/Downloads/MNIST/Pattern/Input_1.bin");
-//  SbsNetwork_updateCycle(network, 1000);
-//
-//  printf("\n==========  Results ===========================\n");
-//
-//  printf("\n Output value: %d \n", SbsNetwork_getInferredOutput(network));
-//  printf("\n Label value: %d \n", SbsNetwork_getInputLabel(network));
-//
-//  SbsNetwork_getOutputVector(network, &output_vector, &output_vector_size);
-//
-//  printf("\n==========  Output layer values ===============\n");
-//
-//  while (output_vector_size --)
-//  {
-//    printf("[ %d ] = %.6f\n", output_vector_size, output_vector[output_vector_size]);
-//  }
-//
-//  SbsNetwork_delete(&network);
-//  /*********************/
-}
+SbsNew sbs_new = {SbsBaseNetwork_new, SbsBaseLayer_new, SbsWeightMatrix_new,
+    SbsInputLayer_new, SbsConvolutionLayer_new, SbsPoolingLayer_new,
+    SbsFullyConnectedLayer_new, SbsOutputLayer_new};
+
 
 /*****************************************************************************/
