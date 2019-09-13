@@ -23,7 +23,6 @@
 #pragma pack(1)     /* set alignment to 1 byte boundary */
 
 
-typedef float     NeuronState;
 typedef float     Weight;
 typedef uint16_t  SpikeID;
 
@@ -33,14 +32,6 @@ typedef struct
   uint8_t  dimensionality;
   uint16_t dimension_size[1]; /*[0] = rows, [1] = columns, [2] = neurons... [n] = N*/
 } Multivector;
-
-
-typedef enum
-{
-  ROW_SHIFT,
-  COLUMN_SHIFT
-} WeightShift;
-
 
 typedef struct
 {
@@ -55,20 +46,15 @@ typedef struct
   float       epsilon;
 } SbsBaseLayer;
 
-typedef void * SbsInputLayer;
-typedef void * SbsConvolutionLayer;
-typedef void * SbsPoolingLayer;
-typedef void * SbsFullyConnectedLayer;
-typedef void * SbsOutputLayer;
-typedef void * SbsWeightMatrix;
-
 typedef struct
 {
-  uint8_t         size;
-  SbsBaseLayer ** layer_array;
-  uint8_t         input_label;
-  uint8_t         inferred_output;
-} SbsNetwork;
+  struct SbsNetwork_VTable vtbl;
+
+  uint8_t           size;
+  SbsBaseLayer **   layer_array;
+  uint8_t           input_label;
+  uint8_t           inferred_output;
+} SbsBaseNetwork;
 
 
 #pragma pack(pop)   /* restore original alignment from stack */
@@ -320,22 +306,22 @@ static void SbsBaseLayer_initialize(SbsBaseLayer * layer)
   }
 }
 
-static void SbsBaseLayer_giveWeights(SbsBaseLayer * layer, Multivector * weight_matrix)
+void SbsBaseLayer_giveWeights(void * layer, void * weight_matrix)
 {
   ASSERT(layer != NULL);
   ASSERT(weight_matrix != NULL);
 
   if (layer != NULL)
-    layer->weight_matrix = weight_matrix;
+    ((SbsBaseLayer *)layer)->weight_matrix = weight_matrix;
 }
 
-static void SbsBaseLayer_setEpsilon(SbsBaseLayer * layer, float epsilon)
+void SbsBaseLayer_setEpsilon(void * layer, float epsilon)
 {
   ASSERT(layer != NULL);
   /*ASSERT(epsilon != 0.0f);*/ /* 0.0 is allowed? */
 
   if (layer != NULL)
-    layer->epsilon = epsilon;
+    ((SbsBaseLayer *)layer)->epsilon = epsilon;
 }
 
 static Multivector * SbsBaseLayer_generateSpikes(SbsBaseLayer * layer)
@@ -479,17 +465,18 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, Multivector * input_spike_
 
 /*****************************************************************************/
 
-static SbsNetwork * SbsNetwork_new(void)
+static SbsBaseNetwork * SbsBaseNetwork_new(void)
 {
-  SbsNetwork * network = NULL;
+  SbsBaseNetwork * network = NULL;
 
-  network = malloc(sizeof(SbsNetwork));
+  network = malloc(sizeof(SbsBaseNetwork));
 
   ASSERT(network != NULL);
 
   if (network != NULL)
   {
-      memset(network, 0x0, sizeof(SbsNetwork));
+      memset(network, 0x0, sizeof(SbsBaseNetwork));
+      network->vtbl = SbsNetwork_vtable;
       network->input_label = (uint8_t)-1;
       network->inferred_output = (uint8_t)-1;
   }
@@ -500,7 +487,7 @@ static SbsNetwork * SbsNetwork_new(void)
   return network;
 }
 
-static void SbsNetwork_delete(SbsNetwork ** network)
+static void SbsBaseNetwork_delete(SbsBaseNetwork ** network)
 {
   ASSERT(network != NULL);
   ASSERT(*network != NULL);
@@ -515,7 +502,7 @@ static void SbsNetwork_delete(SbsNetwork ** network)
   }
 }
 
-static void SbsNetwork_giveLayer(SbsNetwork * network, SbsBaseLayer * layer)
+static void SbsBaseNetwork_giveLayer(SbsBaseNetwork * network, SbsBaseLayer * layer)
 {
   ASSERT(network != NULL);
   ASSERT(layer != NULL);
@@ -541,7 +528,7 @@ static void SbsNetwork_giveLayer(SbsNetwork * network, SbsBaseLayer * layer)
   }
 }
 
-static void SbsNetwork_loadInput(SbsNetwork * network, char * file_name)
+static void SbsBaseNetwork_loadInput(SbsBaseNetwork * network, char * file_name)
 {
   ASSERT(network != NULL);
   ASSERT(1 <= network->size);
@@ -597,7 +584,7 @@ static void SbsNetwork_loadInput(SbsNetwork * network, char * file_name)
   }
 }
 
-static void SbsNetwork_updateCycle(SbsNetwork * network, uint16_t cycles)
+static void SbsBaseNetwork_updateCycle(SbsBaseNetwork * network, uint16_t cycles)
 {
   ASSERT(network != NULL);
   ASSERT(3 <= network->size);
@@ -668,7 +655,7 @@ static void SbsNetwork_updateCycle(SbsNetwork * network, uint16_t cycles)
   }
 }
 
-static uint8_t SbsNetwork_getInferredOutput(SbsNetwork * network)
+static uint8_t SbsBaseNetwork_getInferredOutput(SbsBaseNetwork * network)
 {
   uint8_t inferred_output = (uint8_t)-1;
 
@@ -681,7 +668,7 @@ static uint8_t SbsNetwork_getInferredOutput(SbsNetwork * network)
   return inferred_output;
 }
 
-static uint8_t SbsNetwork_getInputLabel(SbsNetwork * network)
+static uint8_t SbsBaseNetwork_getInputLabel(SbsBaseNetwork * network)
 {
   uint8_t input_label = (uint8_t)-1;
 
@@ -694,7 +681,7 @@ static uint8_t SbsNetwork_getInputLabel(SbsNetwork * network)
   return input_label;
 }
 
-static void SbsNetwork_getOutputVector(SbsNetwork * network, NeuronState ** output_vector, uint16_t * output_vector_size)
+static void SbsBaseNetwork_getOutputVector(SbsBaseNetwork * network, NeuronState ** output_vector, uint16_t * output_vector_size)
 {
   ASSERT(network != NULL);
   ASSERT(0 < network->size);
@@ -813,86 +800,97 @@ SbsWeightMatrix SbsWeightMatrix_new(uint16_t rows, uint16_t columns, char * file
 
 /*****************************************************************************/
 
+struct SbsNetwork_VTable SbsNetwork_vtable = {SbsBaseNetwork_new,
+                                              SbsBaseNetwork_delete,
+                                              SbsBaseNetwork_giveLayer,
+                                              SbsBaseNetwork_loadInput,
+                                              SbsBaseNetwork_updateCycle,
+                                              SbsBaseNetwork_getInferredOutput,
+                                              SbsBaseNetwork_getInputLabel,
+                                              SbsBaseNetwork_getOutputVector};
+
+//struct SbsWeightMatrix_VTable SbsWeightMatrix_vtable = {SbsWeightMatrix_new};
+
 void sbs_test(void)
 {
-  NeuronState * output_vector;
-  uint16_t output_vector_size;
-
-  sgenrand(666);
-
-  /*********************/
-  // ********** Create SBS Neural Network **********
-  printf("\n==========  SbS Neural Network  ===============/n");
-  printf("\n==========  MNIST example  ====================/n");
-
-  SbsNetwork * network = SbsNetwork_new();
-
-  // Instantiate SBS Network objects
-  SbsInputLayer input_layer = SbsInputLayer_new(24, 24, 50);
-  SbsNetwork_giveLayer(network, input_layer);
-
-  SbsWeightMatrix P_IN_H1 = SbsWeightMatrix_new(2 * 5 * 5, 32, "/home/nevarez/Downloads/MNIST/W_X_H1_Iter0.bin");
-
-  SbsConvolutionLayer H1 = SbsConvolutionLayer_new(24, 24, 32, 1, ROW_SHIFT, 50);
-  SbsBaseLayer_setEpsilon(H1, 0.1);
-  SbsBaseLayer_giveWeights(H1, P_IN_H1);
-  SbsNetwork_giveLayer(network, H1);
-
-  SbsWeightMatrix P_H1_H2 = SbsWeightMatrix_new(32 * 2 * 2, 32, "/home/nevarez/Downloads/MNIST/W_H1_H2.bin");
-
-  SbsPoolingLayer H2 = SbsPoolingLayer_new(12, 12, 32, 2, COLUMN_SHIFT, 32);
-  SbsBaseLayer_setEpsilon(H2, 0.1 / 4.0);
-  SbsBaseLayer_giveWeights(H2, P_H1_H2);
-  SbsNetwork_giveLayer(network, H2);
-
-  SbsWeightMatrix P_H2_H3 = SbsWeightMatrix_new(32 * 5 * 5, 64, "/home/nevarez/Downloads/MNIST/W_H2_H3_Iter0.bin");
-
-  SbsConvolutionLayer H3 = SbsConvolutionLayer_new(8, 8, 64, 5, COLUMN_SHIFT, 32);
-  SbsBaseLayer_setEpsilon(H3, 0.1 / 25.0);
-  SbsBaseLayer_giveWeights(H3, P_H2_H3);
-  SbsNetwork_giveLayer(network, H3);
-
-  SbsWeightMatrix P_H3_H4 = SbsWeightMatrix_new(64 * 2 * 2, 64, "/home/nevarez/Downloads/MNIST/W_H3_H4.bin");
-
-  SbsPoolingLayer H4 = SbsPoolingLayer_new(4, 4, 64, 2, COLUMN_SHIFT, 64);
-  SbsBaseLayer_setEpsilon(H4, 0.1 / 4.0);
-  SbsBaseLayer_giveWeights(H4, P_H3_H4);
-  SbsNetwork_giveLayer(network, H4);
-
-  SbsWeightMatrix P_H4_H5 = SbsWeightMatrix_new(64 * 4 * 4, 1024, "/home/nevarez/Downloads/MNIST/W_H4_H5_Iter0.bin");
-
-  SbsFullyConnectedLayer H5 = SbsFullyConnectedLayer_new(1024, 4, ROW_SHIFT, 64);
-  SbsBaseLayer_setEpsilon(H5, 0.1 / 16.0);
-  SbsBaseLayer_giveWeights(H5, P_H4_H5);
-  SbsNetwork_giveLayer(network, H5);
-
-  SbsWeightMatrix P_H5_HY = SbsWeightMatrix_new(1024, 10, "/home/nevarez/Downloads/MNIST/W_H5_HY_Iter0.bin");
-
-  SbsOutputLayer HY = SbsOutputLayer_new(10, ROW_SHIFT, 0);
-  SbsBaseLayer_setEpsilon(HY, 0.1);
-  SbsBaseLayer_giveWeights(HY, P_H5_HY);
-  SbsNetwork_giveLayer(network, HY);
-
-    // Perform Network load pattern and update cycle
-  SbsNetwork_loadInput(network, "/home/nevarez/Downloads/MNIST/Pattern/Input_5.bin");
-  SbsNetwork_updateCycle(network, 1000);
-
-  printf("\n==========  Results ===========================\n");
-
-  printf("\n Output value: %d \n", SbsNetwork_getInferredOutput(network));
-  printf("\n Label value: %d \n", SbsNetwork_getInputLabel(network));
-
-  SbsNetwork_getOutputVector(network, &output_vector, &output_vector_size);
-
-  printf("\n==========  Output layer values ===============\n");
-
-  while (output_vector_size --)
-  {
-    printf("[ %d ] = %.6f\n", output_vector_size, output_vector[output_vector_size]);
-  }
-
-  SbsNetwork_delete(&network);
-  /*********************/
+//  NeuronState * output_vector;
+//  uint16_t output_vector_size;
+//
+//  sgenrand(666);
+//
+//  /*********************/
+//  // ********** Create SBS Neural Network **********
+//  printf("\n==========  SbS Neural Network  ===============\n");
+//  printf("\n==========  MNIST example  ====================\n");
+//
+//  SbsNetwork * network = SbsNetwork_new();
+//
+//  // Instantiate SBS Network objects
+//  SbsInputLayer input_layer = SbsInputLayer_new(24, 24, 50);
+//  SbsNetwork_giveLayer(network, input_layer);
+//
+//  SbsWeightMatrix P_IN_H1 = SbsWeightMatrix_new(2 * 5 * 5, 32, "/home/nevarez/Downloads/MNIST/W_X_H1_Iter0.bin");
+//
+//  SbsConvolutionLayer H1 = SbsConvolutionLayer_new(24, 24, 32, 1, ROW_SHIFT, 50);
+//  SbsBaseLayer_setEpsilon(H1, 0.1);
+//  SbsBaseLayer_giveWeights(H1, P_IN_H1);
+//  SbsNetwork_giveLayer(network, H1);
+//
+//  SbsWeightMatrix P_H1_H2 = SbsWeightMatrix_new(32 * 2 * 2, 32, "/home/nevarez/Downloads/MNIST/W_H1_H2.bin");
+//
+//  SbsPoolingLayer H2 = SbsPoolingLayer_new(12, 12, 32, 2, COLUMN_SHIFT, 32);
+//  SbsBaseLayer_setEpsilon(H2, 0.1 / 4.0);
+//  SbsBaseLayer_giveWeights(H2, P_H1_H2);
+//  SbsNetwork_giveLayer(network, H2);
+//
+//  SbsWeightMatrix P_H2_H3 = SbsWeightMatrix_new(32 * 5 * 5, 64, "/home/nevarez/Downloads/MNIST/W_H2_H3_Iter0.bin");
+//
+//  SbsConvolutionLayer H3 = SbsConvolutionLayer_new(8, 8, 64, 5, COLUMN_SHIFT, 32);
+//  SbsBaseLayer_setEpsilon(H3, 0.1 / 25.0);
+//  SbsBaseLayer_giveWeights(H3, P_H2_H3);
+//  SbsNetwork_giveLayer(network, H3);
+//
+//  SbsWeightMatrix P_H3_H4 = SbsWeightMatrix_new(64 * 2 * 2, 64, "/home/nevarez/Downloads/MNIST/W_H3_H4.bin");
+//
+//  SbsPoolingLayer H4 = SbsPoolingLayer_new(4, 4, 64, 2, COLUMN_SHIFT, 64);
+//  SbsBaseLayer_setEpsilon(H4, 0.1 / 4.0);
+//  SbsBaseLayer_giveWeights(H4, P_H3_H4);
+//  SbsNetwork_giveLayer(network, H4);
+//
+//  SbsWeightMatrix P_H4_H5 = SbsWeightMatrix_new(64 * 4 * 4, 1024, "/home/nevarez/Downloads/MNIST/W_H4_H5_Iter0.bin");
+//
+//  SbsFullyConnectedLayer H5 = SbsFullyConnectedLayer_new(1024, 4, ROW_SHIFT, 64);
+//  SbsBaseLayer_setEpsilon(H5, 0.1 / 16.0);
+//  SbsBaseLayer_giveWeights(H5, P_H4_H5);
+//  SbsNetwork_giveLayer(network, H5);
+//
+//  SbsWeightMatrix P_H5_HY = SbsWeightMatrix_new(1024, 10, "/home/nevarez/Downloads/MNIST/W_H5_HY_Iter0.bin");
+//
+//  SbsOutputLayer HY = SbsOutputLayer_new(10, ROW_SHIFT, 0);
+//  SbsBaseLayer_setEpsilon(HY, 0.1);
+//  SbsBaseLayer_giveWeights(HY, P_H5_HY);
+//  SbsNetwork_giveLayer(network, HY);
+//
+//    // Perform Network load pattern and update cycle
+//  SbsNetwork_loadInput(network, "/home/nevarez/Downloads/MNIST/Pattern/Input_1.bin");
+//  SbsNetwork_updateCycle(network, 1000);
+//
+//  printf("\n==========  Results ===========================\n");
+//
+//  printf("\n Output value: %d \n", SbsNetwork_getInferredOutput(network));
+//  printf("\n Label value: %d \n", SbsNetwork_getInputLabel(network));
+//
+//  SbsNetwork_getOutputVector(network, &output_vector, &output_vector_size);
+//
+//  printf("\n==========  Output layer values ===============\n");
+//
+//  while (output_vector_size --)
+//  {
+//    printf("[ %d ] = %.6f\n", output_vector_size, output_vector[output_vector_size]);
+//  }
+//
+//  SbsNetwork_delete(&network);
+//  /*********************/
 }
 
 /*****************************************************************************/
