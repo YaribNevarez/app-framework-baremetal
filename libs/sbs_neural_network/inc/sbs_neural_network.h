@@ -10,6 +10,9 @@
 
 #include <stdint.h>
 
+#pragma pack(push)
+#pragma pack(1)
+
 typedef enum
 {
   ROW_SHIFT,
@@ -52,15 +55,15 @@ extern struct SbsNetwork_VTable _SbsNetwork;
 
 typedef struct
 {
-  SbsNetwork * (*Network)(void);
+  SbsNetwork *    (*Network)(void);
 
-  SbsLayer *   (*Layer)  (uint16_t rows,
-                          uint16_t columns,
-                          uint16_t neurons,
-                          uint16_t kernel_size,
-                          uint16_t kernel_stride,
-                          WeightShift weight_shift,
-                          uint16_t    neurons_previous_Layer);
+  SbsLayer *      (*Layer)  (uint16_t rows,
+                             uint16_t columns,
+                             uint16_t neurons,
+                             uint16_t kernel_size,
+                             uint16_t kernel_stride,
+                             WeightShift weight_shift,
+                             uint16_t    neurons_previous_Layer);
 
   SbsWeightMatrix (*WeightMatrix)(uint16_t rows, uint16_t columns, char * file_name);
 
@@ -73,25 +76,26 @@ typedef struct
                                       WeightShift weight_shift,
                                       uint16_t neurons_prev_Layer);
 
-  SbsLayer * (*PoolingLayer)(uint16_t rows,
-                             uint16_t columns,
-                             uint16_t neurons,
-                             uint16_t kernel_size,
-                             WeightShift weight_shift,
-                             uint16_t neurons_prev_Layer);
+  SbsLayer *      (*PoolingLayer)(uint16_t rows,
+                                  uint16_t columns,
+                                  uint16_t neurons,
+                                  uint16_t kernel_size,
+                                  WeightShift weight_shift,
+                                  uint16_t neurons_prev_Layer);
 
-  SbsLayer * (*FullyConnectedLayer)(uint16_t neurons,
-                                    uint16_t kernel_size,
-                                    WeightShift weight_shift,
-                                    uint16_t neurons_prev_Layer);
+  SbsLayer *      (*FullyConnectedLayer)(uint16_t neurons,
+                                         uint16_t kernel_size,
+                                         WeightShift weight_shift,
+                                         uint16_t neurons_prev_Layer);
 
-  SbsLayer * (*OutputLayer)(uint16_t neurons,
-                            WeightShift weight_shift,
-                            uint16_t neurons_prev_Layer);
+  SbsLayer *      (*OutputLayer)(uint16_t neurons,
+                                 WeightShift weight_shift,
+                                 uint16_t neurons_prev_Layer);
 } SbsNew;
 
 
 extern SbsNew sbs_new;
 
+#pragma pack(pop)
 
 #endif /* SBS_NN_H_ */

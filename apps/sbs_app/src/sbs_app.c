@@ -40,11 +40,8 @@ Result SnnApp_initialize(void)
 
 Result SnnApp_run(void)
 {
-  //sbs_test();
   NeuronState * output_vector;
   uint16_t output_vector_size;
-
-  sgenrand(666);
 
   /*********************/
   // ********** Create SBS Neural Network **********

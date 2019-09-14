@@ -36,15 +36,16 @@ typedef struct
 typedef struct
 {
   SbsLayer      vtbl;
+
   Multivector * state_matrix;
   Multivector * weight_matrix;
   Multivector * spike_matrix;
-
-  uint16_t    kernel_size;
-  uint16_t    kernel_stride;
-  uint16_t    neurons_previous_Layer;
-  WeightShift weight_shift;
-  float       epsilon;
+  NeuronState * update_buffer;
+  uint16_t      kernel_size;
+  uint16_t      kernel_stride;
+  uint16_t      neurons_previous_Layer;
+  WeightShift   weight_shift;
+  float         epsilon;
 } SbsBaseLayer;
 
 typedef struct
@@ -171,6 +172,12 @@ static SbsLayer * SbsBaseLayer_new(uint16_t rows,
 
     layer->spike_matrix = spike_matrix;
 
+    /* Allocate update buffer */
+
+    layer->update_buffer = malloc(neurons * sizeof(NeuronState));
+
+    ASSERT(layer->update_buffer != NULL);
+
     /* Assign parameters */
     layer->kernel_size   = kernel_size;
     layer->kernel_stride = kernel_stride;
@@ -191,6 +198,7 @@ static void SbsBaseLayer_delete(SbsLayer ** layer_ptr)
     Multivector_delete(&((*layer)->state_matrix));
     Multivector_delete(&((*layer)->spike_matrix));
     if ((*layer)->weight_matrix != NULL) Multivector_delete(&((*layer)->weight_matrix));
+    free((*layer)->update_buffer);
     free(*layer);
     *layer = NULL;
   }
@@ -211,31 +219,22 @@ static void SbsBaseLayer_initializeIP(NeuronState * state_vector, uint16_t size)
   }
 }
 
-static void SbsBaseLayer_updateIP(NeuronState * state_vector, Weight * weight_vector, uint16_t size, float epsilon)
+static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vector, Weight * weight_vector, uint16_t size, float epsilon)
 {
   ASSERT(state_vector != NULL);
   ASSERT(weight_vector != NULL);
+  ASSERT(layer->update_buffer != NULL);
   ASSERT(0 < size);
 
-  if ((state_vector != NULL) && (weight_vector != NULL) && (0 < size))
+  if ((state_vector != NULL) && (weight_vector != NULL)
+      && (layer->update_buffer != NULL) && (0 < size))
   {
-    static NeuronState * temp_data      = NULL;
-    static size_t        temp_data_size = 0;
+    NeuronState * temp_data     = layer->update_buffer;
 
     NeuronState sum             = 0.0f;
     NeuronState reverse_epsilon = 1.0f / (1.0f + epsilon);
     NeuronState epsion_over_sum = 0.0f;
     uint16_t    neuron;
-
-    if (temp_data_size < size)
-    {
-      temp_data = (NeuronState *) realloc(temp_data, size * sizeof(NeuronState));
-
-      ASSERT(temp_data != NULL);
-      if (temp_data == NULL) return;
-
-      temp_data_size = size;
-    }
 
     for (neuron = 0; neuron < size; neuron ++)
     {
@@ -457,7 +456,7 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, Multivector * input_spike_
 
               weight_vector = &weight_data[(spikeID + section_shift) * weight_columns];
 
-              SbsBaseLayer_updateIP(state_vector, weight_vector, neurons, epsilon);
+              SbsBaseLayer_updateIP(layer, state_vector, weight_vector, neurons, epsilon);
             }
           }
         }
@@ -482,6 +481,8 @@ static SbsNetwork * SbsBaseNetwork_new(void)
       network->vtbl = _SbsNetwork;
       network->input_label = (uint8_t)-1;
       network->inferred_output = (uint8_t)-1;
+
+      sgenrand(666);
   }
 
   ASSERT(network->size == 0);
