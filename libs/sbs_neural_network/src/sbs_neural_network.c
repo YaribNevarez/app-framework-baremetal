@@ -2,7 +2,7 @@
  * sbs_nn.c
  *
  *  Created on: Sep 7, 2019
- *      Author: yarib
+ *      Author: Yarib Nevarez
  */
 
 
@@ -61,15 +61,31 @@ typedef struct
 #pragma pack(pop)   /* restore original alignment from stack */
 
 /*****************************************************************************/
+/************************ Memory manager *************************************/
+#define        MEMORY_SIZE    4763116
 
-static void * ram_block_request(size_t size)
+static size_t  Memory_blockIndex = 0;
+
+static void * Memory_requestBlock(size_t size)
 {
-  static size_t pool_size = 0;
-  pool_size += size;
+  static uint8_t Memory_block[MEMORY_SIZE];
+  void * ptr = NULL;
 
-  return malloc(size);
+  if (Memory_blockIndex + size <= sizeof(Memory_block))
+  {
+    ptr = (void *) &Memory_block[Memory_blockIndex];
+    Memory_blockIndex += size;
+  }
+
+  return ptr;
 }
 
+static size_t Memory_getBlockSize(void)
+{
+  return Memory_blockIndex;
+}
+
+/*****************************************************************************/
 /*****************************************************************************/
 
 static Multivector * Multivector_new(uint8_t data_type_size, uint8_t dimensionality, ...)
@@ -100,7 +116,7 @@ static Multivector * Multivector_new(uint8_t data_type_size, uint8_t dimensional
 
       va_end(argument_list);
 
-      multivector->data = ram_block_request(data_size * data_type_size);
+      multivector->data = Memory_requestBlock(data_size * data_type_size);
 
       ASSERT(multivector->data != NULL);
 
@@ -604,61 +620,53 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
   {
     uint16_t i;
     /* Initialize all layers except the input-layer */
-    for (i = 1; i < network->size; i ++)
+    for (i = 1; i < network->size; i++)
     {
       ASSERT(network->layer_array[i] != NULL);
       SbsBaseLayer_initialize(network->layer_array[i]);
     }
 
-    Multivector ** spike_array = malloc ((network->size - 1) * sizeof(Multivector *));
-
-    ASSERT(spike_array != NULL);
-
-    if (spike_array != NULL)
+    /************************ Begins Update cycle **************************/
+    while (cycles--)
     {
-      /************************ Begins Update cycle **************************/
-      while (cycles --)
+      for (i = 0; i < network->size; i++)
       {
-        for (i = 0; i < network->size - 1; i ++)
-        {
-          spike_array[i] = SbsBaseLayer_generateSpikes(network->layer_array[i]);
-        }
+        if (i < network->size - 1)
+          SbsBaseLayer_generateSpikes(network->layer_array[i]);
 
-        for (i = 1; i < network->size; i ++)
-        {
-          SbsBaseLayer_update(network->layer_array[i], spike_array[i - 1]);
-        }
-
-        if (cycles % 100 == 0) printf(" - Spike cycle: %d\n", cycles);
+        if (0 < i)
+          SbsBaseLayer_update(network->layer_array[i],
+              network->layer_array[i - 1]->spike_matrix);
       }
-      /************************ Ends Update cycle ****************************/
 
-      free(spike_array);
+      if (cycles % 100 == 0)
+        printf(" - Spike cycle: %d\n", cycles);
+    }
+    /************************ Ends Update cycle ****************************/
 
-      /************************ Update inferred output ************************/
+    /************************ Get inferred output **************************/
+    {
+      NeuronState max_value = 0;
+      uint16_t max_value_position = 0;
+      SbsBaseLayer * output_layer = network->layer_array[network->size - 1];
+      Multivector * output_state_matrix = output_layer->state_matrix;
+      NeuronState * output_state_vector = output_state_matrix->data;
+
+      ASSERT(output_state_matrix->dimensionality == 3);
+      ASSERT(output_state_matrix->dimension_size[0] == 1);
+      ASSERT(output_state_matrix->dimension_size[1] == 1);
+      ASSERT(0 < output_state_matrix->dimension_size[2]);
+
+      for (i = 0; i < output_state_matrix->dimension_size[2]; i++)
       {
-        NeuronState max_value = 0;
-        uint16_t max_value_position = 0;
-        SbsBaseLayer * output_layer = network->layer_array[network->size - 1];
-        Multivector * output_state_matrix = output_layer->state_matrix;
-        NeuronState * output_state_vector = output_state_matrix->data;
-
-        ASSERT(output_state_matrix->dimensionality == 3);
-        ASSERT(output_state_matrix->dimension_size[0] == 1);
-        ASSERT(output_state_matrix->dimension_size[1] == 1);
-        ASSERT(0 < output_state_matrix->dimension_size[2]);
-
-        for (i = 0; i < output_state_matrix->dimension_size[2]; i++)
+        if (max_value < output_state_vector[i])
         {
-          if (max_value < output_state_vector[i])
-          {
-            max_value_position = i;
-            max_value = output_state_vector[i];
-          }
+          max_value_position = i;
+          max_value = output_state_vector[i];
         }
-
-        network->inferred_output = max_value_position;
       }
+
+      network->inferred_output = max_value_position;
     }
   }
 }
@@ -721,6 +729,10 @@ static void SbsBaseNetwork_getOutputVector(SbsNetwork * network_ptr, NeuronState
   }
 }
 
+static size_t SbsBaseNetwork_getMemorySize(SbsNetwork * network)
+{
+  return Memory_getBlockSize();
+}
 /*****************************************************************************/
 
 static SbsLayer * SbsInputLayer_new(uint16_t rows, uint16_t columns, uint16_t neurons)
@@ -818,14 +830,22 @@ SbsNetwork _SbsNetwork = {SbsBaseNetwork_new,
                           SbsBaseNetwork_updateCycle,
                           SbsBaseNetwork_getInferredOutput,
                           SbsBaseNetwork_getInputLabel,
-                          SbsBaseNetwork_getOutputVector};
+                          SbsBaseNetwork_getOutputVector,
+                          SbsBaseNetwork_getMemorySize};
 
-SbsLayer _SbsLayer = {SbsBaseLayer_new, SbsBaseLayer_delete,
-    SbsBaseLayer_setEpsilon, SbsBaseLayer_giveWeights};
+SbsLayer _SbsLayer = {SbsBaseLayer_new,
+                      SbsBaseLayer_delete,
+                      SbsBaseLayer_setEpsilon,
+                      SbsBaseLayer_giveWeights};
 
-SbsNew sbs_new = {SbsBaseNetwork_new, SbsBaseLayer_new, SbsWeightMatrix_new,
-    SbsInputLayer_new, SbsConvolutionLayer_new, SbsPoolingLayer_new,
-    SbsFullyConnectedLayer_new, SbsOutputLayer_new};
+SbsNew sbs_new = {SbsBaseNetwork_new,
+                  SbsBaseLayer_new,
+                  SbsWeightMatrix_new,
+                  SbsInputLayer_new,
+                  SbsConvolutionLayer_new,
+                  SbsPoolingLayer_new,
+                  SbsFullyConnectedLayer_new,
+                  SbsOutputLayer_new};
 
 
 /*****************************************************************************/

@@ -51,11 +51,14 @@ Result SnnApp_run(void)
   SbsNetwork * network = sbs_new.Network();
 
   // Instantiate SBS Network objects
+
+  /** Layer = 24x24x50, Spike = 24x24, Weight = 0 **/
   SbsLayer * input_layer = sbs_new.InputLayer(24, 24, 50);
   network->giveLayer(network, input_layer);
 
   SbsWeightMatrix P_IN_H1 = sbs_new.WeightMatrix(2 * 5 * 5, 32, "/home/nevarez/Downloads/MNIST/W_X_H1_Iter0.bin");
 
+  /** Layer = 24x24x32, Spike = 24x24, Weight = 50x32 **/
   SbsLayer * H1 = sbs_new.ConvolutionLayer(24, 24, 32, 1, ROW_SHIFT, 50);
   H1->setEpsilon(H1, 0.1);
   H1->giveWeights(H1, P_IN_H1);
@@ -63,6 +66,7 @@ Result SnnApp_run(void)
 
   SbsWeightMatrix P_H1_H2 = sbs_new.WeightMatrix(32 * 2 * 2, 32, "/home/nevarez/Downloads/MNIST/W_H1_H2.bin");
 
+  /** Layer = 12x12x32, Spike = 12x12, Weight = 128x32 **/
   SbsLayer * H2 = sbs_new.PoolingLayer(12, 12, 32, 2, COLUMN_SHIFT, 32);
   H2->setEpsilon(H2, 0.1 / 4.0);
   H2->giveWeights(H2, P_H1_H2);
@@ -70,6 +74,7 @@ Result SnnApp_run(void)
 
   SbsWeightMatrix P_H2_H3 = sbs_new.WeightMatrix(32 * 5 * 5, 64, "/home/nevarez/Downloads/MNIST/W_H2_H3_Iter0.bin");
 
+  /** Layer = 8x8x64, Spike = 8x8, Weight = 800x64 **/
   SbsLayer * H3 = sbs_new.ConvolutionLayer(8, 8, 64, 5, COLUMN_SHIFT, 32);
   H3->setEpsilon(H3, 0.1 / 25.0);
   H3->giveWeights(H3, P_H2_H3);
@@ -77,6 +82,7 @@ Result SnnApp_run(void)
 
   SbsWeightMatrix P_H3_H4 = sbs_new.WeightMatrix(64 * 2 * 2, 64, "/home/nevarez/Downloads/MNIST/W_H3_H4.bin");
 
+  /** Layer = 4x4x64, Spike = 4x4, Weight = 256x64 **/
   SbsLayer * H4 = sbs_new.PoolingLayer(4, 4, 64, 2, COLUMN_SHIFT, 64);
   H4->setEpsilon(H4, 0.1 / 4.0);
   H4->giveWeights(H4, P_H3_H4);
@@ -84,6 +90,7 @@ Result SnnApp_run(void)
 
   SbsWeightMatrix P_H4_H5 = sbs_new.WeightMatrix(64 * 4 * 4, 1024, "/home/nevarez/Downloads/MNIST/W_H4_H5_Iter0.bin");
 
+  /** Layer = 1x1x1024, Spike = 1x1, Weight = 1024x1024 **/
   SbsLayer * H5 = sbs_new.FullyConnectedLayer(1024, 4, ROW_SHIFT, 64);
   H5->setEpsilon(H5, 0.1 / 16.0);
   H5->giveWeights(H5, P_H4_H5);
@@ -91,6 +98,7 @@ Result SnnApp_run(void)
 
   SbsWeightMatrix P_H5_HY = sbs_new.WeightMatrix(1024, 10, "/home/nevarez/Downloads/MNIST/W_H5_HY_Iter0.bin");
 
+  /** Layer = 1x1x10, Spike = 1x1, Weight = 1024x10 **/
   SbsLayer * HY = sbs_new.OutputLayer(10, ROW_SHIFT, 0);
   HY->setEpsilon(HY, 0.1);
   HY->giveWeights(HY, P_H5_HY);
@@ -113,6 +121,9 @@ Result SnnApp_run(void)
   {
     printf(" [ %d ] = %.6f\n", output_vector_size, output_vector[output_vector_size]);
   }
+
+  printf("\n===============================================\n");
+  printf("\n Pool size: %ld \n", network->getMemorySize(network));
 
   network->delete(&network);
 

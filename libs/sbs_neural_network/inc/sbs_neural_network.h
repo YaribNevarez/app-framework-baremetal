@@ -2,13 +2,14 @@
  * sbs_nn.h
  *
  *  Created on: Sep 7, 2019
- *      Author: yarib
+ *      Author: Yarib Nevarez
  */
 
 #ifndef SBS_NN_H_
 #define SBS_NN_H_
 
 #include <stdint.h>
+#include <stddef.h>
 
 #pragma pack(push)
 #pragma pack(1)
@@ -50,6 +51,7 @@ struct SbsNetwork_VTable
   uint8_t      (*getInferredOutput) (SbsNetwork * network);
   uint8_t      (*getInputLabel)     (SbsNetwork * network);
   void         (*getOutputVector)   (SbsNetwork * network, NeuronState ** output_vector, uint16_t * output_vector_size);
+  size_t       (*getMemorySize)     (SbsNetwork * network);
 };
 extern struct SbsNetwork_VTable _SbsNetwork;
 
