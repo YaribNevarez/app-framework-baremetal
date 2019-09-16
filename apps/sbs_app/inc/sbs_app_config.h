@@ -17,7 +17,6 @@
  *
  */
 //------------------------------------------------------------------------------
-
 // IFNDEF ----------------------------------------------------------------------
 #ifndef SBS_APP_CONFIG_H_
 #define SBS_APP_CONFIG_H_
@@ -27,7 +26,31 @@
 // FORWARD DECLARATIONS --------------------------------------------------------
 
 // TYPEDEFS AND DEFINES --------------------------------------------------------
-#define USE_XILINX
+//#define USE_XILINX
+
+#ifdef	USE_XILINX
+
+#define SBS_INPUT_PATTERN_FILE   "/MNIST/Pattern/Input_1.bin"
+
+#define SBS_P_IN_H1_WEIGHTS_FILE "/MNIST/W_X_H1_Iter0.bin"
+#define SBS_P_H1_H2_WEIGHTS_FILE "/MNIST/W_H1_H2.bin"
+#define SBS_P_H2_H3_WEIGHTS_FILE "/MNIST/W_H2_H3_Iter0.bin"
+#define SBS_P_H3_H4_WEIGHTS_FILE "/MNIST/W_H3_H4.bin"
+#define SBS_P_H4_H5_WEIGHTS_FILE "/MNIST/W_H4_H5_Iter0.bin"
+#define SBS_P_H5_HY_WEIGHTS_FILE "/MNIST/W_H5_HY_Iter0.bin"
+
+#else
+
+#define SBS_INPUT_PATTERN_FILE "/home/nevarez/Downloads/MNIST/Pattern/Input_1.bin"
+
+#define SBS_P_IN_H1_WEIGHTS_FILE "/home/nevarez/Downloads/MNIST/W_X_H1_Iter0.bin"
+#define SBS_P_H1_H2_WEIGHTS_FILE "/home/nevarez/Downloads/MNIST/W_H1_H2.bin"
+#define SBS_P_H2_H3_WEIGHTS_FILE "/home/nevarez/Downloads/MNIST/W_H2_H3_Iter0.bin"
+#define SBS_P_H3_H4_WEIGHTS_FILE "/home/nevarez/Downloads/MNIST/W_H3_H4.bin"
+#define SBS_P_H4_H5_WEIGHTS_FILE "/home/nevarez/Downloads/MNIST/W_H4_H5_Iter0.bin"
+#define SBS_P_H5_HY_WEIGHTS_FILE "/home/nevarez/Downloads/MNIST/W_H5_HY_Iter0.bin"
+
+#endif
 
 // EUNUMERATIONS ---------------------------------------------------------------
 
