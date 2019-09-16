@@ -23,6 +23,12 @@
 #include "sbs_app.h"
 #include "stdio.h"
 
+#ifdef USE_XILINX
+  #include "platform.h"
+  #include "xil_printf.h"
+  #include "IO.h"
+#endif
+
 // FORWARD DECLARATIONS --------------------------------------------------------
 
 // TYPEDEFS AND DEFINES --------------------------------------------------------
@@ -35,6 +41,10 @@
 
 Result SnnApp_initialize(void)
 {
+#ifdef USE_XILINX
+    init_platform();
+#endif
+
   return OK;
 }
 
@@ -123,7 +133,12 @@ Result SnnApp_run(void)
   }
 
   printf("\n===============================================\n");
+
+#ifdef USE_XILINX
+  printf("\n Pool size: %d \n", network->getMemorySize(network));
+#else
   printf("\n Pool size: %ld \n", network->getMemorySize(network));
+#endif
 
   network->delete(&network);
 
@@ -132,7 +147,9 @@ Result SnnApp_run(void)
 
 void SnnApp_dispose(void)
 {
-
+#ifdef USE_XILINX
+	cleanup_platform();
+#endif
 }
 
 static SnnApp SnnApp_obj = { SnnApp_initialize,

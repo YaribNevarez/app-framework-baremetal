@@ -1,9 +1,9 @@
 //------------------------------------------------------------------------------
 /**
  *
- * @file: sbs_app.h
+ * @file: sbs_app_config.h
  *
- * @Created on: September 9th, 2019
+ * @Created on: September 15th, 2019
  * @Author: Yarib Nevarez
  *
  *
@@ -11,7 +11,7 @@
  * <Requirement Doc Reference>
  * <Design Doc Reference>
  *
- * @copyright Copyright [2019] Institute for Theoretical Electrical Engineering 
+ * @copyright Copyright [2019] Institute for Theoretical Electrical Engineering
  *                             and Microelectronics (ITEM)
  * All Rights Reserved.
  *
@@ -19,31 +19,18 @@
 //------------------------------------------------------------------------------
 
 // IFNDEF ----------------------------------------------------------------------
-#ifndef SBS_APP_H_
-#define SBS_APP_H_
+#ifndef SBS_APP_CONFIG_H_
+#define SBS_APP_CONFIG_H_
 
 // INCLUDES --------------------------------------------------------------------
-//#include "xil_types.h"
-#include "stdint.h"
-#include "stddef.h"
 
-#include "sbs_app_config.h"
-
-#include "result.h"
 // FORWARD DECLARATIONS --------------------------------------------------------
 
 // TYPEDEFS AND DEFINES --------------------------------------------------------
+#define USE_XILINX
 
 // EUNUMERATIONS ---------------------------------------------------------------
 
 // DECLARATIONS ----------------------------------------------------------------
 
-typedef struct
-{
-  Result  (* initialize)(void);
-  Result  (* run)(void);
-  void    (* dispose)(void);
-} SnnApp;
-
-SnnApp * SnnApp_instance(void);
-#endif /* SBS_APP_H_ */
+#endif /* SBS_APP_CONFIG_H_ */
