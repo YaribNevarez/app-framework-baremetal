@@ -259,7 +259,23 @@ static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vect
     NeuronState epsion_over_sum = 0.0f;
     uint16_t    neuron;
 
-    /* Intermediate variables to ensure data alignment */
+#if defined (__amd64__)
+    for (neuron = 0; neuron < size; neuron ++)
+    {
+      temp_data[neuron] = state_vector[neuron] * weight_vector[neuron];
+      sum += temp_data[neuron];
+    }
+
+    if (sum < 1e-20) // TODO: DEFINE constant
+      return;
+
+    epsion_over_sum = epsilon / sum;
+
+    for (neuron = 0; neuron < size; neuron ++)
+      state_vector[neuron] = reverse_epsilon * (state_vector[neuron] + temp_data[neuron] * epsion_over_sum);
+
+#elif defined(__arm__)
+    /* Support for unaligned accesses in ARM architecture */
     NeuronState h;
     NeuronState p;
     NeuronState h_p;
@@ -288,6 +304,7 @@ static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vect
       h_new = reverse_epsilon * (h + h_p * epsion_over_sum);
       state_vector[neuron] = h_new;
     }
+#endif
   }
 }
 

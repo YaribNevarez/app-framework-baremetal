@@ -50,6 +50,7 @@ struct SbsNetwork_VTable
   void         (*updateCycle)       (SbsNetwork * network, uint16_t cycles);
   uint8_t      (*getInferredOutput) (SbsNetwork * network);
   uint8_t      (*getInputLabel)     (SbsNetwork * network);
+  /* Note: 'NeuronState ** output_vector' must use intermediate variables to support unaligned accesses in ARM architectures */
   void         (*getOutputVector)   (SbsNetwork * network, NeuronState ** output_vector, uint16_t * output_vector_size);
   size_t       (*getMemorySize)     (SbsNetwork * network);
 };
