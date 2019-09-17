@@ -259,7 +259,7 @@ static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vect
     NeuronState epsion_over_sum = 0.0f;
     uint16_t    neuron;
 
-#if defined (__amd64__)
+#if defined (__x86_64__) || defined(__amd64__)
     for (neuron = 0; neuron < size; neuron ++)
     {
       temp_data[neuron] = state_vector[neuron] * weight_vector[neuron];
@@ -304,6 +304,8 @@ static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vect
       h_new = reverse_epsilon * (h + h_p * epsion_over_sum);
       state_vector[neuron] = h_new;
     }
+#else
+#error "Unsupported processor architecture"
 #endif
   }
 }
