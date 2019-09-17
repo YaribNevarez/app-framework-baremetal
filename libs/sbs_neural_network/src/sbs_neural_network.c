@@ -16,6 +16,10 @@
 #include "sbs_neural_network.h"
 #include "mt19937int.h"
 
+#ifdef USE_XILINX
+#include "ff.h"
+#endif
+
 #define ASSERT(expr)  assert(expr)
 
 /*****************************************************************************/
@@ -194,6 +198,9 @@ static SbsLayer * SbsBaseLayer_new(uint16_t rows,
 
     ASSERT(layer->update_buffer != NULL);
 
+    if (layer->update_buffer != NULL)
+    	memset(layer->update_buffer, 0x00, neurons * sizeof(NeuronState));
+
     /* Assign parameters */
     layer->kernel_size   = kernel_size;
     layer->kernel_stride = kernel_stride;
@@ -252,10 +259,20 @@ static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vect
     NeuronState epsion_over_sum = 0.0f;
     uint16_t    neuron;
 
+    /* Intermediate variables to ensure data alignment */
+    NeuronState h;
+    NeuronState p;
+    NeuronState h_p;
+    NeuronState h_new;
+
     for (neuron = 0; neuron < size; neuron ++)
     {
-      temp_data[neuron] = state_vector[neuron] * weight_vector[neuron];
-      sum += temp_data[neuron];
+      h = state_vector[neuron];
+      p = weight_vector[neuron];
+      h_p = h * p;
+
+      temp_data[neuron] = h_p;
+      sum += h_p;
     }
 
     if (sum < 1e-20) // TODO: DEFINE constant
@@ -264,7 +281,13 @@ static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vect
     epsion_over_sum = epsilon / sum;
 
     for (neuron = 0; neuron < size; neuron ++)
-      state_vector[neuron] = reverse_epsilon * (state_vector[neuron] + temp_data[neuron] * epsion_over_sum);
+    {
+      h_p = temp_data[neuron];
+      h = state_vector[neuron];
+
+      h_new = reverse_epsilon * (h + h_p * epsion_over_sum);
+      state_vector[neuron] = h_new;
+    }
   }
 }
 
@@ -498,7 +521,7 @@ static SbsNetwork * SbsBaseNetwork_new(void)
       network->input_label = (uint8_t)-1;
       network->inferred_output = (uint8_t)-1;
 
-      sgenrand(666);
+      sgenrand(666); /*TODO: Create MT19937 object wrapper */
   }
 
   ASSERT(network->size == 0);
@@ -565,6 +588,48 @@ static void SbsBaseNetwork_loadInput(SbsNetwork * network_ptr, char * file_name)
       && (network->layer_array != NULL) && (*network->layer_array != NULL)
       && (file_name != NULL))
   {
+#ifdef USE_XILINX
+    FIL fil; /* File object */
+    FRESULT rc;
+    rc = f_open (&fil, file_name, FA_READ);
+    ASSERT(rc == FR_OK);
+
+    if (rc == FR_OK)
+    {
+      SbsBaseLayer * input_layer = network->layer_array[0];
+      uint16_t       rows        = input_layer->state_matrix->dimension_size[0];
+      uint16_t       columns     = input_layer->state_matrix->dimension_size[1];
+      uint16_t       neurons     = input_layer->state_matrix->dimension_size[2];
+      NeuronState *  data        = input_layer->state_matrix->data;
+
+      uint16_t row;
+      uint16_t column;
+      size_t   read_result = 0;
+
+      uint8_t good_reading_flag = 1;
+
+      size_t inference_population_size = sizeof(NeuronState) * neurons;
+
+      for (column = 0; (column < columns) && good_reading_flag; column++)
+        for (row = 0; (row < rows) && good_reading_flag; row++)
+        {
+          rc = f_read (&fil, &data[column * neurons + row * columns * neurons],
+                       inference_population_size, &read_result);
+
+          good_reading_flag = read_result == inference_population_size;
+        }
+
+      if (good_reading_flag)
+      {
+        rc = f_read (&fil, &network->input_label, sizeof(uint8_t), &read_result);
+        network->input_label--;
+        good_reading_flag = read_result == sizeof(uint8_t);
+      }
+
+      f_close (&fil);
+      ASSERT(good_reading_flag);
+    }
+#else
     FILE * file = fopen(file_name, "rb");
 
     ASSERT(file != NULL);
@@ -604,6 +669,7 @@ static void SbsBaseNetwork_loadInput(SbsNetwork * network_ptr, char * file_name)
       fclose(file);
       ASSERT(good_reading_flag);
     }
+#endif
   }
 }
 
@@ -647,7 +713,6 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
     /************************ Get inferred output **************************/
     {
       NeuronState max_value = 0;
-      uint16_t max_value_position = 0;
       SbsBaseLayer * output_layer = network->layer_array[network->size - 1];
       Multivector * output_state_matrix = output_layer->state_matrix;
       NeuronState * output_state_vector = output_state_matrix->data;
@@ -659,14 +724,13 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
 
       for (i = 0; i < output_state_matrix->dimension_size[2]; i++)
       {
-        if (max_value < output_state_vector[i])
+        NeuronState h = output_state_vector[i]; /* Ensure data alignment */
+        if (max_value < h)
         {
-          max_value_position = i;
-          max_value = output_state_vector[i];
+          network->inferred_output = i;
+          max_value = h;
         }
       }
-
-      network->inferred_output = max_value_position;
     }
   }
 }
@@ -802,6 +866,22 @@ static SbsWeightMatrix SbsWeightMatrix_new(uint16_t rows, uint16_t columns, char
         && (weight_watrix->dimension_size[0] == rows)
         && (weight_watrix->dimension_size[1] == columns))
     {
+#ifdef USE_XILINX
+      FIL fil; /* File object */
+      FRESULT rc;
+      rc = f_open (&fil, file_name, FA_READ);
+      ASSERT(rc == FR_OK);
+
+      if (rc == FR_OK)
+      {
+        size_t read_size;
+        size_t data_size = rows * columns * sizeof(Weight);
+        rc = f_read (&fil, weight_watrix->data, data_size, &read_size);
+        ASSERT((rc == FR_OK) && (read_size == data_size));
+        f_close (&fil);
+      }
+      else Multivector_delete (&weight_watrix);
+#else
       FILE * file = fopen(file_name, "rb");
 
       ASSERT(file != NULL);
@@ -815,6 +895,7 @@ static SbsWeightMatrix SbsWeightMatrix_new(uint16_t rows, uint16_t columns, char
       }
       else
         Multivector_delete(&weight_watrix);
+#endif
     }
   }
 

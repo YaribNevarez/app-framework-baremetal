@@ -42,24 +42,22 @@
 
 // DEFINITIONs -----------------------------------------------------------------
 #ifdef USE_XILINX
-static FIL fil;		/* File object */
 static FATFS fatfs;
-static u32 InitSD(void)
+static u32 SnnApp_initializeSD(void)
 {
 
-	FRESULT rc;
-	TCHAR *path = "0:/"; /* Logical drive number is 0 */
+  FRESULT rc;
+  TCHAR *path = "0:/"; /* Logical drive number is 0 */
 
-	/* Register volume work area, initialize device */
-	rc = f_mount(&fatfs, path, 0);
-	printf("SD: rc= %.8x\n\r", rc);
+  /* Register volume work area, initialize device */
+  rc = f_mount (&fatfs, path, 0);
 
-	if (rc != FR_OK) {
-		return XST_FAILURE;
-	}
+  if (rc != FR_OK)
+  {
+    return XST_FAILURE;
+  }
 
-	//rc = f_open(&fil, filename, FA_READ);
-	return OK;
+  return OK;
 }
 #endif
 
@@ -67,7 +65,7 @@ Result SnnApp_initialize(void)
 {
 #ifdef USE_XILINX
     init_platform();
-    InitSD();
+    SnnApp_initializeSD();
 #endif
 
   return OK;
@@ -154,7 +152,8 @@ Result SnnApp_run(void)
 
   while (output_vector_size --)
   {
-    printf(" [ %d ] = %.6f\n", output_vector_size, output_vector[output_vector_size]);
+    NeuronState h = output_vector[output_vector_size]; /* Ensure data alignment */
+    printf(" [ %d ] = %.6f\n", output_vector_size, h);
   }
 
   printf("\n===============================================\n");
