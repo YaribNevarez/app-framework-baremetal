@@ -18,6 +18,13 @@
 
 #ifdef USE_XILINX
 #include "ff.h"
+#include "xparameters.h"
+#include "xaxidma.h"
+
+#ifdef USE_ACCELERATOR
+#include "xsbs_update.h"
+#endif
+
 #endif
 
 #define ASSERT(expr)  assert(expr)
@@ -63,6 +70,123 @@ typedef struct
 
 
 #pragma pack(pop)   /* restore original alignment from stack */
+
+/*****************************************************************************/
+/************************ Accelerator ****************************************/
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+
+#define VECTOR_SIZE (64)
+
+#define DDR_DATA_INPUT_ADDRESS  (XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x00900000)
+#define DDR_DATA_RESULT_ADDRESS (DDR_DATA_INPUT_ADDRESS + 2 * VECTOR_SIZE)
+
+XAxiDma AxiDma;
+
+XSbs_update accelerator;
+
+int Accelerator_initialize(void)
+{
+  XAxiDma_Config *CfgPtr;
+  int Status;
+
+  /* Initialize the XAxiDma device. */
+  CfgPtr = XAxiDma_LookupConfig (XPAR_AXIDMA_0_DEVICE_ID);
+  if (!CfgPtr)
+  {
+    printf ("No config found for %d\r\n", XPAR_AXIDMA_0_DEVICE_ID);
+    return XST_FAILURE;
+  }
+
+  Status = XAxiDma_CfgInitialize (&AxiDma, CfgPtr);
+  if (Status != XST_SUCCESS)
+  {
+    printf ("Initialization of DMA failed %d\r\n", Status);
+    return XST_FAILURE;
+  }
+
+  if (XAxiDma_HasSg(&AxiDma))
+  {
+    printf ("Device configured as SG mode \r\n");
+    return XST_FAILURE;
+  }
+
+  /* Disable interrupts, we use polling mode */
+  XAxiDma_IntrDisable(&AxiDma, XAXIDMA_IRQ_ALL_MASK, XAXIDMA_DEVICE_TO_DMA);
+  XAxiDma_IntrDisable(&AxiDma, XAXIDMA_IRQ_ALL_MASK, XAXIDMA_DMA_TO_DEVICE);
+
+  if (XSbs_update_Initialize (&accelerator, XPAR_SBS_UPDATE_0_DEVICE_ID) != XST_SUCCESS)
+  {
+    printf ("Initialization of Accelerator failed \r\n");
+    return XST_FAILURE;
+  }
+
+  return XST_SUCCESS;
+}
+
+static void Accelerator_updateIP(SbsBaseLayer * layer, NeuronState * state_vector, Weight * weight_vector, uint16_t size, float epsilon)
+{
+  ASSERT(state_vector != NULL);
+  ASSERT(weight_vector != NULL);
+  ASSERT(0 < size);
+
+  if ((state_vector != NULL) && (weight_vector != NULL) && (0 < size))
+  {
+    u32 status;
+
+    while (!XSbs_update_IsIdle(&accelerator));
+
+    memcpy((void *)DDR_DATA_INPUT_ADDRESS, state_vector, size * sizeof(NeuronState));
+    memcpy((void *)(DDR_DATA_INPUT_ADDRESS + VECTOR_SIZE * sizeof(Weight)), weight_vector, size * sizeof(Weight));
+
+    XSbs_update_Set_epsilon(&accelerator, epsilon);
+    XSbs_update_Set_size(&accelerator, size);
+
+    /* Flush the SrcBuffer before the DMA transfer, in case the Data Cache
+     * is enabled
+     */
+    Xil_DCacheFlushRange((UINTPTR)DDR_DATA_INPUT_ADDRESS, VECTOR_SIZE * (sizeof(NeuronState) + sizeof(Weight)));
+  #ifdef __aarch64__
+    Xil_DCacheFlushRange((UINTPTR)DDR_DATA_RESULT_ADDRESS, VECTOR_SIZE * sizeof(Weight));
+  #endif
+
+
+    status = XAxiDma_SimpleTransfer (&AxiDma,
+                                     (UINTPTR) DDR_DATA_INPUT_ADDRESS,
+                                     VECTOR_SIZE * (sizeof(NeuronState) + sizeof(Weight)),
+                                     XAXIDMA_DMA_TO_DEVICE);
+
+    ASSERT(status == XST_SUCCESS);
+
+    status = XAxiDma_SimpleTransfer (&AxiDma,
+                                     (UINTPTR) DDR_DATA_RESULT_ADDRESS,
+                                     2 * VECTOR_SIZE * sizeof(NeuronState),
+                                     XAXIDMA_DEVICE_TO_DMA);
+    ASSERT(status == XST_SUCCESS);
+
+    int dma_to_device_busy = 0;
+    int device_to_dma_busy = 0;
+    do
+    {
+      device_to_dma_busy = XAxiDma_Busy (&AxiDma, XAXIDMA_DEVICE_TO_DMA);
+      dma_to_device_busy = XAxiDma_Busy (&AxiDma, XAXIDMA_DMA_TO_DEVICE);
+      if (!dma_to_device_busy && device_to_dma_busy)
+        if (XSbs_update_IsReady (&accelerator))
+          XSbs_update_Start (&accelerator);
+
+      /* Wait */
+    } while (dma_to_device_busy || device_to_dma_busy);
+
+    /* Invalidate the DestBuffer before receiving the data, in case the
+     * Data Cache is enabled
+     */
+  #ifndef __aarch64__
+    Xil_DCacheInvalidateRange((UINTPTR)DDR_DATA_RESULT_ADDRESS, size * sizeof(NeuronState));
+  #endif
+
+    memcpy(state_vector, (void *)DDR_DATA_RESULT_ADDRESS, size * sizeof(NeuronState));
+  }
+}
+#endif
 
 /*****************************************************************************/
 /************************ Memory manager *************************************/
@@ -513,8 +637,14 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, Multivector * input_spike_
               section_shift = (kernel_row * row_shift + kernel_column * column_shift) * neurons_previous_Layer;
 
               weight_vector = &weight_data[(spikeID + section_shift) * weight_columns];
-
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+              if (neurons <= VECTOR_SIZE)
+                Accelerator_updateIP(layer, state_vector, weight_vector, neurons, epsilon);
+              else
+                SbsBaseLayer_updateIP(layer, state_vector, weight_vector, neurons, epsilon);
+#else
               SbsBaseLayer_updateIP(layer, state_vector, weight_vector, neurons, epsilon);
+#endif
             }
           }
         }
@@ -540,6 +670,9 @@ static SbsNetwork * SbsBaseNetwork_new(void)
       network->input_label = (uint8_t)-1;
       network->inferred_output = (uint8_t)-1;
 
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+      ASSERT(Accelerator_initialize() == XST_SUCCESS); /* TODO: Create interface for accelerator */
+#endif
       sgenrand(666); /*TODO: Create MT19937 object wrapper */
   }
 

@@ -25,11 +25,11 @@
 
 #ifdef USE_XILINX
 
-#include "platform.h"
+//#include "platform.h"
 #include "xil_printf.h"
-#include "IO.h"
+#include "xsbs_update.h"
 #include "ff.h"
-
+#include "xstatus.h"
 #endif
 
 // FORWARD DECLARATIONS --------------------------------------------------------
@@ -64,7 +64,6 @@ static u32 SnnApp_initializeSD(void)
 Result SnnApp_initialize(void)
 {
 #ifdef USE_XILINX
-    init_platform();
     SnnApp_initializeSD();
 #endif
 
@@ -172,7 +171,6 @@ Result SnnApp_run(void)
 void SnnApp_dispose(void)
 {
 #ifdef USE_XILINX
-	cleanup_platform();
 #endif
 }
 
