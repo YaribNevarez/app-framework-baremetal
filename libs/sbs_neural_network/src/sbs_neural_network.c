@@ -78,7 +78,7 @@ typedef struct
 #define VECTOR_SIZE (64)
 
 #define DDR_DATA_INPUT_ADDRESS  (XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x00900000)
-#define DDR_DATA_RESULT_ADDRESS (DDR_DATA_INPUT_ADDRESS + 2 * VECTOR_SIZE)
+#define DDR_DATA_RESULT_ADDRESS (DDR_DATA_INPUT_ADDRESS + 2 * VECTOR_SIZE * sizeof(NeuronState))
 
 XAxiDma AxiDma;
 
@@ -133,21 +133,24 @@ static void Accelerator_updateIP(SbsBaseLayer * layer, NeuronState * state_vecto
   {
     u32 status;
 
-    while (!XSbs_update_IsIdle(&accelerator));
+    while (!XSbs_update_IsReady(&accelerator));
 
     memcpy((void *)DDR_DATA_INPUT_ADDRESS, state_vector, size * sizeof(NeuronState));
-    memcpy((void *)(DDR_DATA_INPUT_ADDRESS + VECTOR_SIZE * sizeof(Weight)), weight_vector, size * sizeof(Weight));
-
-    XSbs_update_Set_epsilon(&accelerator, epsilon);
-    XSbs_update_Set_size(&accelerator, size);
+    memcpy((void *)(DDR_DATA_INPUT_ADDRESS + VECTOR_SIZE * sizeof(NeuronState)), weight_vector, size * sizeof(Weight));
 
     /* Flush the SrcBuffer before the DMA transfer, in case the Data Cache
      * is enabled
      */
-    Xil_DCacheFlushRange((UINTPTR)DDR_DATA_INPUT_ADDRESS, VECTOR_SIZE * (sizeof(NeuronState) + sizeof(Weight)));
-  #ifdef __aarch64__
-    Xil_DCacheFlushRange((UINTPTR)DDR_DATA_RESULT_ADDRESS, VECTOR_SIZE * sizeof(Weight));
-  #endif
+    Xil_DCacheFlushRange ((UINTPTR) DDR_DATA_INPUT_ADDRESS,
+    VECTOR_SIZE * (sizeof(NeuronState) + sizeof(Weight)));
+#ifdef __aarch64__
+    Xil_DCacheFlushRange((UINTPTR)DDR_DATA_RESULT_ADDRESS, 2 * VECTOR_SIZE * sizeof(Weight));
+#endif
+
+
+
+    XSbs_update_Set_epsilon_V(&accelerator, *(uint32_t*)(&epsilon));
+    XSbs_update_Set_size_V(&accelerator, size);
 
 
     status = XAxiDma_SimpleTransfer (&AxiDma,
@@ -163,27 +166,42 @@ static void Accelerator_updateIP(SbsBaseLayer * layer, NeuronState * state_vecto
                                      XAXIDMA_DEVICE_TO_DMA);
     ASSERT(status == XST_SUCCESS);
 
-    int dma_to_device_busy = 0;
-    int device_to_dma_busy = 0;
-    do
-    {
-      device_to_dma_busy = XAxiDma_Busy (&AxiDma, XAXIDMA_DEVICE_TO_DMA);
-      dma_to_device_busy = XAxiDma_Busy (&AxiDma, XAXIDMA_DMA_TO_DEVICE);
-      if (!dma_to_device_busy && device_to_dma_busy)
-        if (XSbs_update_IsReady (&accelerator))
-          XSbs_update_Start (&accelerator);
+    while (XAxiDma_Busy (&AxiDma, XAXIDMA_DMA_TO_DEVICE));
 
-      /* Wait */
-    } while (dma_to_device_busy || device_to_dma_busy);
+    if (XSbs_update_IsReady (&accelerator))
+    {
+      XSbs_update_Start (&accelerator);
+    }
+
+    while(!XSbs_update_IsDone(&accelerator));
+
+    while(XAxiDma_Busy (&AxiDma, XAXIDMA_DEVICE_TO_DMA));
 
     /* Invalidate the DestBuffer before receiving the data, in case the
      * Data Cache is enabled
      */
-  #ifndef __aarch64__
-    Xil_DCacheInvalidateRange((UINTPTR)DDR_DATA_RESULT_ADDRESS, size * sizeof(NeuronState));
-  #endif
+#ifndef __aarch64__
+    Xil_DCacheInvalidateRange ((UINTPTR) DDR_DATA_RESULT_ADDRESS,
+                               (2 * VECTOR_SIZE) * sizeof(NeuronState));
+#endif
 
-    memcpy(state_vector, (void *)DDR_DATA_RESULT_ADDRESS, size * sizeof(NeuronState));
+    memcpy (state_vector, (void *) DDR_DATA_RESULT_ADDRESS,
+            size * sizeof(NeuronState));
+
+      /**********/
+     /** Test **/
+    /**********/
+    {
+      NeuronState * ptrInput = (NeuronState *) DDR_DATA_INPUT_ADDRESS;
+      NeuronState * ptrResult = (NeuronState *) DDR_DATA_RESULT_ADDRESS;
+      int i;
+
+      printf ("\n Size = %d\n Epsilon = %.6f \n [ Idx ] Input    Result\n", size, epsilon);
+      for (i = 0; i < 2 * VECTOR_SIZE; i++)
+      {
+        printf (" [ %d ]  %.6f  %.6f\n", i, ptrInput[i], ptrResult[i]);
+      }
+    }
   }
 }
 #endif
