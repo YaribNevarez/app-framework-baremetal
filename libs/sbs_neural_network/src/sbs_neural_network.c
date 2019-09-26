@@ -75,10 +75,10 @@ typedef struct
 /************************ Accelerator ****************************************/
 #if defined(USE_XILINX) && defined(USE_ACCELERATOR)
 
-#define VECTOR_SIZE (64)
+#define VECTOR_SIZE (1024)
 
 #define DDR_DATA_INPUT_ADDRESS  (XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x00900000)
-#define DDR_DATA_RESULT_ADDRESS (DDR_DATA_INPUT_ADDRESS + 2 * VECTOR_SIZE * sizeof(NeuronState))
+#define DDR_DATA_RESULT_ADDRESS (DDR_DATA_INPUT_ADDRESS + VECTOR_SIZE * (sizeof(NeuronState) + sizeof(Weight)))
 
 XAxiDma AxiDma;
 
@@ -136,42 +136,39 @@ static void Accelerator_updateIP(SbsBaseLayer * layer, NeuronState * state_vecto
     while (!XSbs_update_IsReady(&accelerator));
 
     memcpy((void *)DDR_DATA_INPUT_ADDRESS, state_vector, size * sizeof(NeuronState));
-    memcpy((void *)(DDR_DATA_INPUT_ADDRESS + VECTOR_SIZE * sizeof(NeuronState)), weight_vector, size * sizeof(Weight));
+    memcpy((void *)(DDR_DATA_INPUT_ADDRESS + size * sizeof(NeuronState)), weight_vector, size * sizeof(Weight));
 
     /* Flush the SrcBuffer before the DMA transfer, in case the Data Cache
      * is enabled
      */
-    Xil_DCacheFlushRange ((UINTPTR) DDR_DATA_INPUT_ADDRESS,
-    VECTOR_SIZE * (sizeof(NeuronState) + sizeof(Weight)));
+    Xil_DCacheFlushRange ((UINTPTR) DDR_DATA_INPUT_ADDRESS, size * (sizeof(NeuronState) + sizeof(Weight)));
 #ifdef __aarch64__
-    Xil_DCacheFlushRange((UINTPTR)DDR_DATA_RESULT_ADDRESS, 2 * VECTOR_SIZE * sizeof(Weight));
+    Xil_DCacheFlushRange((UINTPTR)DDR_DATA_RESULT_ADDRESS, size * (sizeof(NeuronState) + sizeof(Weight)));
 #endif
 
 
-
-    XSbs_update_Set_epsilon_V(&accelerator, *(uint32_t*)(&epsilon));
-    XSbs_update_Set_size_V(&accelerator, size);
+    XSbs_update_Set_epsilon(&accelerator, *(uint32_t*)(&epsilon));
+    XSbs_update_Set_size(&accelerator, size);
 
 
     status = XAxiDma_SimpleTransfer (&AxiDma,
                                      (UINTPTR) DDR_DATA_INPUT_ADDRESS,
-                                     VECTOR_SIZE * (sizeof(NeuronState) + sizeof(Weight)),
+                                     size * (sizeof(NeuronState) + sizeof(Weight)),
                                      XAXIDMA_DMA_TO_DEVICE);
 
     ASSERT(status == XST_SUCCESS);
 
     status = XAxiDma_SimpleTransfer (&AxiDma,
                                      (UINTPTR) DDR_DATA_RESULT_ADDRESS,
-                                     2 * VECTOR_SIZE * sizeof(NeuronState),
+                                     size * (sizeof(NeuronState)),
                                      XAXIDMA_DEVICE_TO_DMA);
     ASSERT(status == XST_SUCCESS);
 
+    XSbs_update_Start (&accelerator);
+
     while (XAxiDma_Busy (&AxiDma, XAXIDMA_DMA_TO_DEVICE));
 
-    if (XSbs_update_IsReady (&accelerator))
-    {
-      XSbs_update_Start (&accelerator);
-    }
+    //XSbs_update_Start (&accelerator);
 
     while(!XSbs_update_IsDone(&accelerator));
 
@@ -181,27 +178,10 @@ static void Accelerator_updateIP(SbsBaseLayer * layer, NeuronState * state_vecto
      * Data Cache is enabled
      */
 #ifndef __aarch64__
-    Xil_DCacheInvalidateRange ((UINTPTR) DDR_DATA_RESULT_ADDRESS,
-                               (2 * VECTOR_SIZE) * sizeof(NeuronState));
+    Xil_DCacheInvalidateRange ((UINTPTR) DDR_DATA_RESULT_ADDRESS, size * sizeof(Weight));
 #endif
 
-    memcpy (state_vector, (void *) DDR_DATA_RESULT_ADDRESS,
-            size * sizeof(NeuronState));
-
-      /**********/
-     /** Test **/
-    /**********/
-    {
-      NeuronState * ptrInput = (NeuronState *) DDR_DATA_INPUT_ADDRESS;
-      NeuronState * ptrResult = (NeuronState *) DDR_DATA_RESULT_ADDRESS;
-      int i;
-
-      printf ("\n Size = %d\n Epsilon = %.6f \n [ Idx ] Input    Result\n", size, epsilon);
-      for (i = 0; i < 2 * VECTOR_SIZE; i++)
-      {
-        printf (" [ %d ]  %.6f  %.6f\n", i, ptrInput[i], ptrResult[i]);
-      }
-    }
+    memcpy (state_vector, (void *) DDR_DATA_RESULT_ADDRESS, size * sizeof(NeuronState));
   }
 }
 #endif
@@ -397,54 +377,60 @@ static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vect
     NeuronState * temp_data     = layer->update_buffer;
 
     NeuronState sum             = 0.0f;
-    NeuronState reverse_epsilon = 1.0f / (1.0f + epsilon);
+    NeuronState reverse_epsilon = 0.0f;
     NeuronState epsion_over_sum = 0.0f;
     uint16_t    neuron;
 
 #if defined (__x86_64__) || defined(__amd64__)
-    for (neuron = 0; neuron < size; neuron ++)
     {
-      temp_data[neuron] = state_vector[neuron] * weight_vector[neuron];
-      sum += temp_data[neuron];
+      for (neuron = 0; neuron < size; neuron++)
+      {
+        temp_data[neuron] = state_vector[neuron] * weight_vector[neuron];
+        sum += temp_data[neuron];
+      }
+
+      if (1e-20 < sum) // TODO: DEFINE constant
+      {
+        epsion_over_sum = epsilon / sum;
+        reverse_epsilon = 1.0f / (1.0f + epsilon);
+
+        for (neuron = 0; neuron < size; neuron++)
+          state_vector[neuron] = reverse_epsilon
+              * (state_vector[neuron] + temp_data[neuron] * epsion_over_sum);
+      }
     }
-
-    if (sum < 1e-20) // TODO: DEFINE constant
-      return;
-
-    epsion_over_sum = epsilon / sum;
-
-    for (neuron = 0; neuron < size; neuron ++)
-      state_vector[neuron] = reverse_epsilon * (state_vector[neuron] + temp_data[neuron] * epsion_over_sum);
-
 #elif defined(__arm__)
-    /* Support for unaligned accesses in ARM architecture */
-    NeuronState h;
-    NeuronState p;
-    NeuronState h_p;
-    NeuronState h_new;
-
-    for (neuron = 0; neuron < size; neuron ++)
     {
-      h = state_vector[neuron];
-      p = weight_vector[neuron];
-      h_p = h * p;
+      /* Support for unaligned accesses in ARM architecture */
+      NeuronState h;
+      NeuronState p;
+      NeuronState h_p;
+      NeuronState h_new;
 
-      temp_data[neuron] = h_p;
-      sum += h_p;
-    }
+      for (neuron = 0; neuron < size; neuron++)
+      {
+        h = state_vector[neuron];
+        p = weight_vector[neuron];
+        h_p = h * p;
 
-    if (sum < 1e-20) // TODO: DEFINE constant
-      return;
+        temp_data[neuron] = h_p;
+        sum += h_p;
+      }
 
-    epsion_over_sum = epsilon / sum;
+      if (1e-20 < sum) // TODO: DEFINE constant
+      {
+        epsion_over_sum = epsilon / sum;
+        reverse_epsilon = 1.0f / (1.0f + epsilon);
 
-    for (neuron = 0; neuron < size; neuron ++)
-    {
-      h_p = temp_data[neuron];
-      h = state_vector[neuron];
+        for (neuron = 0; neuron < size; neuron++)
+        {
+          h_p = temp_data[neuron];
+          h = state_vector[neuron];
 
-      h_new = reverse_epsilon * (h + h_p * epsion_over_sum);
-      state_vector[neuron] = h_new;
+          h_new = reverse_epsilon * (h + h_p * epsion_over_sum);
+          state_vector[neuron] = h_new;
+        }
+      }
     }
 #else
 #error "Unsupported processor architecture"
