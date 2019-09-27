@@ -138,6 +138,9 @@ Result SnnApp_run(void)
 
     // Perform Network load pattern and update cycle
   network->loadInput(network, SBS_INPUT_PATTERN_FILE);
+
+  printf("\n==========  Update Cycle ===========================\n");
+
   network->updateCycle(network, 1000);
 
   printf("\n==========  Results ===========================\n");

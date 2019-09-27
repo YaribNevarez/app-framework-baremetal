@@ -75,10 +75,10 @@ typedef struct
 /************************ Accelerator ****************************************/
 #if defined(USE_XILINX) && defined(USE_ACCELERATOR)
 
-#define VECTOR_SIZE (1024)
+#define DMA_VECTOR_SIZE (1024)
 
 #define DDR_DATA_INPUT_ADDRESS  (XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x00900000)
-#define DDR_DATA_RESULT_ADDRESS (DDR_DATA_INPUT_ADDRESS + VECTOR_SIZE * (sizeof(NeuronState) + sizeof(Weight)))
+#define DDR_DATA_RESULT_ADDRESS (DDR_DATA_INPUT_ADDRESS + DMA_VECTOR_SIZE * (sizeof(NeuronState) + sizeof(Weight)))
 
 XAxiDma AxiDma;
 
@@ -167,8 +167,6 @@ static void Accelerator_updateIP(SbsBaseLayer * layer, NeuronState * state_vecto
     XSbs_update_Start (&accelerator);
 
     while (XAxiDma_Busy (&AxiDma, XAXIDMA_DMA_TO_DEVICE));
-
-    //XSbs_update_Start (&accelerator);
 
     while(!XSbs_update_IsDone(&accelerator));
 
@@ -576,84 +574,86 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, Multivector * input_spike_
       && (input_spike_matrix != NULL)
       && (input_spike_matrix->data != NULL))
   {
-      SpikeID   spikeID       = 0;
-      SpikeID * spike_data    = input_spike_matrix->data;
-      uint16_t  spike_rows    = input_spike_matrix->dimension_size[0];
-      uint16_t  spike_columns = input_spike_matrix->dimension_size[1];
+    SpikeID   spikeID       = 0;
+    SpikeID * spike_data    = input_spike_matrix->data;
+    uint16_t  spike_rows    = input_spike_matrix->dimension_size[0];
+    uint16_t  spike_columns = input_spike_matrix->dimension_size[1];
 
-      NeuronState * weight_data    = layer->weight_matrix->data;
-      NeuronState * weight_vector  = NULL;
-      uint16_t      weight_columns = layer->weight_matrix->dimension_size[1];
+    NeuronState * weight_data    = layer->weight_matrix->data;
+    NeuronState * weight_vector  = NULL;
+    uint16_t      weight_columns = layer->weight_matrix->dimension_size[1];
 
-      NeuronState * state_data     = layer->state_matrix->data;
-      NeuronState * state_vector   = NULL;
-      uint16_t      state_row_size = layer->state_matrix->dimension_size[1] * layer->state_matrix->dimension_size[2];
-      uint16_t      neurons        = layer->state_matrix->dimension_size[2];
+    NeuronState * state_data     = layer->state_matrix->data;
+    NeuronState * state_vector   = NULL;
+    uint16_t      state_row_size = layer->state_matrix->dimension_size[1] * layer->state_matrix->dimension_size[2];
+    uint16_t      neurons        = layer->state_matrix->dimension_size[2];
 
-      uint16_t kernel_stride  = layer->kernel_stride;
-      uint16_t kernel_size    = layer->kernel_size;
-      uint16_t row_shift      = kernel_size;
-      uint16_t column_shift   = 1;
-      uint16_t section_shift  = 0;
+    uint16_t kernel_stride  = layer->kernel_stride;
+    uint16_t kernel_size    = layer->kernel_size;
+    uint16_t row_shift      = kernel_size;
+    uint16_t column_shift   = 1;
+    uint16_t section_shift  = 0;
 
 
-      uint16_t layer_row;         /* Row index for navigation on the layer */
-      uint16_t layer_column;      /* Column index for navigation on the layer */
-      uint16_t kernel_column_pos; /* Kernel column position for navigation on the spike matrix */
-      uint16_t kernel_row_pos;    /* Kernel row position for navigation on the spike matrix */
-      uint16_t kernel_row;        /* Row index for navigation inside kernel */
-      uint16_t kernel_column;     /* Column index for navigation inside kernel */
+    uint16_t layer_row;         /* Row index for navigation on the layer */
+    uint16_t layer_column;      /* Column index for navigation on the layer */
+    uint16_t kernel_column_pos; /* Kernel column position for navigation on the spike matrix */
+    uint16_t kernel_row_pos;    /* Kernel row position for navigation on the spike matrix */
+    uint16_t kernel_row;        /* Row index for navigation inside kernel */
+    uint16_t kernel_column;     /* Column index for navigation inside kernel */
 
-      uint16_t  spike_row_index;
+    uint16_t  spike_row_index;
 
-      uint16_t neurons_previous_Layer = layer->neurons_previous_Layer;
+    uint16_t neurons_previous_Layer = layer->neurons_previous_Layer;
 
-      float epsilon = layer->epsilon;
+    float epsilon = layer->epsilon;
 
-      ASSERT(weight_columns == neurons);
+    ASSERT(weight_columns == neurons);
 
-      if (weight_columns != neurons)
-        return;
+    if (weight_columns != neurons)
+      return;
 
-      if (layer->weight_shift == ROW_SHIFT)
+    if (layer->weight_shift == ROW_SHIFT)
+    {
+      row_shift = 1;
+      column_shift = kernel_size;
+    }
+
+    /* Update begins */
+    for (kernel_row_pos = 0, layer_row = 0;
+         kernel_row_pos < spike_rows - (kernel_size - 1);
+         kernel_row_pos += kernel_stride, layer_row ++)
+    {
+      for (kernel_column_pos = 0, layer_column = 0;
+           kernel_column_pos < spike_columns - (kernel_size - 1);
+           kernel_column_pos += kernel_stride, layer_column ++)
       {
-        row_shift = 1;
-        column_shift = kernel_size;
-      }
-
-      /* Update begins */
-      for (kernel_row_pos = 0, layer_row = 0;
-           kernel_row_pos < spike_rows - (kernel_size - 1);
-           kernel_row_pos += kernel_stride, layer_row ++)
-      {
-        for (kernel_column_pos = 0, layer_column = 0;
-             kernel_column_pos < spike_columns - (kernel_size - 1);
-             kernel_column_pos += kernel_stride, layer_column ++)
+        state_vector = &state_data[layer_row * state_row_size + layer_column * neurons];
+        for (kernel_row = 0; kernel_row < kernel_size; kernel_row ++)
         {
-          state_vector = &state_data[layer_row * state_row_size + layer_column * neurons];
-          for (kernel_row = 0; kernel_row < kernel_size; kernel_row ++)
+            spike_row_index = (kernel_row_pos + kernel_row) * spike_columns;
+          for (kernel_column = 0; kernel_column < kernel_size; kernel_column ++)
           {
-              spike_row_index = (kernel_row_pos + kernel_row) * spike_columns;
-            for (kernel_column = 0; kernel_column < kernel_size; kernel_column ++)
-            {
-              spikeID = spike_data[spike_row_index + kernel_column_pos + kernel_column];
+            spikeID = spike_data[spike_row_index + kernel_column_pos + kernel_column];
 
-              section_shift = (kernel_row * row_shift + kernel_column * column_shift) * neurons_previous_Layer;
+            section_shift = (kernel_row * row_shift + kernel_column * column_shift) * neurons_previous_Layer;
 
-              weight_vector = &weight_data[(spikeID + section_shift) * weight_columns];
+            weight_vector = &weight_data[(spikeID + section_shift) * weight_columns];
 #if defined(USE_XILINX) && defined(USE_ACCELERATOR)
-              if (neurons <= VECTOR_SIZE)
-                Accelerator_updateIP(layer, state_vector, weight_vector, neurons, epsilon);
-              else
-                SbsBaseLayer_updateIP(layer, state_vector, weight_vector, neurons, epsilon);
-#else
-              SbsBaseLayer_updateIP(layer, state_vector, weight_vector, neurons, epsilon);
+            if (neurons <= DMA_VECTOR_SIZE)
+            {
+              Accelerator_updateIP (layer, state_vector, weight_vector, neurons, epsilon);
+            }
+            else
 #endif
+            {
+              SbsBaseLayer_updateIP (layer, state_vector, weight_vector, neurons, epsilon);
             }
           }
         }
       }
-      /* Update ends*/
+    }
+    /* Update ends*/
   }
 }
 
