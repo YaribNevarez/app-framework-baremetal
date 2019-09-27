@@ -166,9 +166,9 @@ static void Accelerator_updateIP(SbsBaseLayer * layer, NeuronState * state_vecto
 
     XSbs_update_Start (&accelerator);
 
-    while (XAxiDma_Busy (&AxiDma, XAXIDMA_DMA_TO_DEVICE));
+    //while (XAxiDma_Busy (&AxiDma, XAXIDMA_DMA_TO_DEVICE));
 
-    while(!XSbs_update_IsDone(&accelerator));
+    //while(!XSbs_update_IsDone(&accelerator));
 
     while(XAxiDma_Busy (&AxiDma, XAXIDMA_DEVICE_TO_DMA));
 
@@ -186,16 +186,24 @@ static void Accelerator_updateIP(SbsBaseLayer * layer, NeuronState * state_vecto
 
 /*****************************************************************************/
 /************************ Memory manager *************************************/
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+#define        MEMORY_MGR_DDR_BASE_ADDRESS (XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x00903000)
+#endif
 #define        MEMORY_SIZE    4763116
 
 static size_t  Memory_blockIndex = 0;
 
 static void * Memory_requestBlock(size_t size)
 {
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+  static uint8_t * Memory_block = (uint8_t *)MEMORY_MGR_DDR_BASE_ADDRESS;
+#else
   static uint8_t Memory_block[MEMORY_SIZE];
+#endif
+
   void * ptr = NULL;
 
-  if (Memory_blockIndex + size <= sizeof(Memory_block))
+  if (Memory_blockIndex + size <= MEMORY_SIZE)
   {
     ptr = (void *) &Memory_block[Memory_blockIndex];
     Memory_blockIndex += size;
