@@ -122,14 +122,60 @@ int Accelerator_initialize(void)
 
   return XST_SUCCESS;
 }
+static void Accelerator_updateBatch(SbsBaseLayer * layer, NeuronState * state_vector, void * batch, uint16_t ip_size, uint16_t batch_size, float epsilon)
+{
+  ASSERT(state_vector != NULL);
+  ASSERT(batch != NULL);
+  ASSERT(0 < ip_size);
+  ASSERT(0 < batch);
 
-static void Accelerator_updateIP(SbsBaseLayer * layer, NeuronState * state_vector, Weight * weight_vector, uint16_t size, float epsilon)
+  if ((batch != NULL) && (0 < ip_size) && (0 < batch_size))
+  {
+      u32 status;
+
+      while (!XSbs_update_IsReady (&accelerator));
+
+      XSbs_update_Set_epsilon(&accelerator, *(uint32_t*)(&epsilon));
+      XSbs_update_Set_ipSize(&accelerator, ip_size);
+      XSbs_update_Set_batchSize(&accelerator, batch_size);
+
+      Xil_DCacheFlushRange ((UINTPTR) batch, ip_size * (sizeof(NeuronState) + batch_size * sizeof(Weight)));
+#ifdef __aarch64__
+      Xil_DCacheFlushRange ((UINTPTR) batch, ip_size * (sizeof(NeuronState) + batch_size * sizeof(Weight)));
+#endif
+
+      status = XAxiDma_SimpleTransfer (&AxiDma,
+                                       (UINTPTR) batch,
+				       ip_size * (sizeof(NeuronState) + batch_size * sizeof(Weight)),
+                                       XAXIDMA_DMA_TO_DEVICE);
+
+      ASSERT(status == XST_SUCCESS);
+
+      status = XAxiDma_SimpleTransfer (&AxiDma,
+                                       (UINTPTR) state_vector,
+				       ip_size * (sizeof(NeuronState)),
+                                       XAXIDMA_DEVICE_TO_DMA);
+      if (status != XST_SUCCESS)
+	ASSERT(status == XST_SUCCESS);
+
+      XSbs_update_Start (&accelerator);
+
+      while (XAxiDma_Busy (&AxiDma, XAXIDMA_DEVICE_TO_DMA));
+
+#ifndef __aarch64__
+      Xil_DCacheInvalidateRange ((UINTPTR) state_vector, ip_size * sizeof(NeuronState));
+#endif
+  }
+}
+
+static void Accelerator_updateIP(SbsBaseLayer * layer, NeuronState * state_vector, Weight * weight_vector, uint16_t size, uint16_t batch_size, float epsilon)
 {
   ASSERT(state_vector != NULL);
   ASSERT(weight_vector != NULL);
   ASSERT(0 < size);
+  ASSERT(0 < batch_size);
 
-  if ((state_vector != NULL) && (weight_vector != NULL) && (0 < size))
+  if ((state_vector != NULL) && (weight_vector != NULL) && (0 < size) && (0 < batch_size))
   {
     u32 status;
 
@@ -148,7 +194,7 @@ static void Accelerator_updateIP(SbsBaseLayer * layer, NeuronState * state_vecto
 
 
     XSbs_update_Set_epsilon(&accelerator, *(uint32_t*)(&epsilon));
-    XSbs_update_Set_size(&accelerator, size);
+    XSbs_update_Set_ipSize(&accelerator, size);
 
 
     status = XAxiDma_SimpleTransfer (&AxiDma,
@@ -176,7 +222,7 @@ static void Accelerator_updateIP(SbsBaseLayer * layer, NeuronState * state_vecto
      * Data Cache is enabled
      */
 #ifndef __aarch64__
-    Xil_DCacheInvalidateRange ((UINTPTR) DDR_DATA_RESULT_ADDRESS, size * sizeof(Weight));
+    Xil_DCacheInvalidateRange ((UINTPTR) DDR_DATA_RESULT_ADDRESS, size * sizeof(NeuronState));
 #endif
 
     memcpy (state_vector, (void *) DDR_DATA_RESULT_ADDRESS, size * sizeof(NeuronState));
@@ -186,10 +232,15 @@ static void Accelerator_updateIP(SbsBaseLayer * layer, NeuronState * state_vecto
 
 /*****************************************************************************/
 /************************ Memory manager *************************************/
+#define		MEMORY_SIZE    4763116
+
 #if defined(USE_XILINX) && defined(USE_ACCELERATOR)
-#define        MEMORY_MGR_DDR_BASE_ADDRESS (XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x00903000)
+  #define       MEMORY_MGR_DDR_BASE_ADDRESS (XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x00903000)
+  #define       MEMORY_MGR_DDR_BATCH_BASE_ADDRESS (XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x00D90000)
+  #if MEMORY_MGR_DDR_BATCH_BASE_ADDRESS < (MEMORY_MGR_DDR_BASE_ADDRESS + MEMORY_SIZE)
+    #error "Overlapping memory-space and batch-space"
+  #endif
 #endif
-#define        MEMORY_SIZE    4763116
 
 static size_t  Memory_blockIndex = 0;
 
@@ -216,7 +267,40 @@ static size_t Memory_getBlockSize(void)
 {
   return Memory_blockIndex;
 }
+/*****************************************************************************/
+/************************ Update batch ***************************************/
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
 
+static size_t UpdateBatch_bufferIndex = 0;
+static uint16_t UpdateBatch_ipSize = 0;
+
+static void UpdateBatch_reset(void)
+{
+  UpdateBatch_bufferIndex = 0;
+}
+
+static void UpdateBatch_setIPSize(uint16_t ip_size)
+{
+  UpdateBatch_ipSize = ip_size;
+}
+
+static void UpdateBatch_setStateVector(NeuronState * state_vector)
+{
+  memcpy((void *)MEMORY_MGR_DDR_BATCH_BASE_ADDRESS, state_vector, UpdateBatch_ipSize * sizeof(NeuronState));
+  UpdateBatch_bufferIndex = UpdateBatch_ipSize * sizeof(NeuronState);
+}
+
+static void UpdateBatch_addWeightVector(Weight * weight_vector)
+{
+  memcpy((void *)(MEMORY_MGR_DDR_BATCH_BASE_ADDRESS + UpdateBatch_bufferIndex), weight_vector, UpdateBatch_ipSize * sizeof(Weight));
+  UpdateBatch_bufferIndex += UpdateBatch_ipSize * sizeof(Weight);
+}
+
+static void * UpdateBatch_getBuffer(void)
+{
+  return (void *) MEMORY_MGR_DDR_BATCH_BASE_ADDRESS;
+}
+#endif
 /*****************************************************************************/
 /*****************************************************************************/
 
@@ -637,6 +721,11 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, Multivector * input_spike_
            kernel_column_pos += kernel_stride, layer_column ++)
       {
         state_vector = &state_data[layer_row * state_row_size + layer_column * neurons];
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+        UpdateBatch_reset();
+        UpdateBatch_setIPSize(neurons);
+        UpdateBatch_setStateVector(state_vector);
+#endif
         for (kernel_row = 0; kernel_row < kernel_size; kernel_row ++)
         {
             spike_row_index = (kernel_row_pos + kernel_row) * spike_columns;
@@ -648,17 +737,15 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, Multivector * input_spike_
 
             weight_vector = &weight_data[(spikeID + section_shift) * weight_columns];
 #if defined(USE_XILINX) && defined(USE_ACCELERATOR)
-            if (neurons <= DMA_VECTOR_SIZE)
-            {
-              Accelerator_updateIP (layer, state_vector, weight_vector, neurons, epsilon);
-            }
-            else
+            UpdateBatch_addWeightVector(weight_vector);
+#else
+            SbsBaseLayer_updateIP (layer, state_vector, weight_vector, neurons, epsilon);
 #endif
-            {
-              SbsBaseLayer_updateIP (layer, state_vector, weight_vector, neurons, epsilon);
-            }
           }
         }
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+        Accelerator_updateBatch(layer, state_vector, UpdateBatch_getBuffer(), neurons, kernel_size * kernel_size, epsilon);
+#endif
       }
     }
     /* Update ends*/
