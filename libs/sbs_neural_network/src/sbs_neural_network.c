@@ -122,6 +122,7 @@ int Accelerator_initialize(void)
 
   return XST_SUCCESS;
 }
+
 static void Accelerator_updateBatch(SbsBaseLayer * layer, NeuronState * state_vector, void * batch, uint16_t ip_size, uint16_t batch_size, float epsilon)
 {
   ASSERT(state_vector != NULL);
@@ -146,19 +147,17 @@ static void Accelerator_updateBatch(SbsBaseLayer * layer, NeuronState * state_ve
 
       status = XAxiDma_SimpleTransfer (&AxiDma,
                                        (UINTPTR) batch,
-				       ip_size * (sizeof(NeuronState) + batch_size * sizeof(Weight)),
+                                       ip_size * (sizeof(NeuronState) + batch_size * sizeof(Weight)),
                                        XAXIDMA_DMA_TO_DEVICE);
-
       ASSERT(status == XST_SUCCESS);
+
+      XSbs_update_Start (&accelerator);
 
       status = XAxiDma_SimpleTransfer (&AxiDma,
                                        (UINTPTR) state_vector,
-				       ip_size * (sizeof(NeuronState)),
+                                       ip_size * (sizeof(NeuronState)),
                                        XAXIDMA_DEVICE_TO_DMA);
-      if (status != XST_SUCCESS)
-	ASSERT(status == XST_SUCCESS);
-
-      XSbs_update_Start (&accelerator);
+      ASSERT(status == XST_SUCCESS);
 
       while (XAxiDma_Busy (&AxiDma, XAXIDMA_DEVICE_TO_DMA));
 
