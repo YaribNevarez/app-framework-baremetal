@@ -18,6 +18,13 @@
 
 #ifdef USE_XILINX
 #include "ff.h"
+#include "xparameters.h"
+#include "xaxidma.h"
+
+#ifdef USE_ACCELERATOR
+#include "xsbs_update.h"
+#endif
+
 #endif
 
 #define ASSERT(expr)  assert(expr)
@@ -66,16 +73,34 @@ typedef struct
 
 /*****************************************************************************/
 /************************ Memory manager *************************************/
-#define        MEMORY_SIZE    4763116
+#define		MEMORY_SIZE         (4763116)
+
+#define   MAX_LAYER_SIZE      (28*28)
+
+#define   MAX_IP_VECTOR_SIZE  (1024)
+
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+  #define       MEMORY_MGR_DDR_BASE_ADDRESS            (XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x01000000)
+  #define       MEMORY_MGR_DDR_DMA_TX_BD_BASE_ADDRESS  (XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x02000000)
+  #define       MEMORY_MGR_DDR_DMA_RX_BD_BASE_ADDRESS  (XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x03000000)
+  #if MEMORY_MGR_DDR_DMA_TX_BD_BASE_ADDRESS < (MEMORY_MGR_DDR_BASE_ADDRESS + MEMORY_SIZE)
+    #error "Overlapping memory-space and DMA-space"
+  #endif
+#endif
 
 static size_t  Memory_blockIndex = 0;
 
 static void * Memory_requestBlock(size_t size)
 {
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+  static uint8_t * Memory_block = (uint8_t *)MEMORY_MGR_DDR_BASE_ADDRESS;
+#else
   static uint8_t Memory_block[MEMORY_SIZE];
+#endif
+
   void * ptr = NULL;
 
-  if (Memory_blockIndex + size <= sizeof(Memory_block))
+  if (Memory_blockIndex + size <= MEMORY_SIZE)
   {
     ptr = (void *) &Memory_block[Memory_blockIndex];
     Memory_blockIndex += size;
@@ -88,6 +113,354 @@ static size_t Memory_getBlockSize(void)
 {
   return Memory_blockIndex;
 }
+
+/*****************************************************************************/
+/************************ Accelerator ****************************************/
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+
+#pragma pack(push)
+#pragma pack(1)
+typedef struct
+{
+  XSbs_update       updateHardware;
+
+  XAxiDma           dmaHardware;
+  XAxiDma_BdRing *  dmaRxBdRingPtr;
+  XAxiDma_BdRing *  dmaTxBdRingPtr;
+  XAxiDma_Bd *      dmaFirstTxBdPtr;
+  XAxiDma_Bd *      dmaFirstRxBdPtr;
+  XAxiDma_Bd *      dmaCurrentTxBdPtr;
+
+  NeuronState *     stateVector;
+  uint16_t          ipVectorSize;
+  uint16_t          txCounter;
+  uint32_t          batchSize;
+} SbSUpdateAccelerator;
+#pragma pack(pop)
+
+static SbSUpdateAccelerator Accelerator;
+
+static int Accelerator_initialize(void)
+{
+  XAxiDma_Config *Config;
+  XAxiDma_Bd      BdTemplate;
+  u32 FreeBdCount;
+  int Delay = 0;
+  int Coalesce = 1;
+  int status;
+
+  memset(&Accelerator, 0x00, sizeof(SbSUpdateAccelerator));
+
+  /******************************* DMA initialization ************************/
+#ifdef __aarch64__
+  Xil_SetTlbAttributes(MEMORY_MGR_DDR_DMA_TX_BD_BASE_ADDRESS, MARK_UNCACHEABLE);
+  Xil_SetTlbAttributes(MEMORY_MGR_DDR_DMA_RX_BD_BASE_ADDRESS, MARK_UNCACHEABLE);
+#endif
+
+  Config = XAxiDma_LookupConfig (XPAR_AXIDMA_0_DEVICE_ID);
+  if (!Config)
+  {
+    xil_printf ("No config found for %d\r\n", XPAR_AXIDMA_0_DEVICE_ID);
+
+    return XST_FAILURE;
+  }
+
+  /* Initialize DMA engine */
+  status = XAxiDma_CfgInitialize (&Accelerator.dmaHardware, Config);
+  if (status != XST_SUCCESS)
+  {
+    xil_printf ("Initialization failed %d\r\n", status);
+    return XST_FAILURE;
+  }
+
+  if (!XAxiDma_HasSg(&Accelerator.dmaHardware))
+  {
+    xil_printf ("Device configured as Simple mode \r\n");
+
+    return XST_FAILURE;
+  }
+
+  /**************************** DMA SG RX BD initialization ******************/
+  Accelerator.dmaRxBdRingPtr = XAxiDma_GetRxRing(&Accelerator.dmaHardware);
+  /* Disable all RX interrupts before RxBD space setup */
+
+  XAxiDma_BdRingIntDisable(Accelerator.dmaRxBdRingPtr, XAXIDMA_IRQ_ALL_MASK);
+
+  /* Set delay and coalescing */
+  XAxiDma_BdRingSetCoalesce (Accelerator.dmaRxBdRingPtr, Coalesce, Delay);
+
+  status = XAxiDma_BdRingCreate (Accelerator.dmaRxBdRingPtr,
+                                 MEMORY_MGR_DDR_DMA_RX_BD_BASE_ADDRESS,
+                                 MEMORY_MGR_DDR_DMA_RX_BD_BASE_ADDRESS,
+                                 XAXIDMA_BD_MINIMUM_ALIGNMENT,
+                                 MAX_LAYER_SIZE);
+
+  if (status != XST_SUCCESS)
+  {
+    xil_printf ("RX create BD ring failed %d\r\n", status);
+
+    return XST_FAILURE;
+  }
+
+  /*
+   * Setup an all-zero BD as the template for the Rx channel.
+   */
+  XAxiDma_BdClear(&BdTemplate);
+
+  status = XAxiDma_BdRingClone (Accelerator.dmaRxBdRingPtr, &BdTemplate);
+  if (status != XST_SUCCESS)
+  {
+    xil_printf ("RX clone BD failed %d\r\n", status);
+
+    return XST_FAILURE;
+  }
+
+  /* Attach buffers to RxBD ring so we are ready to receive packets */
+
+  FreeBdCount = XAxiDma_BdRingGetFreeCnt(Accelerator.dmaRxBdRingPtr);
+
+  if (FreeBdCount != MAX_LAYER_SIZE)
+  {
+    xil_printf ("RX BD creation inconsistency\r\n");
+
+    return XST_FAILURE;
+  }
+
+  /* Start RX DMA channel */
+  status = XAxiDma_BdRingStart (Accelerator.dmaRxBdRingPtr);
+  if (status != XST_SUCCESS)
+  {
+    xil_printf ("RX start hw failed %d\r\n", status);
+
+    return XST_FAILURE;
+  }
+
+  /**************************** DMA SG TX BD initialization ******************/
+  Accelerator.dmaTxBdRingPtr = XAxiDma_GetTxRing(&Accelerator.dmaHardware);
+
+  /* Disable all TX interrupts before TxBD space setup */
+  XAxiDma_BdRingIntDisable(Accelerator.dmaTxBdRingPtr, XAXIDMA_IRQ_ALL_MASK);
+
+  /* Set TX delay and coalesce */
+  XAxiDma_BdRingSetCoalesce(Accelerator.dmaTxBdRingPtr, Coalesce, Delay);
+
+
+  status = XAxiDma_BdRingCreate (Accelerator.dmaTxBdRingPtr,
+                                 MEMORY_MGR_DDR_DMA_TX_BD_BASE_ADDRESS,
+                                 MEMORY_MGR_DDR_DMA_TX_BD_BASE_ADDRESS,
+                                 XAXIDMA_BD_MINIMUM_ALIGNMENT,
+                                 MAX_LAYER_SIZE);
+  if (status != XST_SUCCESS)
+  {
+    xil_printf ("failed create BD ring in txsetup\r\n");
+
+    return XST_FAILURE;
+  }
+
+  status = XAxiDma_BdRingClone (Accelerator.dmaTxBdRingPtr, &BdTemplate);
+  if (status != XST_SUCCESS)
+  {
+    xil_printf ("failed bdring clone in txsetup %d\r\n", status);
+
+    return XST_FAILURE;
+  }
+
+  FreeBdCount = XAxiDma_BdRingGetFreeCnt(Accelerator.dmaTxBdRingPtr);
+
+  if (FreeBdCount != MAX_LAYER_SIZE)
+  {
+    xil_printf ("RX BD creation inconsistency\r\n");
+
+    return XST_FAILURE;
+  }
+
+  /* Start the TX channel */
+  status = XAxiDma_BdRingStart (Accelerator.dmaTxBdRingPtr);
+  if (status != XST_SUCCESS)
+  {
+    xil_printf ("failed start bdring txsetup %d\r\n", status);
+
+    return XST_FAILURE;
+  }
+
+  /**************************** Accelerator initialization *******************/
+  status = XSbs_update_Initialize (&Accelerator.updateHardware, XPAR_SBS_UPDATE_0_DEVICE_ID);
+  if (status != XST_SUCCESS)
+  {
+    xil_printf ("Sbs update hardware initialization error: %d\r\n", status);
+
+    return XST_FAILURE;
+  }
+
+  XSbs_update_InterruptGlobalDisable(&Accelerator.updateHardware);
+
+  return XST_SUCCESS;
+}
+
+static void Accelerator_setStateVector(NeuronState * state_vector)
+{
+  int status;
+
+  ASSERT (state_vector != NULL);
+  ASSERT (0 < Accelerator.ipVectorSize);
+
+  Xil_DCacheFlushRange ((UINTPTR) state_vector, Accelerator.ipVectorSize * sizeof(NeuronState));
+#ifdef __aarch64__
+  /* TODO: Check cache flushing alignment */
+  Xil_DCacheFlushRange ((UINTPTR) state_vector, Accelerator.ipVectorSize * sizeof(NeuronState));
+#endif
+
+  status = XAxiDma_BdRingAlloc (Accelerator.dmaTxBdRingPtr, Accelerator.batchSize + 1, &Accelerator.dmaFirstTxBdPtr);
+  ASSERT (status == XST_SUCCESS);
+
+  status = XAxiDma_BdSetBufAddr (Accelerator.dmaFirstTxBdPtr, (UINTPTR) state_vector);
+  ASSERT (status == XST_SUCCESS);
+
+  status = XAxiDma_BdSetLength (Accelerator.dmaFirstTxBdPtr,
+                                Accelerator.ipVectorSize * sizeof(NeuronState),
+                                Accelerator.dmaTxBdRingPtr->MaxTransferLen);
+  ASSERT (status == XST_SUCCESS);
+
+  XAxiDma_BdSetCtrl (Accelerator.dmaFirstTxBdPtr, XAXIDMA_BD_CTRL_TXSOF_MASK);
+
+  Accelerator.dmaCurrentTxBdPtr = Accelerator.dmaFirstTxBdPtr;
+
+  Accelerator.txCounter = 0;
+
+  Accelerator.stateVector = state_vector;
+}
+
+static void Accelerator_setIpVectorSize(uint16_t ipVectorSize)
+{
+  ASSERT (0 < ipVectorSize);
+
+  XSbs_update_Set_ipSize(&Accelerator.updateHardware, ipVectorSize);
+  Accelerator.ipVectorSize = ipVectorSize;
+}
+
+static void Accelerator_setBatchSize(uint16_t batchSize)
+{
+  ASSERT (0 < batchSize);
+
+  XSbs_update_Set_batchSize(&Accelerator.updateHardware, batchSize);
+  Accelerator.batchSize = batchSize;
+}
+
+static void Accelerator_setEpsilon(float epsilon)
+{
+  ASSERT (0.0 < epsilon);
+
+  XSbs_update_Set_epsilon(&Accelerator.updateHardware, *(uint32_t*)&epsilon);
+}
+
+static void Accelerator_GiveWeightVector (Weight * weight_vector)
+{
+  int status;
+
+  ASSERT (weight_vector != NULL);
+
+  Xil_DCacheFlushRange ((UINTPTR) weight_vector, Accelerator.ipVectorSize * sizeof(Weight));
+#ifdef __aarch64__
+  /* TODO: Check cache flushing memory alignment */
+  Xil_DCacheFlushRange ((UINTPTR) weight_vector, Accelerator.ipVectorSize * sizeof(Weight));
+#endif
+
+  ASSERT (Accelerator.dmaCurrentTxBdPtr != NULL);
+
+  Accelerator.dmaCurrentTxBdPtr =
+      (XAxiDma_Bd *) XAxiDma_BdRingNext(Accelerator.dmaTxBdRingPtr,
+                                        Accelerator.dmaCurrentTxBdPtr);
+
+  ASSERT (Accelerator.dmaCurrentTxBdPtr != NULL);
+
+  /* Set up the BD using the information of the packet to transmit */
+  status = XAxiDma_BdSetBufAddr (Accelerator.dmaCurrentTxBdPtr, (UINTPTR) weight_vector);
+  ASSERT(status == XST_SUCCESS);
+
+  status = XAxiDma_BdSetLength (Accelerator.dmaCurrentTxBdPtr,
+                                Accelerator.ipVectorSize * sizeof(Weight),
+                                Accelerator.dmaTxBdRingPtr->MaxTransferLen);
+  ASSERT(status == XST_SUCCESS);
+
+
+  Accelerator.txCounter ++;
+
+  ASSERT(Accelerator.txCounter <= Accelerator.batchSize);
+
+  if (Accelerator.txCounter == Accelerator.batchSize)
+  {
+    XAxiDma_BdSetCtrl (Accelerator.dmaCurrentTxBdPtr, XAXIDMA_BD_CTRL_TXEOF_MASK);
+
+    status = XAxiDma_BdRingToHw (Accelerator.dmaTxBdRingPtr,
+                                 Accelerator.batchSize + 1,
+                                 Accelerator.dmaFirstTxBdPtr);
+    ASSERT(status == XST_SUCCESS);
+  }
+}
+
+static void Accelerator_start(void)
+{
+  int ProcessedBdCount;
+  XAxiDma_Bd *BdPtr;
+  int status;
+
+  while(!XSbs_update_IsReady(&Accelerator.updateHardware));
+
+  XSbs_update_Start(&Accelerator.updateHardware);
+
+  ProcessedBdCount = 0;
+  do
+    ProcessedBdCount += XAxiDma_BdRingFromHw (Accelerator.dmaTxBdRingPtr,
+                                              XAXIDMA_ALL_BDS,
+                                              &BdPtr);
+  while (ProcessedBdCount < Accelerator.batchSize + 1);
+
+  status = XAxiDma_BdRingFree (Accelerator.dmaTxBdRingPtr, Accelerator.batchSize + 1, Accelerator.dmaFirstTxBdPtr);
+  ASSERT(status == XST_SUCCESS);
+
+  ASSERT(0 < XAxiDma_BdRingGetFreeCnt(Accelerator.dmaRxBdRingPtr));
+
+  status = XAxiDma_BdRingAlloc (Accelerator.dmaRxBdRingPtr, 1, &Accelerator.dmaFirstRxBdPtr);
+  ASSERT(status == XST_SUCCESS);
+
+  ASSERT(Accelerator.stateVector != NULL);
+
+  status = XAxiDma_BdSetBufAddr (Accelerator.dmaFirstRxBdPtr, (UINTPTR) Accelerator.stateVector);
+  ASSERT(status == XST_SUCCESS);
+
+  ASSERT(0 < Accelerator.ipVectorSize);
+  status = XAxiDma_BdSetLength (Accelerator.dmaFirstRxBdPtr,
+                                Accelerator.ipVectorSize * sizeof(NeuronState),
+                                Accelerator.dmaRxBdRingPtr->MaxTransferLen);
+  ASSERT(status == XST_SUCCESS);
+
+  status = XAxiDma_BdRingToHw (Accelerator.dmaRxBdRingPtr, 1, Accelerator.dmaFirstRxBdPtr);
+  ASSERT(status == XST_SUCCESS);
+
+  /* Wait until the data has been received by the Rx channel */
+  ProcessedBdCount = 0;
+  do
+    ProcessedBdCount += XAxiDma_BdRingFromHw (Accelerator.dmaRxBdRingPtr,
+                                              XAXIDMA_ALL_BDS,
+                                              &Accelerator.dmaFirstRxBdPtr);
+  while (ProcessedBdCount < 1);
+
+  /* Free all processed RX BDs for future transmission */
+  status = XAxiDma_BdRingFree (Accelerator.dmaRxBdRingPtr, 1, Accelerator.dmaFirstRxBdPtr);
+
+  Xil_DCacheInvalidateRange ((UINTPTR) Accelerator.stateVector,
+                             Accelerator.ipVectorSize * sizeof(NeuronState));
+
+  Accelerator.dmaFirstTxBdPtr = NULL;
+  Accelerator.dmaFirstRxBdPtr = NULL;
+  Accelerator.dmaCurrentTxBdPtr = NULL;
+  Accelerator.txCounter = 0;
+  Accelerator.stateVector = NULL;
+}
+#endif
+
+/*****************************************************************************/
+/************************ Update batch ***************************************/
 
 /*****************************************************************************/
 /*****************************************************************************/
@@ -255,54 +628,60 @@ static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vect
     NeuronState * temp_data     = layer->update_buffer;
 
     NeuronState sum             = 0.0f;
-    NeuronState reverse_epsilon = 1.0f / (1.0f + epsilon);
+    NeuronState reverse_epsilon = 0.0f;
     NeuronState epsion_over_sum = 0.0f;
     uint16_t    neuron;
 
 #if defined (__x86_64__) || defined(__amd64__)
-    for (neuron = 0; neuron < size; neuron ++)
     {
-      temp_data[neuron] = state_vector[neuron] * weight_vector[neuron];
-      sum += temp_data[neuron];
+      for (neuron = 0; neuron < size; neuron++)
+      {
+        temp_data[neuron] = state_vector[neuron] * weight_vector[neuron];
+        sum += temp_data[neuron];
+      }
+
+      if (1e-20 < sum) // TODO: DEFINE constant
+      {
+        epsion_over_sum = epsilon / sum;
+        reverse_epsilon = 1.0f / (1.0f + epsilon);
+
+        for (neuron = 0; neuron < size; neuron++)
+          state_vector[neuron] = reverse_epsilon
+              * (state_vector[neuron] + temp_data[neuron] * epsion_over_sum);
+      }
     }
-
-    if (sum < 1e-20) // TODO: DEFINE constant
-      return;
-
-    epsion_over_sum = epsilon / sum;
-
-    for (neuron = 0; neuron < size; neuron ++)
-      state_vector[neuron] = reverse_epsilon * (state_vector[neuron] + temp_data[neuron] * epsion_over_sum);
-
 #elif defined(__arm__)
-    /* Support for unaligned accesses in ARM architecture */
-    NeuronState h;
-    NeuronState p;
-    NeuronState h_p;
-    NeuronState h_new;
-
-    for (neuron = 0; neuron < size; neuron ++)
     {
-      h = state_vector[neuron];
-      p = weight_vector[neuron];
-      h_p = h * p;
+      /* Support for unaligned accesses in ARM architecture */
+      NeuronState h;
+      NeuronState p;
+      NeuronState h_p;
+      NeuronState h_new;
 
-      temp_data[neuron] = h_p;
-      sum += h_p;
-    }
+      for (neuron = 0; neuron < size; neuron++)
+      {
+        h = state_vector[neuron];
+        p = weight_vector[neuron];
+        h_p = h * p;
 
-    if (sum < 1e-20) // TODO: DEFINE constant
-      return;
+        temp_data[neuron] = h_p;
+        sum += h_p;
+      }
 
-    epsion_over_sum = epsilon / sum;
+      if (1e-20 < sum) // TODO: DEFINE constant
+      {
+        epsion_over_sum = epsilon / sum;
+        reverse_epsilon = 1.0f / (1.0f + epsilon);
 
-    for (neuron = 0; neuron < size; neuron ++)
-    {
-      h_p = temp_data[neuron];
-      h = state_vector[neuron];
+        for (neuron = 0; neuron < size; neuron++)
+        {
+          h_p = temp_data[neuron];
+          h = state_vector[neuron];
 
-      h_new = reverse_epsilon * (h + h_p * epsion_over_sum);
-      state_vector[neuron] = h_new;
+          h_new = reverse_epsilon * (h + h_p * epsion_over_sum);
+          state_vector[neuron] = h_new;
+        }
+      }
     }
 #else
 #error "Unsupported processor architecture"
@@ -448,78 +827,95 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, Multivector * input_spike_
       && (input_spike_matrix != NULL)
       && (input_spike_matrix->data != NULL))
   {
-      SpikeID   spikeID       = 0;
-      SpikeID * spike_data    = input_spike_matrix->data;
-      uint16_t  spike_rows    = input_spike_matrix->dimension_size[0];
-      uint16_t  spike_columns = input_spike_matrix->dimension_size[1];
+    SpikeID   spikeID       = 0;
+    SpikeID * spike_data    = input_spike_matrix->data;
+    uint16_t  spike_rows    = input_spike_matrix->dimension_size[0];
+    uint16_t  spike_columns = input_spike_matrix->dimension_size[1];
 
-      NeuronState * weight_data    = layer->weight_matrix->data;
-      NeuronState * weight_vector  = NULL;
-      uint16_t      weight_columns = layer->weight_matrix->dimension_size[1];
+    NeuronState * weight_data    = layer->weight_matrix->data;
+    NeuronState * weight_vector  = NULL;
+    uint16_t      weight_columns = layer->weight_matrix->dimension_size[1];
 
-      NeuronState * state_data     = layer->state_matrix->data;
-      NeuronState * state_vector   = NULL;
-      uint16_t      state_row_size = layer->state_matrix->dimension_size[1] * layer->state_matrix->dimension_size[2];
-      uint16_t      neurons        = layer->state_matrix->dimension_size[2];
+    NeuronState * state_data     = layer->state_matrix->data;
+    NeuronState * state_vector   = NULL;
+    uint16_t      state_row_size = layer->state_matrix->dimension_size[1] * layer->state_matrix->dimension_size[2];
+    uint16_t      neurons        = layer->state_matrix->dimension_size[2];
 
-      uint16_t kernel_stride  = layer->kernel_stride;
-      uint16_t kernel_size    = layer->kernel_size;
-      uint16_t row_shift      = kernel_size;
-      uint16_t column_shift   = 1;
-      uint16_t section_shift  = 0;
+    uint16_t kernel_stride  = layer->kernel_stride;
+    uint16_t kernel_size    = layer->kernel_size;
+    uint16_t row_shift      = kernel_size;
+    uint16_t column_shift   = 1;
+    uint16_t section_shift  = 0;
 
 
-      uint16_t layer_row;         /* Row index for navigation on the layer */
-      uint16_t layer_column;      /* Column index for navigation on the layer */
-      uint16_t kernel_column_pos; /* Kernel column position for navigation on the spike matrix */
-      uint16_t kernel_row_pos;    /* Kernel row position for navigation on the spike matrix */
-      uint16_t kernel_row;        /* Row index for navigation inside kernel */
-      uint16_t kernel_column;     /* Column index for navigation inside kernel */
+    uint16_t layer_row;         /* Row index for navigation on the layer */
+    uint16_t layer_column;      /* Column index for navigation on the layer */
+    uint16_t kernel_column_pos; /* Kernel column position for navigation on the spike matrix */
+    uint16_t kernel_row_pos;    /* Kernel row position for navigation on the spike matrix */
+    uint16_t kernel_row;        /* Row index for navigation inside kernel */
+    uint16_t kernel_column;     /* Column index for navigation inside kernel */
 
-      uint16_t  spike_row_index;
+    uint16_t  spike_row_index;
 
-      uint16_t neurons_previous_Layer = layer->neurons_previous_Layer;
+    uint16_t neurons_previous_Layer = layer->neurons_previous_Layer;
 
-      float epsilon = layer->epsilon;
+    float epsilon = layer->epsilon;
 
-      ASSERT(weight_columns == neurons);
+    ASSERT(weight_columns == neurons);
 
-      if (weight_columns != neurons)
-        return;
+    if (weight_columns != neurons)
+      return;
 
-      if (layer->weight_shift == ROW_SHIFT)
+    if (layer->weight_shift == ROW_SHIFT)
+    {
+      row_shift = 1;
+      column_shift = kernel_size;
+    }
+
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+        Accelerator_setIpVectorSize(neurons);
+        Accelerator_setBatchSize(kernel_size * kernel_size);
+        Accelerator_setEpsilon(epsilon);
+#endif
+
+    /* Update begins */
+    for (kernel_row_pos = 0, layer_row = 0;
+         kernel_row_pos < spike_rows - (kernel_size - 1);
+         kernel_row_pos += kernel_stride, layer_row ++)
+    {
+      for (kernel_column_pos = 0, layer_column = 0;
+           kernel_column_pos < spike_columns - (kernel_size - 1);
+           kernel_column_pos += kernel_stride, layer_column ++)
       {
-        row_shift = 1;
-        column_shift = kernel_size;
-      }
+        state_vector = &state_data[layer_row * state_row_size + layer_column * neurons];
 
-      /* Update begins */
-      for (kernel_row_pos = 0, layer_row = 0;
-           kernel_row_pos < spike_rows - (kernel_size - 1);
-           kernel_row_pos += kernel_stride, layer_row ++)
-      {
-        for (kernel_column_pos = 0, layer_column = 0;
-             kernel_column_pos < spike_columns - (kernel_size - 1);
-             kernel_column_pos += kernel_stride, layer_column ++)
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+        Accelerator_setStateVector(state_vector);
+#endif
+        for (kernel_row = 0; kernel_row < kernel_size; kernel_row ++)
         {
-          state_vector = &state_data[layer_row * state_row_size + layer_column * neurons];
-          for (kernel_row = 0; kernel_row < kernel_size; kernel_row ++)
+            spike_row_index = (kernel_row_pos + kernel_row) * spike_columns;
+          for (kernel_column = 0; kernel_column < kernel_size; kernel_column ++)
           {
-              spike_row_index = (kernel_row_pos + kernel_row) * spike_columns;
-            for (kernel_column = 0; kernel_column < kernel_size; kernel_column ++)
-            {
-              spikeID = spike_data[spike_row_index + kernel_column_pos + kernel_column];
+            spikeID = spike_data[spike_row_index + kernel_column_pos + kernel_column];
 
-              section_shift = (kernel_row * row_shift + kernel_column * column_shift) * neurons_previous_Layer;
+            section_shift = (kernel_row * row_shift + kernel_column * column_shift) * neurons_previous_Layer;
 
-              weight_vector = &weight_data[(spikeID + section_shift) * weight_columns];
+            weight_vector = &weight_data[(spikeID + section_shift) * weight_columns];
 
-              SbsBaseLayer_updateIP(layer, state_vector, weight_vector, neurons, epsilon);
-            }
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+            Accelerator_GiveWeightVector (weight_vector);
+#else
+            SbsBaseLayer_updateIP (layer, state_vector, weight_vector, neurons, epsilon);
+#endif
           }
         }
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+        Accelerator_start();
+#endif
       }
-      /* Update ends*/
+    }
+    /* Update ends*/
   }
 }
 
@@ -540,6 +936,9 @@ static SbsNetwork * SbsBaseNetwork_new(void)
       network->input_label = (uint8_t)-1;
       network->inferred_output = (uint8_t)-1;
 
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+      ASSERT(Accelerator_initialize() == XST_SUCCESS); /* TODO: Create interface for Accelerator */
+#endif
       sgenrand(666); /*TODO: Create MT19937 object wrapper */
   }
 

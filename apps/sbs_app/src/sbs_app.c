@@ -25,9 +25,8 @@
 
 #ifdef USE_XILINX
 
-#include "platform.h"
 #include "xil_printf.h"
-#include "IO.h"
+#include "xstatus.h"
 #include "ff.h"
 
 #endif
@@ -64,7 +63,6 @@ static u32 SnnApp_initializeSD(void)
 Result SnnApp_initialize(void)
 {
 #ifdef USE_XILINX
-    init_platform();
     SnnApp_initializeSD();
 #endif
 
@@ -139,6 +137,9 @@ Result SnnApp_run(void)
 
     // Perform Network load pattern and update cycle
   network->loadInput(network, SBS_INPUT_PATTERN_FILE);
+
+  printf("\n==========  Update Cycle ===========================\n");
+
   network->updateCycle(network, 1000);
 
   printf("\n==========  Results ===========================\n");
@@ -172,7 +173,7 @@ Result SnnApp_run(void)
 void SnnApp_dispose(void)
 {
 #ifdef USE_XILINX
-	cleanup_platform();
+
 #endif
 }
 
