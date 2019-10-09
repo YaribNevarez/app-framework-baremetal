@@ -306,12 +306,13 @@ static void Accelerator_setup(uint32_t layerSize, uint32_t kernelSize, uint16_t 
   ASSERT (0 < vectorSize);
   ASSERT (0.0 < epsilon);
 
+  XSbs_update_Set_layerSize (&Accelerator.updateHardware, layerSize);
   Accelerator.layerSize = layerSize;
 
-  XSbs_update_Set_batchSize (&Accelerator.updateHardware, kernelSize);
+  XSbs_update_Set_kernelSize (&Accelerator.updateHardware, kernelSize);
   Accelerator.kernelSize = kernelSize;
 
-  XSbs_update_Set_ipSize (&Accelerator.updateHardware, vectorSize);
+  XSbs_update_Set_vectorSize (&Accelerator.updateHardware, vectorSize);
   Accelerator.vectorSize = vectorSize;
 
   XSbs_update_Set_epsilon (&Accelerator.updateHardware, *(uint32_t*) &epsilon);
@@ -442,7 +443,6 @@ static void Accelerator_start(void)
 
   while (!XSbs_update_IsReady (&Accelerator.updateHardware));
 
-  XSbs_update_EnableAutoRestart (&Accelerator.updateHardware);
   XSbs_update_Start (&Accelerator.updateHardware);
 
   allocatedDmaBd = Accelerator.layerSize * (Accelerator.kernelSize + 1);
@@ -455,6 +455,10 @@ static void Accelerator_start(void)
                                Accelerator.dmaFirstTxBdPtr);
   ASSERT(status == XST_SUCCESS);
 
+  status = XAxiDma_BdRingToHw (Accelerator.dmaRxBdRingPtr,
+                               Accelerator.layerSize,
+                               Accelerator.dmaFirstRxBdPtr);
+  ASSERT(status == XST_SUCCESS);
 
   ProcessedBdCount = 0;
   do
@@ -468,30 +472,25 @@ static void Accelerator_start(void)
                                Accelerator.dmaFirstTxBdPtr);
   ASSERT(status == XST_SUCCESS);
 
-  status = XAxiDma_BdRingToHw (Accelerator.dmaRxBdRingPtr,
-                               Accelerator.layerSize,
-                               Accelerator.dmaFirstRxBdPtr);
-  ASSERT(status == XST_SUCCESS);
-
   ProcessedBdCount = 0;
   do
     ProcessedBdCount += XAxiDma_BdRingFromHw (Accelerator.dmaRxBdRingPtr,
                                               XAXIDMA_ALL_BDS,
-                                              &Accelerator.dmaFirstRxBdPtr);
+                                              &BdPtr);
   while (ProcessedBdCount < Accelerator.layerSize);
 
   status = XAxiDma_BdRingFree (Accelerator.dmaRxBdRingPtr,
                                Accelerator.layerSize,
                                Accelerator.dmaFirstRxBdPtr);
+  ASSERT(status == XST_SUCCESS);
 
 //  Xil_DCacheInvalidateRange ((UINTPTR) Accelerator.stateVector,
 //                             Accelerator.vectorSize * sizeof(NeuronState));
 
-  XSbs_update_DisableAutoRestart (&Accelerator.updateHardware);
-
   Accelerator.dmaFirstTxBdPtr = NULL;
   Accelerator.dmaFirstRxBdPtr = NULL;
   Accelerator.dmaCurrentTxBdPtr = NULL;
+  Accelerator.dmaCurrentRxBdPtr = NULL;
 }
 #endif
 
