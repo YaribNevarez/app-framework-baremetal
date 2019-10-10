@@ -23,6 +23,7 @@
 
 #ifdef USE_ACCELERATOR
 #include "xsbs_update.h"
+#include "xscugic.h"
 #endif
 
 #endif
@@ -139,13 +140,151 @@ typedef struct
   uint16_t          vectorSize;
   uint32_t          kernelSize;
   uint32_t          layerSize;
+
+  uint8_t           errorFlags;
 } SbSUpdateAccelerator;
 #pragma pack(pop)
 
 static SbSUpdateAccelerator Accelerator;
+static XScuGic              ScuGic;
+
+#define ACCELERATOR_DMA_RESET_TIMEOUT 10000
+
+static void Accelerator_txInterruptHandler(void * data)
+{
+  u32 IrqStatus = XAxiDma_BdRingGetIrq(Accelerator.dmaTxBdRingPtr);
+
+  XAxiDma_BdRingAckIrq(Accelerator.dmaTxBdRingPtr, IrqStatus);
+
+  if (!(IrqStatus & XAXIDMA_IRQ_ALL_MASK))
+  {
+    return;
+  }
+
+  if ((IrqStatus & XAXIDMA_IRQ_ERROR_MASK))
+  {
+    int TimeOut;
+    XAxiDma_BdRingDumpRegs (Accelerator.dmaTxBdRingPtr);
+
+    Accelerator.errorFlags |= 0x01;
+
+    XAxiDma_Reset (&Accelerator.dmaHardware);
+
+    TimeOut = ACCELERATOR_DMA_RESET_TIMEOUT;
+
+    while (TimeOut)
+    {
+      if (XAxiDma_ResetIsDone (&Accelerator.dmaHardware))
+      {
+        break;
+      }
+
+      TimeOut -= 1;
+    }
+
+    ASSERT(0);
+    return;
+  }
+
+  if ((IrqStatus & (XAXIDMA_IRQ_DELAY_MASK | XAXIDMA_IRQ_IOC_MASK)))
+  {
+    XAxiDma_Bd *BdPtr;
+    XAxiDma_Bd *BdCurPtr;
+    int status;
+    int BdCount;
+    u32 BdSts;
+    int Index;
+
+    BdCount = XAxiDma_BdRingFromHw(Accelerator.dmaTxBdRingPtr, XAXIDMA_ALL_BDS, &BdPtr);
+
+    BdCurPtr = BdPtr;
+    for (Index = 0; Index < BdCount; Index++)
+    {
+      BdSts = XAxiDma_BdGetSts(BdCurPtr);
+      if ((BdSts & XAXIDMA_BD_STS_ALL_ERR_MASK) || (!(BdSts & XAXIDMA_BD_STS_COMPLETE_MASK)))
+      {
+        Accelerator.errorFlags |= 0x02;
+        break;
+      }
+
+      BdCurPtr = (XAxiDma_Bd *) XAxiDma_BdRingNext(Accelerator.dmaTxBdRingPtr,
+                                                   BdCurPtr);
+    }
+
+    status = XAxiDma_BdRingFree(Accelerator.dmaTxBdRingPtr, BdCount, BdPtr);
+    ASSERT(status == XST_SUCCESS);
+  }
+}
+
+static void Accelerator_rxInterruptHandler(void * data)
+{
+  u32 IrqStatus = XAxiDma_BdRingGetIrq(Accelerator.dmaRxBdRingPtr);
+
+  XAxiDma_BdRingAckIrq(Accelerator.dmaRxBdRingPtr, IrqStatus);
+
+  if (!(IrqStatus & XAXIDMA_IRQ_ALL_MASK))
+  {
+    return;
+  }
+
+  if ((IrqStatus & XAXIDMA_IRQ_ERROR_MASK))
+  {
+    int TimeOut;
+    XAxiDma_BdRingDumpRegs (Accelerator.dmaRxBdRingPtr);
+
+    Accelerator.errorFlags |= 0x01;
+
+    XAxiDma_Reset (&Accelerator.dmaHardware);
+
+    TimeOut = ACCELERATOR_DMA_RESET_TIMEOUT;
+
+    while (TimeOut)
+    {
+      if (XAxiDma_ResetIsDone (&Accelerator.dmaHardware))
+      {
+        break;
+      }
+
+      TimeOut -= 1;
+    }
+
+    ASSERT(0);
+    return;
+  }
+
+  if ((IrqStatus & (XAXIDMA_IRQ_DELAY_MASK | XAXIDMA_IRQ_IOC_MASK)))
+  {
+    XAxiDma_Bd *BdPtr;
+    XAxiDma_Bd *BdCurPtr;
+    int status;
+    int BdCount;
+    u32 BdSts;
+    int Index;
+
+    BdCount = XAxiDma_BdRingFromHw(Accelerator.dmaRxBdRingPtr, XAXIDMA_ALL_BDS, &BdPtr);
+
+    BdCurPtr = BdPtr;
+    for (Index = 0; Index < BdCount; Index++)
+    {
+      BdSts = XAxiDma_BdGetSts(BdCurPtr);
+      if ((BdSts & XAXIDMA_BD_STS_ALL_ERR_MASK) || (!(BdSts & XAXIDMA_BD_STS_COMPLETE_MASK)))
+      {
+        Accelerator.errorFlags |= 0x02;
+        break;
+      }
+
+      BdCurPtr = (XAxiDma_Bd *) XAxiDma_BdRingNext(Accelerator.dmaRxBdRingPtr,
+                                                   BdCurPtr);
+    }
+
+    status = XAxiDma_BdRingFree(Accelerator.dmaRxBdRingPtr, BdCount, BdPtr);
+    ASSERT(status == XST_SUCCESS);
+  }
+}
 
 static int Accelerator_initialize(void)
 {
+  XScuGic_Config *  IntcConfig;
   XAxiDma_Config *  dmaConfig;
   XAxiDma_Bd        dmaBdTemplate;
   u32               freeBdCount;
@@ -195,7 +334,7 @@ static int Accelerator_initialize(void)
   /**************************** DMA SG RX BD initialization ******************/
   Accelerator.dmaRxBdRingPtr = XAxiDma_GetRxRing(&Accelerator.dmaHardware);
 
-  XAxiDma_BdRingIntDisable(Accelerator.dmaRxBdRingPtr, XAXIDMA_IRQ_ALL_MASK);
+  XAxiDma_BdRingIntEnable(Accelerator.dmaRxBdRingPtr, XAXIDMA_IRQ_ALL_MASK);
 
   XAxiDma_BdRingSetCoalesce (Accelerator.dmaRxBdRingPtr, 1, 0);
 
@@ -242,7 +381,7 @@ static int Accelerator_initialize(void)
   /**************************** DMA SG TX BD initialization ******************/
   Accelerator.dmaTxBdRingPtr = XAxiDma_GetTxRing(&Accelerator.dmaHardware);
 
-  XAxiDma_BdRingIntDisable(Accelerator.dmaTxBdRingPtr, XAXIDMA_IRQ_ALL_MASK);
+  XAxiDma_BdRingIntEnable(Accelerator.dmaTxBdRingPtr, XAXIDMA_IRQ_ALL_MASK);
 
   XAxiDma_BdRingSetCoalesce(Accelerator.dmaTxBdRingPtr, 1, 0);
 
@@ -284,6 +423,57 @@ static int Accelerator_initialize(void)
     return XST_FAILURE;
   }
 
+  /***************************************************************************/
+  /**************************** GIC initialization ***************************/
+  IntcConfig = XScuGic_LookupConfig (XPAR_SCUGIC_SINGLE_DEVICE_ID);
+  if (NULL == IntcConfig)
+  {
+    return XST_FAILURE;
+  }
+
+  status = XScuGic_CfgInitialize (&ScuGic, IntcConfig,
+                                  IntcConfig->CpuBaseAddress);
+  if (status != XST_SUCCESS)
+  {
+    return XST_FAILURE;
+  }
+
+  XScuGic_SetPriorityTriggerType (&ScuGic,
+                                  XPAR_FABRIC_AXIDMA_0_MM2S_INTROUT_VEC_ID,
+                                  0xA0, 0x3);
+
+  XScuGic_SetPriorityTriggerType (&ScuGic,
+                                  XPAR_FABRIC_AXIDMA_0_S2MM_INTROUT_VEC_ID,
+                                  0xA0, 0x3);
+
+  status = XScuGic_Connect (&ScuGic, XPAR_FABRIC_AXIDMA_0_MM2S_INTROUT_VEC_ID,
+                            (Xil_InterruptHandler) Accelerator_txInterruptHandler,
+                            &Accelerator);
+  if (status != XST_SUCCESS)
+  {
+    return status;
+  }
+
+  status = XScuGic_Connect (&ScuGic, XPAR_FABRIC_AXIDMA_0_S2MM_INTROUT_VEC_ID,
+                            (Xil_InterruptHandler) Accelerator_rxInterruptHandler,
+                            &Accelerator);
+  if (status != XST_SUCCESS)
+  {
+    return status;
+  }
+
+  XScuGic_Enable (&ScuGic, XPAR_FABRIC_AXIDMA_0_MM2S_INTROUT_VEC_ID);
+  XScuGic_Enable (&ScuGic, XPAR_FABRIC_AXIDMA_0_S2MM_INTROUT_VEC_ID);
+
+  /**************************** initialize ARM Core exception handlers *******/
+  Xil_ExceptionInit ();
+  Xil_ExceptionRegisterHandler (XIL_EXCEPTION_ID_INT,
+                                (Xil_ExceptionHandler) XScuGic_InterruptHandler,
+                                (void *) &ScuGic);
+
+  Xil_ExceptionEnable();
+
+  /***************************************************************************/
   /**************************** Accelerator initialization *******************/
   status = XSbs_update_Initialize (&Accelerator.updateHardware, XPAR_SBS_UPDATE_0_DEVICE_ID);
   if (status != XST_SUCCESS)
@@ -296,6 +486,12 @@ static int Accelerator_initialize(void)
   XSbs_update_InterruptGlobalDisable(&Accelerator.updateHardware);
 
   return XST_SUCCESS;
+}
+
+static void Accelerator_shutdown(void)
+{
+  XScuGic_Disconnect (&ScuGic, XPAR_FABRIC_AXIDMA_0_MM2S_INTROUT_VEC_ID);
+  XScuGic_Disconnect (&ScuGic, XPAR_FABRIC_AXIDMA_0_S2MM_INTROUT_VEC_ID);
 }
 
 static void Accelerator_setup(NeuronState * layerData,
@@ -321,6 +517,9 @@ static void Accelerator_setup(NeuronState * layerData,
 
   XSbs_update_Set_epsilon (&Accelerator.updateHardware, *(uint32_t*) &epsilon);
 
+  while (Accelerator.dmaTxBdRingPtr->PostCnt);
+  while (Accelerator.dmaRxBdRingPtr->PostCnt);
+
   ASSERT(0 < XAxiDma_BdRingGetFreeCnt(Accelerator.dmaTxBdRingPtr));
 
   status = XAxiDma_BdRingAlloc (Accelerator.dmaTxBdRingPtr,
@@ -332,6 +531,7 @@ static void Accelerator_setup(NeuronState * layerData,
 
   Accelerator.dmaCurrentTxBdPtr = Accelerator.dmaFirstTxBdPtr;
 
+  /************************** Rx Setup **************************/
   ASSERT(0 < XAxiDma_BdRingGetFreeCnt(Accelerator.dmaRxBdRingPtr));
 
   status = XAxiDma_BdRingAlloc (Accelerator.dmaRxBdRingPtr,
@@ -339,7 +539,6 @@ static void Accelerator_setup(NeuronState * layerData,
                                 &Accelerator.dmaFirstRxBdPtr);
   ASSERT(status == XST_SUCCESS);
 
-  /************************** Rx Setup **************************/
   ASSERT (Accelerator.dmaFirstRxBdPtr != NULL);
   status = XAxiDma_BdSetBufAddr (Accelerator.dmaFirstRxBdPtr, (UINTPTR) layerData);
   ASSERT(status == XST_SUCCESS);
@@ -432,8 +631,6 @@ static void Accelerator_giveWeightVector (Weight * weight_vector)
 
 static void Accelerator_start(void)
 {
-  int ProcessedBdCount;
-  XAxiDma_Bd *BdPtr;
   uint32_t allocatedDmaBd;
   int status;
 
@@ -452,30 +649,6 @@ static void Accelerator_start(void)
   ASSERT(status == XST_SUCCESS);
 
   status = XAxiDma_BdRingToHw (Accelerator.dmaRxBdRingPtr,
-                               1,
-                               Accelerator.dmaFirstRxBdPtr);
-  ASSERT(status == XST_SUCCESS);
-
-  ProcessedBdCount = 0;
-  do
-    ProcessedBdCount += XAxiDma_BdRingFromHw (Accelerator.dmaTxBdRingPtr,
-                                              XAXIDMA_ALL_BDS,
-                                              &BdPtr);
-  while (ProcessedBdCount < allocatedDmaBd);
-
-  status = XAxiDma_BdRingFree (Accelerator.dmaTxBdRingPtr,
-                               allocatedDmaBd,
-                               Accelerator.dmaFirstTxBdPtr);
-  ASSERT(status == XST_SUCCESS);
-
-  ProcessedBdCount = 0;
-  do
-    ProcessedBdCount += XAxiDma_BdRingFromHw (Accelerator.dmaRxBdRingPtr,
-                                              XAXIDMA_ALL_BDS,
-                                              &BdPtr);
-  while (ProcessedBdCount < 1);
-
-  status = XAxiDma_BdRingFree (Accelerator.dmaRxBdRingPtr,
                                1,
                                Accelerator.dmaFirstRxBdPtr);
   ASSERT(status == XST_SUCCESS);
@@ -995,6 +1168,10 @@ static void SbsBaseNetwork_delete(SbsNetwork ** network_ptr)
     free(*network);
     *network = NULL;
   }
+
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+  Accelerator_shutdown (); /* TODO: Create interface for Accelerator */
+#endif
 }
 
 static void SbsBaseNetwork_giveLayer(SbsNetwork * network_ptr, SbsLayer * layer)
