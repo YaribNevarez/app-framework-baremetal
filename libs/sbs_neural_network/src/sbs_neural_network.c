@@ -892,27 +892,27 @@ static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vect
 }
 #endif
 
-static SpikeID SbsBaseLayer_generateSpikeIP(NeuronState * state_vector, uint16_t size)
+static SpikeID SbsBaseLayer_generateSpikeIP (NeuronState * state_vector, uint16_t size)
 {
   ASSERT(state_vector != NULL);
   ASSERT(0 < size);
 
   if ((state_vector != NULL) && (0 < size))
   {
-    NeuronState random_s = ((NeuronState)genrand()) / ((NeuronState)0xFFFFFFFF);
+    NeuronState random_s = ((NeuronState) genrand ()) / ((NeuronState) 0xFFFFFFFF);
     NeuronState sum      = 0.0f;
     SpikeID     spikeID;
 
     ASSERT(random_s <= 1.0F);
 
-    for (spikeID = 0; spikeID < size; spikeID ++)
+    for (spikeID = 0; spikeID < size; spikeID++)
     {
-        sum += state_vector[spikeID];
+      sum += state_vector[spikeID];
 
-        ASSERT(sum <= 1 + 1e-5);
+      ASSERT(sum <= 1 + 1e-5);
 
-        if (random_s <= sum)
-              return spikeID;
+      if (random_s <= sum)
+        return spikeID;
     }
   }
 
