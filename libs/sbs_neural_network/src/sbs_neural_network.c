@@ -85,9 +85,9 @@ typedef struct
 #define   MAX_IP_VECTOR_SIZE  (1024)
 
 #if defined(USE_XILINX) && defined(USE_ACCELERATOR)
-  #define       MEMORY_MGR_DDR_BASE_ADDRESS            (XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x01000000)
-  #define       MEMORY_MGR_DDR_DMA_TX_BD_BASE_ADDRESS  (XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x02000000)
-  #define       MEMORY_MGR_DDR_DMA_RX_BD_BASE_ADDRESS  (XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x03000000)
+  #define       MEMORY_MGR_DDR_BASE_ADDRESS            (XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x11000000)
+  #define       MEMORY_MGR_DDR_DMA_TX_BD_BASE_ADDRESS  (XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x12000000)
+  #define       MEMORY_MGR_DDR_DMA_RX_BD_BASE_ADDRESS  (XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x13000000)
 
   #if MEMORY_MGR_DDR_DMA_TX_BD_BASE_ADDRESS < (MEMORY_MGR_DDR_BASE_ADDRESS + MEMORY_SIZE)
     #error "Overlapping memory-space and DMA-space"
@@ -185,6 +185,7 @@ static void Accelerator_txInterruptHandler(void * data)
       TimeOut -= 1;
     }
 
+    printf("Possible: illegal address access");
     ASSERT(0);
     return;
   }
@@ -251,6 +252,7 @@ static void Accelerator_rxInterruptHandler(void * data)
       TimeOut -= 1;
     }
 
+    printf("Possible: illegal address access");
     ASSERT(0);
     return;
   }
@@ -312,10 +314,10 @@ static int Accelerator_initialize(void)
   Xil_SetTlbAttributes(MEMORY_MGR_DDR_DMA_RX_BD_BASE_ADDRESS, MARK_UNCACHEABLE);
 #endif
 
-  dmaConfig = XAxiDma_LookupConfig (XPAR_AXIDMA_0_DEVICE_ID);
+  dmaConfig = XAxiDma_LookupConfig (XPAR_AXIDMA_1_DEVICE_ID);
   if (dmaConfig == NULL)
   {
-    xil_printf ("No configuration found for %d\r\n", XPAR_AXIDMA_0_DEVICE_ID);
+    xil_printf ("No configuration found for %d\r\n", XPAR_AXIDMA_1_DEVICE_ID);
 
     return XST_FAILURE;
   }
@@ -442,14 +444,14 @@ static int Accelerator_initialize(void)
   }
 
   XScuGic_SetPriorityTriggerType (&ScuGic,
-                                  XPAR_FABRIC_AXIDMA_0_MM2S_INTROUT_VEC_ID,
+                                  XPAR_FABRIC_AXIDMA_1_MM2S_INTROUT_VEC_ID,
                                   0xA0, 0x3);
 
   XScuGic_SetPriorityTriggerType (&ScuGic,
-                                  XPAR_FABRIC_AXIDMA_0_S2MM_INTROUT_VEC_ID,
+                                  XPAR_FABRIC_AXIDMA_1_S2MM_INTROUT_VEC_ID,
                                   0xA0, 0x3);
 
-  status = XScuGic_Connect (&ScuGic, XPAR_FABRIC_AXIDMA_0_MM2S_INTROUT_VEC_ID,
+  status = XScuGic_Connect (&ScuGic, XPAR_FABRIC_AXIDMA_1_MM2S_INTROUT_VEC_ID,
                             (Xil_InterruptHandler) Accelerator_txInterruptHandler,
                             &Accelerator);
   if (status != XST_SUCCESS)
@@ -457,7 +459,7 @@ static int Accelerator_initialize(void)
     return status;
   }
 
-  status = XScuGic_Connect (&ScuGic, XPAR_FABRIC_AXIDMA_0_S2MM_INTROUT_VEC_ID,
+  status = XScuGic_Connect (&ScuGic, XPAR_FABRIC_AXIDMA_1_S2MM_INTROUT_VEC_ID,
                             (Xil_InterruptHandler) Accelerator_rxInterruptHandler,
                             &Accelerator);
   if (status != XST_SUCCESS)
@@ -465,8 +467,8 @@ static int Accelerator_initialize(void)
     return status;
   }
 
-  XScuGic_Enable (&ScuGic, XPAR_FABRIC_AXIDMA_0_MM2S_INTROUT_VEC_ID);
-  XScuGic_Enable (&ScuGic, XPAR_FABRIC_AXIDMA_0_S2MM_INTROUT_VEC_ID);
+  XScuGic_Enable (&ScuGic, XPAR_FABRIC_AXIDMA_1_MM2S_INTROUT_VEC_ID);
+  XScuGic_Enable (&ScuGic, XPAR_FABRIC_AXIDMA_1_S2MM_INTROUT_VEC_ID);
 
   /**************************** initialize ARM Core exception handlers *******/
   Xil_ExceptionInit ();
@@ -478,7 +480,7 @@ static int Accelerator_initialize(void)
 
   /***************************************************************************/
   /**************************** Accelerator initialization *******************/
-  status = XSbs_update_Initialize (&Accelerator.updateHardware, XPAR_SBS_UPDATE_0_DEVICE_ID);
+  status = XSbs_update_Initialize (&Accelerator.updateHardware, XPAR_SBS_UPDATE_1_DEVICE_ID);
   if (status != XST_SUCCESS)
   {
     xil_printf ("Sbs update hardware initialization error: %d\r\n", status);
