@@ -1411,7 +1411,7 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
       }
 
       if (cycles % 100 == 0)
-        printf(" - Spike cycle: %d\n", cycles);
+        printf("%d\n", cycles);
     }
     /************************ Ends Update cycle ****************************/
 

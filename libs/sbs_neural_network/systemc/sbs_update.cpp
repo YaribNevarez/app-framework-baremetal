@@ -35,8 +35,6 @@ void sbs_update (hls::stream<StreamChannel> &stream_in,
 
   static int ip_index;
   static int i;
-  static int spikeID;
-  static int undefined_spikeID;
   static int batch;
   static StreamChannel channel;
   static float state_vector[MAX_VECTOR_SIZE];
@@ -49,8 +47,6 @@ void sbs_update (hls::stream<StreamChannel> &stream_in,
   float reverse_epsilon = 1.0f / (1.0f + epsilon);
   static float sum;
 
-  undefined_spikeID = vectorSize - 1;
-
   for (ip_index = 0; ip_index < layerSize; ip_index++)
   {
 #pragma HLS pipeline
@@ -59,18 +55,18 @@ void sbs_update (hls::stream<StreamChannel> &stream_in,
     random_value = float_to_int.f32;
 
     sum = 0.0f;
-    spikeID = undefined_spikeID;
     for (i = 0; i < vectorSize; i++)
     {
 #pragma HLS pipeline
       float_to_int.u32 = stream_in.read ().data;
       state_vector[i] = float_to_int.f32;
-      if (spikeID == undefined_spikeID)
+      if (sum < random_value)
       {
         sum += state_vector[i];
-        if (random_value <= sum)
+        if (random_value <= sum || (i == vectorSize - 1))
         {
-          spikeID = i;
+          channel.data = i;
+          stream_out.write(channel);
         }
       }
     }
@@ -98,10 +94,6 @@ void sbs_update (hls::stream<StreamChannel> &stream_in,
         }
       }
     }
-
-    channel.data = spikeID;
-    channel.last = 0;
-    stream_out.write(channel);
 
     for (i = 0; i < vectorSize; i++)
     {
