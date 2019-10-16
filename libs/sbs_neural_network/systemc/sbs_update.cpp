@@ -56,7 +56,7 @@ void sbs_update (hls::stream<StreamChannel> &stream_in,
 #pragma HLS pipeline
     channel = stream_in.read ();
     float_to_int.u32 = channel.data;
-    random_value = float_to_int.f32 * FLOAT32_NORMALIZATION;
+    random_value = float_to_int.f32;
 
     sum = 0.0f;
     spikeID = undefined_spikeID;
@@ -67,7 +67,7 @@ void sbs_update (hls::stream<StreamChannel> &stream_in,
       state_vector[i] = float_to_int.f32;
       if (spikeID == undefined_spikeID)
       {
-        sum += float_to_int.f32;
+        sum += state_vector[i];
         if (random_value <= sum)
         {
           spikeID = i;

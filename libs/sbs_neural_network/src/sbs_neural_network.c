@@ -52,6 +52,9 @@ typedef struct
   Multivector * state_matrix;
   Multivector * weight_matrix;
   Multivector * spike_matrix;
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+  Multivector * random_matrix;
+#endif
   NeuronState * update_buffer;
   uint16_t      kernel_size;
   uint16_t      kernel_stride;
@@ -74,7 +77,7 @@ typedef struct
 
 /*****************************************************************************/
 /************************ Memory manager *************************************/
-#define		MEMORY_SIZE         (4765872)
+#define		MEMORY_SIZE         (4771384)
 
 #define   MAX_LAYER_SIZE      (28*28)
 #define   MAX_KERNEL_SIZE     (5*5)
@@ -522,7 +525,7 @@ static void Accelerator_setup(uint32_t      layerSize,
   ASSERT(0 < XAxiDma_BdRingGetFreeCnt(Accelerator.dmaTxBdRingPtr));
 
   status = XAxiDma_BdRingAlloc (Accelerator.dmaTxBdRingPtr,
-                                Accelerator.layerSize * (Accelerator.kernelSize + 1),
+                                Accelerator.layerSize * (Accelerator.kernelSize + 1 + 1),
                                 &Accelerator.dmaFirstTxBdPtr);
   ASSERT (status == XST_SUCCESS);
 
@@ -534,7 +537,7 @@ static void Accelerator_setup(uint32_t      layerSize,
   ASSERT(0 < XAxiDma_BdRingGetFreeCnt(Accelerator.dmaRxBdRingPtr));
 
   status = XAxiDma_BdRingAlloc (Accelerator.dmaRxBdRingPtr,
-                                layerSize,
+                                2 * layerSize,
                                 &Accelerator.dmaFirstRxBdPtr);
   ASSERT(status == XST_SUCCESS);
 
@@ -543,21 +546,42 @@ static void Accelerator_setup(uint32_t      layerSize,
   Accelerator.txStateCounter = 0;
   Accelerator.txWeightCounter = 0;
 }
-
-static void Accelerator_giveStateVector (NeuronState * state_vector, SpikeID * spikeID)
+static SpikeID SbsBaseLayer_generateSpikeIP (NeuronState * state_vector, uint16_t size);
+static void Accelerator_giveStateVector (NeuronState * state_vector,
+                                         SpikeID * spike_id,
+                                         uint32_t * random_number)
 {
   int status;
 
   ASSERT (state_vector != NULL);
   ASSERT (0 < Accelerator.vectorSize);
+  ASSERT (spike_id != NULL);
+  ASSERT (random_number != NULL);
 
-  Xil_DCacheFlushRange ((UINTPTR) state_vector, Accelerator.vectorSize * sizeof(NeuronState));
-#ifdef __aarch64__
-  /* TODO: Check cache flushing alignment */
-  Xil_DCacheFlushRange ((UINTPTR) state_vector, Accelerator.vectorSize * sizeof(NeuronState));
-#endif
+  /************************** Tx random_number *******************************/
+  NeuronState random_s = ((NeuronState) genrand ()) * (1.0/((NeuronState) 0xFFFFFFFF));
+  *(float*)random_number = random_s;
 
-  /************************** Tx Setup **************************/
+  Xil_DCacheFlushRange ((UINTPTR) random_number, sizeof(uint32_t));
+
+  ASSERT (Accelerator.dmaCurrentTxBdPtr != NULL);
+  status = XAxiDma_BdSetBufAddr (Accelerator.dmaCurrentTxBdPtr, (UINTPTR) random_number);
+  ASSERT (status == XST_SUCCESS);
+
+  status = XAxiDma_BdSetLength (Accelerator.dmaCurrentTxBdPtr,
+                                sizeof(uint32_t),
+                                Accelerator.dmaTxBdRingPtr->MaxTransferLen);
+  ASSERT (status == XST_SUCCESS);
+
+  Accelerator.dmaCurrentTxBdPtr =
+      (XAxiDma_Bd *) XAxiDma_BdRingNext(Accelerator.dmaTxBdRingPtr,
+                                        Accelerator.dmaCurrentTxBdPtr);
+
+  ASSERT (Accelerator.dmaCurrentTxBdPtr != NULL);
+
+  /************************** Tx state_vector ********************************/
+  Xil_DCacheFlushRange ((UINTPTR) state_vector, Accelerator.vectorSize * sizeof(NeuronState));
+
   ASSERT (Accelerator.dmaCurrentTxBdPtr != NULL);
   status = XAxiDma_BdSetBufAddr (Accelerator.dmaCurrentTxBdPtr, (UINTPTR) state_vector);
   ASSERT (status == XST_SUCCESS);
@@ -573,7 +597,24 @@ static void Accelerator_giveStateVector (NeuronState * state_vector, SpikeID * s
 
   ASSERT (Accelerator.dmaCurrentTxBdPtr != NULL);
 
-  /************************** Rx Setup **************************/
+  /************************** Rx spike_id ************************************/
+  ASSERT (Accelerator.dmaCurrentRxBdPtr != NULL);
+  status = XAxiDma_BdSetBufAddr (Accelerator.dmaCurrentRxBdPtr, (UINTPTR) spike_id);
+  ASSERT(status == XST_SUCCESS);
+
+  ASSERT(0 < Accelerator.vectorSize);
+  status = XAxiDma_BdSetLength (Accelerator.dmaCurrentRxBdPtr,
+                                sizeof(SpikeID),
+                                Accelerator.dmaRxBdRingPtr->MaxTransferLen);
+  ASSERT(status == XST_SUCCESS);
+
+  Accelerator.dmaCurrentRxBdPtr =
+      (XAxiDma_Bd *) XAxiDma_BdRingNext(Accelerator.dmaRxBdRingPtr,
+                                        Accelerator.dmaCurrentRxBdPtr);
+
+  ASSERT (Accelerator.dmaCurrentRxBdPtr != NULL);
+
+  /************************** Rx state_vector ********************************/
   ASSERT (Accelerator.dmaCurrentRxBdPtr != NULL);
   status = XAxiDma_BdSetBufAddr (Accelerator.dmaCurrentRxBdPtr, (UINTPTR) state_vector);
   ASSERT(status == XST_SUCCESS);
@@ -601,10 +642,6 @@ static void Accelerator_giveWeightVector (Weight * weight_vector)
   ASSERT (weight_vector != NULL);
 
   Xil_DCacheFlushRange ((UINTPTR) weight_vector, Accelerator.vectorSize * sizeof(Weight));
-#ifdef __aarch64__
-  /* TODO: Check cache flushing memory alignment */
-  Xil_DCacheFlushRange ((UINTPTR) weight_vector, Accelerator.vectorSize * sizeof(Weight));
-#endif
 
   ASSERT (Accelerator.dmaCurrentTxBdPtr != NULL);
   ASSERT (Accelerator.dmaCurrentTxBdPtr != Accelerator.dmaFirstTxBdPtr);
@@ -646,9 +683,9 @@ static void Accelerator_start(void)
 
   XSbs_update_Start (&Accelerator.updateHardware);
 
-  allocatedDmaBd = Accelerator.layerSize * (Accelerator.kernelSize + 1);
+  allocatedDmaBd = Accelerator.layerSize * (Accelerator.kernelSize + 1 + 1);
 
-  ASSERT (allocatedDmaBd == (Accelerator.txStateCounter + Accelerator.txWeightCounter));
+  ASSERT (allocatedDmaBd == Accelerator.dmaTxBdRingPtr->PreCnt);
   ASSERT (Accelerator.layerSize == Accelerator.txStateCounter);
 
   status = XAxiDma_BdRingToHw (Accelerator.dmaTxBdRingPtr,
@@ -656,8 +693,11 @@ static void Accelerator_start(void)
                                Accelerator.dmaFirstTxBdPtr);
   ASSERT(status == XST_SUCCESS);
 
+
+  ASSERT (2 * Accelerator.layerSize == Accelerator.dmaRxBdRingPtr->PreCnt);
+
   status = XAxiDma_BdRingToHw (Accelerator.dmaRxBdRingPtr,
-                               Accelerator.layerSize,
+                               2 * Accelerator.layerSize,
                                Accelerator.dmaFirstRxBdPtr);
   ASSERT(status == XST_SUCCESS);
 
@@ -743,6 +783,9 @@ static SbsLayer * SbsBaseLayer_new(uint16_t rows,
   {
     Multivector * state_matrix = NULL;
     Multivector * spike_matrix = NULL;
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+    Multivector * random_matrix = NULL;
+#endif
 
     memset(layer, 0x00, sizeof(SbsBaseLayer));
 
@@ -771,6 +814,19 @@ static SbsLayer * SbsBaseLayer_new(uint16_t rows,
 
     layer->spike_matrix = spike_matrix;
 
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+    /* Instantiate random_matrix */
+    random_matrix = Multivector_new(sizeof(uint32_t), 2, rows, columns);
+
+    ASSERT(random_matrix != NULL);
+    ASSERT(random_matrix->dimensionality == 2);
+    ASSERT(random_matrix->data != NULL);
+    ASSERT(random_matrix->dimension_size[0] == rows);
+    ASSERT(random_matrix->dimension_size[1] == columns);
+
+    layer->random_matrix = random_matrix;
+#endif
+
     /* Allocate update buffer */
 
     layer->update_buffer = malloc(neurons * sizeof(NeuronState));
@@ -794,14 +850,19 @@ static void SbsBaseLayer_delete(SbsLayer ** layer_ptr)
 {
   ASSERT(layer_ptr!= NULL);
   ASSERT(*layer_ptr!= NULL);
-  if ((layer_ptr!= NULL) && (*layer_ptr!= NULL))
+  if ((layer_ptr != NULL) && (*layer_ptr != NULL))
   {
-    SbsBaseLayer ** layer = (SbsBaseLayer **)layer_ptr;
-    Multivector_delete(&((*layer)->state_matrix));
-    Multivector_delete(&((*layer)->spike_matrix));
-    if ((*layer)->weight_matrix != NULL) Multivector_delete(&((*layer)->weight_matrix));
-    free((*layer)->update_buffer);
-    free(*layer);
+    SbsBaseLayer ** layer = (SbsBaseLayer **) layer_ptr;
+    Multivector_delete (&((*layer)->state_matrix));
+    Multivector_delete (&((*layer)->spike_matrix));
+
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+    Multivector_delete (&((*layer)->random_matrix));
+#endif
+
+    if ((*layer)->weight_matrix != NULL) Multivector_delete (&((*layer)->weight_matrix));
+    free ((*layer)->update_buffer);
+    free (*layer);
     *layer = NULL;
   }
 }
@@ -1071,8 +1132,9 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, Multivector * input_spike_
     float epsilon = layer->epsilon;
 
 #if defined(USE_XILINX) && defined(USE_ACCELERATOR)
-    SpikeID * spikeMatrix = (SpikeID *) layer->spike_matrix->data;
-    uint16_t  spike_row_size = layer->spike_matrix->dimension_size[1];
+    uint32_t *  random_matrix = (uint32_t *) layer->random_matrix->data;
+    SpikeID *   spike_matrix = (SpikeID *) layer->spike_matrix->data;
+    uint16_t    spike_row_size = layer->spike_matrix->dimension_size[1];
 #endif
 
     ASSERT(weight_columns == neurons);
@@ -1106,7 +1168,8 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, Multivector * input_spike_
 
 #if defined(USE_XILINX) && defined(USE_ACCELERATOR)
         Accelerator_giveStateVector (state_vector,
-                                     &spikeMatrix[layer_row * spike_row_size + layer_column]);
+                                     &spike_matrix[layer_row * spike_row_size + layer_column],
+                                     &random_matrix[layer_row * spike_row_size + layer_column]);
 #endif
         for (kernel_row = 0; kernel_row < kernel_size; kernel_row ++)
         {
@@ -1335,7 +1398,11 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
     {
       for (i = 0; i < network->size; i++)
       {
+#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+        if (i == 0)
+#else
         if (i < network->size - 1)
+#endif
           SbsBaseLayer_generateSpikes(network->layer_array[i]);
 
         if (0 < i)
