@@ -59,9 +59,7 @@ typedef struct
   Multivector * state_matrix;
   Multivector * weight_matrix;
   Multivector * spike_matrix;
-#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
   Multivector * random_matrix;
-#endif
   NeuronState * update_buffer;
   uint16_t      kernel_size;
   uint16_t      kernel_stride;
@@ -129,9 +127,9 @@ static void * MemoryBlock_alloc(MemoryBlock * memory_def, size_t size)
   void * ptr = NULL;
 
   if (memory_def != NULL
-      && (memory_def->blockIndex + size <= memory_def->highAddress))
+      && ((memory_def->baseAddress + memory_def->blockIndex) + size <= memory_def->highAddress))
   {
-    ptr = (void *) memory_def->blockIndex;
+    ptr = (void *) memory_def->baseAddress + memory_def->blockIndex;
     memory_def->blockIndex += size;
   }
 
@@ -398,6 +396,13 @@ static int Accelerator_initialize(SbSUpdateAccelerator * accelerator, SbSHardwar
   dmaRxBDBaseAddress = (UINTPTR)MemoryBlock_alloc(&hardware_config->ddrMem,
                                          XAxiDma_BdRingMemCalc(XAXIDMA_BD_MINIMUM_ALIGNMENT,
                                                                hardware_config->dmaRxBDNum));
+
+  if (dmaRxBDBaseAddress == NULL)
+  {
+    xil_printf ("BD allocation error \r\n");
+
+    return XST_FAILURE;
+  }
 
 
   accelerator->dmaRxBdRingPtr = XAxiDma_GetRxRing(&accelerator->dmaHardware);
@@ -793,7 +798,7 @@ static void Accelerator_start(SbSUpdateAccelerator * accelerator)
 /*****************************************************************************/
 /*****************************************************************************/
 
-static Multivector * Multivector_new(uint8_t data_type_size, uint8_t dimensionality, ...)
+static Multivector * Multivector_new(MemoryBlock * memory_def, uint8_t data_type_size, uint8_t dimensionality, ...)
 {
   Multivector * multivector = NULL;
 
@@ -821,7 +826,7 @@ static Multivector * Multivector_new(uint8_t data_type_size, uint8_t dimensional
 
       va_end(argument_list);
 
-      multivector->data = Memory_requestBlock(data_size * data_type_size);
+      multivector->data = MemoryBlock_alloc(memory_def, data_size * data_type_size);
 
       ASSERT(multivector->data != NULL);
 
@@ -865,16 +870,15 @@ static SbsLayer * SbsBaseLayer_new(uint16_t rows,
   {
     Multivector * state_matrix = NULL;
     Multivector * spike_matrix = NULL;
-#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
     Multivector * random_matrix = NULL;
-#endif
+
 
     memset(layer, 0x00, sizeof(SbsBaseLayer));
 
     layer->vtbl = _SbsLayer;
 
     /* Instantiate state_matrix */
-    state_matrix = Multivector_new(sizeof(NeuronState), 3, rows, columns, neurons);
+    state_matrix = Multivector_new(&Accelerator[0].hardwareConfig->ddrMem, sizeof(NeuronState), 3, rows, columns, neurons);
 
     ASSERT(state_matrix != NULL);
     ASSERT(state_matrix->dimensionality == 3);
@@ -886,7 +890,7 @@ static SbsLayer * SbsBaseLayer_new(uint16_t rows,
     layer->state_matrix = state_matrix;
 
     /* Instantiate spike_matrix */
-    spike_matrix = Multivector_new(sizeof(SpikeID), 2, rows, columns);
+    spike_matrix = Multivector_new(&Accelerator[0].hardwareConfig->ddrMem, sizeof(SpikeID), 2, rows, columns);
 
     ASSERT(spike_matrix != NULL);
     ASSERT(spike_matrix->dimensionality == 2);
@@ -896,9 +900,8 @@ static SbsLayer * SbsBaseLayer_new(uint16_t rows,
 
     layer->spike_matrix = spike_matrix;
 
-#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
     /* Instantiate random_matrix */
-    random_matrix = Multivector_new(sizeof(uint32_t), 2, rows, columns);
+    random_matrix = Multivector_new(&Accelerator[0].hardwareConfig->ddrMem, sizeof(uint32_t), 2, rows, columns);
 
     ASSERT(random_matrix != NULL);
     ASSERT(random_matrix->dimensionality == 2);
@@ -907,7 +910,6 @@ static SbsLayer * SbsBaseLayer_new(uint16_t rows,
     ASSERT(random_matrix->dimension_size[1] == columns);
 
     layer->random_matrix = random_matrix;
-#endif
 
     /* Allocate update buffer */
 
@@ -938,12 +940,11 @@ static void SbsBaseLayer_delete(SbsLayer ** layer_ptr)
     Multivector_delete (&((*layer)->state_matrix));
     Multivector_delete (&((*layer)->spike_matrix));
 
-#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
     Multivector_delete (&((*layer)->random_matrix));
-#endif
+
 
     if ((*layer)->weight_matrix != NULL) Multivector_delete (&((*layer)->weight_matrix));
-    free ((*layer)->update_buffer);
+
     free (*layer);
     *layer = NULL;
   }
@@ -964,7 +965,6 @@ static void SbsBaseLayer_initializeIP(NeuronState * state_vector, uint16_t size)
   }
 }
 
-#if !defined(USE_ACCELERATOR)
 static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vector, Weight * weight_vector, uint16_t size, float epsilon)
 {
   ASSERT(state_vector != NULL);
@@ -1038,7 +1038,6 @@ static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vect
 #endif
   }
 }
-#endif
 
 static SpikeID SbsBaseLayer_generateSpikeIP (NeuronState * state_vector, uint16_t size)
 {
@@ -1213,11 +1212,9 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, Multivector * input_spike_
 
     float epsilon = layer->epsilon;
 
-#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
     uint32_t *  random_matrix = (uint32_t *) layer->random_matrix->data;
     SpikeID *   spike_matrix = (SpikeID *) layer->spike_matrix->data;
     uint16_t    spike_row_size = layer->spike_matrix->dimension_size[1];
-#endif
 
     ASSERT(weight_columns == neurons);
 
@@ -1230,13 +1227,12 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, Multivector * input_spike_
       column_shift = kernel_size;
     }
 
-#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
     Accelerator_setup (&Accelerator[0],
                        state_matrix->dimension_size[0] * state_matrix->dimension_size[1],
                        kernel_size * kernel_size,
                        neurons,
                        epsilon);
-#endif
+
 
     /* Update begins */
     for (kernel_row_pos = 0, layer_row = 0;
@@ -1249,12 +1245,11 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, Multivector * input_spike_
       {
         state_vector = &state_data[layer_row * state_row_size + layer_column * neurons];
 
-#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
         Accelerator_giveStateVector (&Accelerator[0],
                                      state_vector,
                                      &spike_matrix[layer_row * spike_row_size + layer_column],
                                      &random_matrix[layer_row * spike_row_size + layer_column]);
-#endif
+
         for (kernel_row = 0; kernel_row < kernel_size; kernel_row ++)
         {
             spike_row_index = (kernel_row_pos + kernel_row) * spike_columns;
@@ -1266,19 +1261,18 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, Multivector * input_spike_
 
             weight_vector = &weight_data[(spikeID + section_shift) * weight_columns];
 
-#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
             Accelerator_giveWeightVector (&Accelerator[0],
                                           weight_vector);
-#else
+            if (0)
             SbsBaseLayer_updateIP (layer, state_vector, weight_vector, neurons, epsilon);
-#endif
+
           }
         }
       }
     }
-#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+
         Accelerator_start(&Accelerator[0]);
-#endif
+
     /* Update ends*/
   }
 }
@@ -1300,7 +1294,7 @@ static SbsNetwork * SbsBaseNetwork_new(void)
     network->input_label = (uint8_t) -1;
     network->inferred_output = (uint8_t) -1;
 
-#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
+
     { /* TODO: Create interface for Accelerator */
       int status;
       int i;
@@ -1310,7 +1304,7 @@ static SbsNetwork * SbsBaseNetwork_new(void)
         ASSERT(status == XST_SUCCESS);
       }
     }
-#endif
+
     sgenrand (666); /*TODO: Create MT19937 object wrapper */
   }
 
@@ -1335,7 +1329,6 @@ static void SbsBaseNetwork_delete(SbsNetwork ** network_ptr)
     *network = NULL;
   }
 
-#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
   { /* TODO: Create interface for Accelerator */
     int i;
     for (i = 0; i < sizeof(HardwareConfig) / sizeof(SbSHardwareConfig); i++)
@@ -1343,7 +1336,7 @@ static void SbsBaseNetwork_delete(SbsNetwork ** network_ptr)
       Accelerator_shutdown (&Accelerator[i]);
     }
   }
-#endif
+
 }
 
 static void SbsBaseNetwork_giveLayer(SbsNetwork * network_ptr, SbsLayer * layer)
@@ -1497,11 +1490,8 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
     {
       for (i = 0; i < network->size; i++)
       {
-#if defined(USE_XILINX) && defined(USE_ACCELERATOR)
-        if (i == 0)
-#else
-        if (i < network->size - 1)
-#endif
+
+        if (i == 0) //if (i < network->size - 1)
           SbsBaseLayer_generateSpikes(network->layer_array[i]);
 
         if (0 < i)
@@ -1599,7 +1589,7 @@ static void SbsBaseNetwork_getOutputVector(SbsNetwork * network_ptr, NeuronState
 
 static size_t SbsBaseNetwork_getMemorySize(SbsNetwork * network)
 {
-  return Memory_getBlockSize();
+  return 0; //Memory_getBlockSize();
 }
 /*****************************************************************************/
 
@@ -1656,7 +1646,7 @@ static SbsWeightMatrix SbsWeightMatrix_new(uint16_t rows, uint16_t columns, char
 
   if (file_name != NULL)
   {
-    weight_watrix = Multivector_new(sizeof(Weight), 2, rows, columns);
+    weight_watrix = Multivector_new(&Accelerator[0].hardwareConfig->ddrMem, sizeof(Weight), 2, rows, columns);
 
     ASSERT(weight_watrix != NULL);
     ASSERT(weight_watrix->dimensionality == 2);

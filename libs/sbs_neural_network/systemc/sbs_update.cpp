@@ -13,7 +13,6 @@ typedef union
 #define MAX_VECTOR_SIZE     (1024)
 
 #define NEGLECTING_CONSTANT   ((float)1e-20)
-#define FLOAT32_NORMALIZATION (1.0f/((float)0xFFFFFFFF))
 
 typedef ap_axis<32, 2, 5, 6> StreamChannel;
 
