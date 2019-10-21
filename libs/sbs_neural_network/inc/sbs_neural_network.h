@@ -5,11 +5,16 @@
  *      Author: Yarib Nevarez
  */
 
-#ifndef SBS_NN_H_
-#define SBS_NN_H_
+#ifndef SBS_NEURAL_NETWORK_H_
+#define SBS_NEURAL_NETWORK_H_
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stdint.h>
 #include <stddef.h>
+
+#include <result.h>
 
 #pragma pack(push)
 #pragma pack(1)
@@ -35,7 +40,7 @@ struct SbsLayer_VTable
                             uint16_t    neurons_previous_Layer);
   void       (*delete)     (SbsLayer ** layer);
   void       (*setEpsilon) (SbsLayer * layer, float epsilon);
-  void       (*giveWeights)(SbsLayer * layer, SbsWeightMatrix weight_matrix);
+  void       (*setWeights)(SbsLayer * layer, SbsWeightMatrix weight_matrix);
 };
 extern struct SbsLayer_VTable _SbsLayer;
 
@@ -96,9 +101,14 @@ typedef struct
                                  uint16_t neurons_prev_Layer);
 } SbsNew;
 
-
 extern SbsNew sbs_new;
 
 #pragma pack(pop)
 
-#endif /* SBS_NN_H_ */
+Result SbsHardware_initialize (void);
+void SbsHardware_shutdown (void);
+
+#ifdef __cplusplus
+}
+#endif
+#endif /* SBS_NEURAL_NETWORK_H_ */

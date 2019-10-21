@@ -90,6 +90,7 @@ typedef struct
   size_t   data_type_size;
   uint8_t  dimensionality;
   uint16_t dimension_size[1]; /*[0] = rows, [1] = columns, [2] = neurons... [n] = N*/
+  MemoryBlock * memory_def_parent;
 } Multivector;
 
 typedef struct
@@ -101,16 +102,26 @@ typedef struct
   Multivector * random_matrix;
 } SbsPartitionLayer;
 
+typedef enum
+{
+  INPUT_LAYER,
+  CONVOLUTION_LAYER,
+  POOLING_LAYER,
+  FULLY_CONNECTED_LAYER,
+  OUTPUT_LAYER
+} SbsLayerType;
+
 typedef struct
 {
-  SbsLayer            vtbl;
-  SbsPartitionLayer * partition;
-  uint8_t             num_partitions;
-  uint16_t            kernel_size;
-  uint16_t            kernel_stride;
-  uint16_t            neurons_previous_Layer;
-  WeightShift         weight_shift;
-  float               epsilon;
+  SbsLayer              vtbl;
+  SbsLayerType          layer_type;
+  SbsPartitionLayer **  partition_array;
+  uint8_t               num_partitions;
+  uint16_t              kernel_size;
+  uint16_t              kernel_stride;
+  uint16_t              neurons_previous_Layer;
+  WeightShift           weight_shift;
+  float                 epsilon;
 } SbsBaseLayer;
 
 typedef struct
@@ -214,8 +225,10 @@ SbSHardwareConfig HardwareConfig[] =
 #endif
 };
 
-static SbSUpdateAccelerator Accelerator[XPAR_XSBS_UPDATE_NUM_INSTANCES];
-static XScuGic              ScuGic;
+#define NUM_ACCELERATOR_INSTANCES  (sizeof(HardwareConfig) / sizeof(SbSHardwareConfig))
+
+static SbSUpdateAccelerator ** Accelerator_array = NULL;
+static XScuGic                 ScuGic = {0};
 
 #define ACCELERATOR_DMA_RESET_TIMEOUT 10000
 
@@ -590,6 +603,77 @@ static void Accelerator_shutdown(SbSUpdateAccelerator * accelerator)
   }
 }
 
+static SbSUpdateAccelerator * Accelerator_new(SbSHardwareConfig * hardware_config)
+{
+  SbSUpdateAccelerator * accelerator = NULL;
+
+  ASSERT (hardware_config != NULL);
+
+  if (hardware_config != NULL)
+  {
+    accelerator = malloc (sizeof(SbSUpdateAccelerator));
+    ASSERT (accelerator != NULL);
+    if (accelerator != NULL)
+    {
+      int status = Accelerator_initialize(accelerator, hardware_config);
+      ASSERT (status == XST_SUCCESS);
+    }
+  }
+
+  return accelerator;
+}
+
+void Accelerator_delete (SbSUpdateAccelerator ** accelerator)
+{
+  ASSERT(accelerator != NULL);
+  ASSERT(*accelerator != NULL);
+
+  if ((accelerator != NULL) && (*accelerator != NULL))
+  {
+    Accelerator_shutdown (*accelerator);
+    free (*accelerator);
+    *accelerator = NULL;
+  }
+}
+
+Result SbsHardware_initialize (void)
+{
+  int i;
+  Result rc;
+
+  Accelerator_array = malloc (NUM_ACCELERATOR_INSTANCES * sizeof(SbSUpdateAccelerator *));
+  ASSERT(Accelerator_array != NULL);
+
+  rc = (Accelerator_array != NULL) ? OK : ERROR;
+
+  for (i = 0; (rc == OK) && (i < NUM_ACCELERATOR_INSTANCES); i++)
+  {
+    Accelerator_array[i] = Accelerator_new (&HardwareConfig[i]);
+
+    ASSERT (Accelerator_array[i] != NULL);
+
+    rc = Accelerator_array[i] != NULL ? OK : ERROR;
+  }
+
+  return rc;
+}
+
+void SbsHardware_shutdown (void)
+{
+  int i;
+  ASSERT (Accelerator_array != NULL);
+
+  if (Accelerator_array != NULL)
+  {
+    for (i = 0; i < sizeof(HardwareConfig) / sizeof(SbSHardwareConfig); i++)
+    {
+      Accelerator_delete ((&Accelerator_array[i]));
+    }
+
+    free (Accelerator_array);
+  }
+}
+
 static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
                               uint32_t      layerSize,
                               uint32_t      kernelSize,
@@ -714,7 +798,7 @@ static void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
 
   /************************** Rx state_vector ********************************/
   ASSERT (accelerator->dmaCurrentRxBdPtr != NULL);
-  status = XAxiDma_BdSetBufAddr (Accelerator->dmaCurrentRxBdPtr,
+  status = XAxiDma_BdSetBufAddr (accelerator->dmaCurrentRxBdPtr,
                                  (UINTPTR) state_vector);
   ASSERT(status == XST_SUCCESS);
 
@@ -819,7 +903,7 @@ static Multivector * Multivector_new(MemoryBlock * memory_def, uint8_t data_type
   if (0 <= dimensionality)
   {
     size_t memory_size = sizeof(Multivector) + (dimensionality - 1) * sizeof(uint16_t);
-    multivector = malloc(memory_size);
+    multivector = malloc (memory_size);
 
     ASSERT(multivector != NULL);
 
@@ -829,7 +913,7 @@ static Multivector * Multivector_new(MemoryBlock * memory_def, uint8_t data_type
       size_t data_size;
       va_list argument_list;
 
-      memset(multivector, 0x00, memory_size);
+      memset (multivector, 0x00, memory_size);
 
       va_start(argument_list, dimensionality);
 
@@ -838,7 +922,13 @@ static Multivector * Multivector_new(MemoryBlock * memory_def, uint8_t data_type
 
       va_end(argument_list);
 
-      multivector->data = MemoryBlock_alloc(memory_def, data_size * data_type_size);
+      multivector->memory_def_parent = memory_def;
+
+      if (memory_def != NULL)
+        multivector->data = MemoryBlock_alloc (memory_def,
+                                               data_size * data_type_size);
+      else
+        multivector->data = malloc (data_size * data_type_size);
 
       ASSERT(multivector->data != NULL);
 
@@ -887,12 +977,10 @@ static Multivector * Multivector_duplicate(MemoryBlock * memory_def,
                                            Multivector * original)
 {
   Multivector * duplicate = NULL;
-  ASSERT(memory_def != NULL);
   ASSERT(original != NULL);
   ASSERT(0 < original->dimensionality);
 
-  if ((memory_def != NULL)
-      && (original != NULL)
+  if ((original != NULL)
       && (0 < original->dimensionality))
   {
     size_t memory_size = sizeof(Multivector)
@@ -911,7 +999,12 @@ static Multivector * Multivector_duplicate(MemoryBlock * memory_def,
       for (i = 0; i < original->dimensionality; i++)
         data_size *= original->dimension_size[i];
 
-      duplicate->data = MemoryBlock_alloc (memory_def, data_size);
+      duplicate->memory_def_parent = memory_def;
+
+      if (memory_def != NULL)
+        duplicate->data = MemoryBlock_alloc (memory_def, data_size);
+      else
+        duplicate->data = malloc (data_size);
 
       ASSERT(duplicate->data != NULL);
 
@@ -931,13 +1024,19 @@ static void Multivector_delete(Multivector ** multivector)
 
   if ((multivector != NULL) && (*multivector != NULL))
   {
+    if ((*multivector)->memory_def_parent == NULL)
+      free ((*multivector)->data);
+
     free(*multivector);
     *multivector = NULL;
   }
 }
 
 /*****************************************************************************/
-SbsPartitionLayer * SbsPartitionLayer_new (uint16_t rows, uint16_t columns, uint16_t neurons)
+static SbsPartitionLayer * SbsPartitionLayer_new (SbSUpdateAccelerator * accelerator,
+                                                  uint16_t rows,
+                                                  uint16_t columns,
+                                                  uint16_t neurons)
 {
   SbsPartitionLayer * partition = NULL;
 
@@ -950,13 +1049,24 @@ SbsPartitionLayer * SbsPartitionLayer_new (uint16_t rows, uint16_t columns, uint
     Multivector * state_matrix = NULL;
     Multivector * spike_matrix = NULL;
     Multivector * random_matrix = NULL;
+    MemoryBlock * memory_def = NULL;
 
     memset (partition, 0x00, sizeof(SbsPartitionLayer));
 
+    if (accelerator != NULL)
+    {
+      ASSERT (accelerator->hardwareConfig != NULL);
+
+      if (accelerator->hardwareConfig != NULL)
+      {
+        partition->accelerator = accelerator;
+        memory_def = &accelerator->hardwareConfig->ddrMem;
+      }
+    }
+
     /* Instantiate state_matrix */
-    state_matrix = Multivector_new (&Accelerator[0].hardwareConfig->ddrMem,
-                                    sizeof(NeuronState), 3, rows, columns,
-                                    neurons);
+    state_matrix = Multivector_new (memory_def, sizeof(NeuronState), 3, rows,
+                                    columns, neurons);
 
     ASSERT(state_matrix != NULL);
     ASSERT(state_matrix->dimensionality == 3);
@@ -968,8 +1078,8 @@ SbsPartitionLayer * SbsPartitionLayer_new (uint16_t rows, uint16_t columns, uint
     partition->state_matrix = state_matrix;
 
     /* Instantiate spike_matrix */
-    spike_matrix = Multivector_new (&Accelerator[0].hardwareConfig->ddrMem,
-                                    sizeof(SpikeID), 2, rows, columns);
+    spike_matrix = Multivector_new (memory_def, sizeof(SpikeID), 2, rows,
+                                    columns);
 
     ASSERT(spike_matrix != NULL);
     ASSERT(spike_matrix->dimensionality == 2);
@@ -980,8 +1090,8 @@ SbsPartitionLayer * SbsPartitionLayer_new (uint16_t rows, uint16_t columns, uint
     partition->spike_matrix = spike_matrix;
 
     /* Instantiate random_matrix */
-    random_matrix = Multivector_new (&Accelerator[0].hardwareConfig->ddrMem,
-                                     sizeof(uint32_t), 2, rows, columns);
+    random_matrix = Multivector_new (memory_def, sizeof(uint32_t), 2, rows,
+                                     columns);
 
     ASSERT(random_matrix != NULL);
     ASSERT(random_matrix->dimensionality == 2);
@@ -995,7 +1105,7 @@ SbsPartitionLayer * SbsPartitionLayer_new (uint16_t rows, uint16_t columns, uint
   return partition;
 }
 
-void SbsPartitionLayer_delete(SbsPartitionLayer ** partition)
+static void SbsPartitionLayer_delete(SbsPartitionLayer ** partition)
 {
   ASSERT (partition != NULL);
   ASSERT (*partition != NULL);
@@ -1027,7 +1137,7 @@ static void SbsPartitionLayer_initializeIP(NeuronState * state_vector, uint16_t 
   }
 }
 
-void SbsPartitionLayer_initialize (SbsPartitionLayer * partition)
+static void SbsPartitionLayer_initialize (SbsPartitionLayer * partition)
 {
   ASSERT(partition != NULL);
 
@@ -1054,9 +1164,32 @@ void SbsPartitionLayer_initialize (SbsPartitionLayer * partition)
   }
 }
 
+static void SbsPartitionLayer_setWeights (SbsPartitionLayer * partition,
+                                           SbsWeightMatrix weight_matrix)
+{
+  ASSERT(partition != NULL);
+  ASSERT(partition->accelerator != NULL);
+  ASSERT(partition->accelerator->hardwareConfig != NULL);
+  ASSERT(weight_matrix != NULL);
+
+  if ((partition != NULL)
+      && (partition->accelerator != NULL)
+      && (partition->accelerator->hardwareConfig != NULL)
+      && (weight_matrix != NULL))
+  {
+    if (partition->weight_matrix != NULL)
+      Multivector_delete(&partition->weight_matrix);
+
+    partition->weight_matrix =
+        Multivector_duplicate(&partition->accelerator->hardwareConfig->ddrMem,
+                              weight_matrix);
+  }
+}
+
 /*****************************************************************************/
 
-static SbsLayer * SbsBaseLayer_new(uint16_t rows,
+static SbsLayer * SbsBaseLayer_new(SbsLayerType layer_type,
+                                   uint16_t rows,
                                    uint16_t columns,
                                    uint16_t neurons,
                                    uint16_t kernel_size,
@@ -1070,15 +1203,44 @@ static SbsLayer * SbsBaseLayer_new(uint16_t rows,
 
   if (layer != NULL)
   {
-
-
-
+    int i;
     memset(layer, 0x00, sizeof(SbsBaseLayer));
 
     layer->vtbl = _SbsLayer;
 
-    SbsPartitionLayer_new(rows, columns, neurons);
+    layer->layer_type = layer_type;
 
+    switch (layer_type)
+    {
+      case CONVOLUTION_LAYER:
+      case POOLING_LAYER:
+        layer->num_partitions = NUM_ACCELERATOR_INSTANCES;
+        break;
+      case INPUT_LAYER:
+      case FULLY_CONNECTED_LAYER:
+      case OUTPUT_LAYER:
+        layer->num_partitions = 1;
+        break;
+      default:
+        ASSERT (0);
+    }
+
+    layer->partition_array = (SbsPartitionLayer **)
+        malloc (layer->num_partitions * sizeof(SbsPartitionLayer *));
+    ASSERT(layer->partition_array != NULL);
+
+    if (layer->partition_array != NULL)
+    {
+      SbSUpdateAccelerator * accelerator = NULL;
+      for (i = 0; i < layer->num_partitions; i++)
+      {
+        if (layer_type != INPUT_LAYER)
+          accelerator = Accelerator_array[i];
+
+        layer->partition_array[i] = SbsPartitionLayer_new (accelerator, rows,
+                                                           columns, neurons);
+      }
+    }
 
     /* Assign parameters */
     layer->kernel_size   = kernel_size;
@@ -1098,15 +1260,56 @@ static void SbsBaseLayer_delete(SbsLayer ** layer_ptr)
   {
     SbsBaseLayer ** layer = (SbsBaseLayer **) layer_ptr;
 
-    while ((*layer)->num_partitions)
-      SbsPartitionLayer_delete (&((*layer)->partition[--(*layer)->num_partitions]));
+    if ((*layer)->partition_array != NULL)
+      while ((*layer)->num_partitions)
+        SbsPartitionLayer_delete (&((*layer)->partition_array[--(*layer)->num_partitions]));
 
     free (*layer);
     *layer = NULL;
   }
 }
 
-static SpikeID SbsBaseLayer_generateSpikeIP (NeuronState * state_vector, uint16_t size)
+static void SbsBaseLayer_initialize(SbsBaseLayer * layer)
+{
+  ASSERT(layer != NULL);
+  ASSERT(layer->partition_array != NULL);
+  ASSERT(0 < layer->num_partitions);
+
+  if ((layer != NULL)
+      && (layer->partition_array != NULL)
+      && (0 < layer->num_partitions))
+  {
+    int i;
+    for (i = 0; i < layer->num_partitions; i++)
+      SbsPartitionLayer_initialize (layer->partition_array[i]);
+  }
+}
+
+static void SbsBaseLayer_setWeights(SbsLayer * layer, SbsWeightMatrix weight_matrix)
+{
+  ASSERT(layer != NULL);
+  ASSERT(weight_matrix != NULL);
+
+  if ((layer != NULL) && (((SbsBaseLayer *) layer)->partition_array != NULL))
+  {
+    int i;
+
+    for (i = 0; i < ((SbsBaseLayer *) layer)->num_partitions; i++)
+      SbsPartitionLayer_setWeights (((SbsBaseLayer *) layer)->partition_array[i],
+                                     weight_matrix);
+  }
+}
+
+static void SbsBaseLayer_setEpsilon(SbsLayer * layer, float epsilon)
+{
+  ASSERT(layer != NULL);
+  /*ASSERT(epsilon != 0.0f);*/ /* 0.0 is allowed? */
+
+  if (layer != NULL)
+    ((SbsBaseLayer *)layer)->epsilon = epsilon;
+}
+
+static SpikeID SbsStateVector_generateSpikeIP (NeuronState * state_vector, uint16_t size)
 {
   ASSERT(state_vector != NULL);
   ASSERT(0 < size);
@@ -1133,76 +1336,48 @@ static SpikeID SbsBaseLayer_generateSpikeIP (NeuronState * state_vector, uint16_
   return size - 1;
 }
 
-static void SbsBaseLayer_initialize(SbsBaseLayer * layer)
+static void SbsPartitionLayer_generateSpikes(SbsPartitionLayer * partition)
 {
-  ASSERT(layer != NULL);
-  ASSERT(layer->partition != NULL);
-  ASSERT(0 < layer->num_partitions);
-
-  if ((layer != NULL) && (layer->partition != NULL) && (0 < layer->num_partitions))
-  {*
-  }
-}
-
-static void SbsBaseLayer_giveWeights(SbsLayer * layer, SbsWeightMatrix weight_matrix)
-{
-  ASSERT(layer != NULL);
-  ASSERT(weight_matrix != NULL);
-
-  if (layer != NULL)
-    ((SbsBaseLayer *)layer)->weight_matrix = (Multivector *) weight_matrix;
-}
-
-static void SbsBaseLayer_setEpsilon(SbsLayer * layer, float epsilon)
-{
-  ASSERT(layer != NULL);
-  /*ASSERT(epsilon != 0.0f);*/ /* 0.0 is allowed? */
-
-  if (layer != NULL)
-    ((SbsBaseLayer *)layer)->epsilon = epsilon;
-}
-
-static Multivector * SbsBaseLayer_generateSpikes(SbsBaseLayer * layer)
-{
-  Multivector * spike_matrix = NULL;
-  ASSERT(layer != NULL);
-  ASSERT(layer->state_matrix != NULL);
-  ASSERT(layer->spike_matrix != NULL);
-  ASSERT(layer->state_matrix->data != NULL);
-  ASSERT(layer->spike_matrix->data != NULL);
-
-  if (   (layer != NULL)
-      && (layer->state_matrix != NULL)
-      && (layer->spike_matrix != NULL)
-      && (layer->state_matrix->data != NULL)
-      && (layer->spike_matrix->data != NULL))
+  ASSERT(partition != NULL);
+  if (partition != NULL)
   {
-      Multivector * state_matrix      = layer->state_matrix;
-      uint16_t      rows              = state_matrix->dimension_size[0];
-      uint16_t      columns           = state_matrix->dimension_size[1];
-      uint16_t      neurons           = state_matrix->dimension_size[2];
-      NeuronState * state_matrix_data = state_matrix->data;
-      SpikeID *     spike_matrix_data = layer->spike_matrix->data;
+    Multivector * state_matrix = partition->state_matrix;
+    uint16_t rows = state_matrix->dimension_size[0];
+    uint16_t columns = state_matrix->dimension_size[1];
+    uint16_t neurons = state_matrix->dimension_size[2];
+    NeuronState * state_matrix_data = state_matrix->data;
+    SpikeID * spike_matrix_data = partition->spike_matrix->data;
 
-      uint16_t row;
-      uint16_t column;
-      size_t   current_row_index;
-      size_t   current_row_column_index;
+    uint16_t row;
+    uint16_t column;
+    size_t current_row_index;
+    size_t current_row_column_index;
 
-      for (row = 0; row < rows; row++)
+    for (row = 0; row < rows; row++)
+    {
+      current_row_index = columns * row;
+      for (column = 0; column < columns; column++)
       {
-        current_row_index = columns * row;
-        for (column = 0; column < columns; column++)
-        {
-            current_row_column_index = current_row_index + column;
-            spike_matrix_data[current_row_column_index] = SbsBaseLayer_generateSpikeIP(&state_matrix_data[current_row_column_index * neurons], neurons);
-        }
+        current_row_column_index = current_row_index + column;
+        spike_matrix_data[current_row_column_index] =
+            SbsStateVector_generateSpikeIP (&state_matrix_data[current_row_column_index * neurons],
+                                            neurons);
       }
-
-      spike_matrix = layer->spike_matrix;
+    }
   }
+}
 
-  return spike_matrix;
+static void SbsBaseLayer_generateSpikes(SbsBaseLayer * layer)
+{
+  ASSERT(layer != NULL);
+  ASSERT(layer->partition_array != NULL);
+
+  if ((layer != NULL) && (layer->partition_array != NULL))
+  {
+    int i;
+    for (i = 0; i < ((SbsBaseLayer *) layer)->num_partitions; i++)
+      SbsPartitionLayer_generateSpikes (((SbsBaseLayer *) layer)->partition_array[i]);
+  }
 }
 
 static void SbsBaseLayer_update(SbsBaseLayer * layer, Multivector * input_spike_matrix)
@@ -1345,17 +1520,6 @@ static SbsNetwork * SbsBaseNetwork_new(void)
     network->input_label = (uint8_t) -1;
     network->inferred_output = (uint8_t) -1;
 
-
-    { /* TODO: Create interface for Accelerator */
-      int status;
-      int i;
-      for (i = 0; i < sizeof(HardwareConfig) / sizeof(SbSHardwareConfig); i++)
-      {
-        status = Accelerator_initialize (&Accelerator[i], &HardwareConfig[i]);
-        ASSERT(status == XST_SUCCESS);
-      }
-    }
-
     sgenrand (666); /*TODO: Create MT19937 object wrapper */
   }
 
@@ -1379,15 +1543,6 @@ static void SbsBaseNetwork_delete(SbsNetwork ** network_ptr)
     free(*network);
     *network = NULL;
   }
-
-  { /* TODO: Create interface for Accelerator */
-    int i;
-    for (i = 0; i < sizeof(HardwareConfig) / sizeof(SbSHardwareConfig); i++)
-    {
-      Accelerator_shutdown (&Accelerator[i]);
-    }
-  }
-
 }
 
 static void SbsBaseNetwork_giveLayer(SbsNetwork * network_ptr, SbsLayer * layer)
@@ -1646,7 +1801,8 @@ static size_t SbsBaseNetwork_getMemorySize(SbsNetwork * network)
 
 static SbsLayer * SbsInputLayer_new(uint16_t rows, uint16_t columns, uint16_t neurons)
 {
-  return (SbsLayer *) SbsBaseLayer_new(rows, columns, neurons, 0, 0, ROW_SHIFT, 0);
+  return (SbsLayer *) SbsBaseLayer_new (INPUT_LAYER, rows, columns, neurons, 0,
+                                        0, ROW_SHIFT, 0);
 }
 
 static SbsLayer * SbsConvolutionLayer_new(uint16_t rows,
@@ -1656,8 +1812,9 @@ static SbsLayer * SbsConvolutionLayer_new(uint16_t rows,
                                             WeightShift weight_shift,
                                             uint16_t neurons_prev_Layer)
 {
-  return (SbsLayer *) SbsBaseLayer_new (rows, columns, neurons, kernel_size, 1, weight_shift,
-                           neurons_prev_Layer);
+  return (SbsLayer *) SbsBaseLayer_new (CONVOLUTION_LAYER, rows, columns,
+                                        neurons, kernel_size, 1, weight_shift,
+                                        neurons_prev_Layer);
 }
 
 static SbsLayer * SbsPoolingLayer_new(uint16_t rows,
@@ -1667,8 +1824,9 @@ static SbsLayer * SbsPoolingLayer_new(uint16_t rows,
                                     WeightShift weight_shift,
                                     uint16_t neurons_prev_Layer)
 {
-  return (SbsLayer *) SbsBaseLayer_new (rows, columns, neurons, kernel_size,
-                                        kernel_size, weight_shift, neurons_prev_Layer);
+  return (SbsLayer *) SbsBaseLayer_new (POOLING_LAYER, rows, columns, neurons,
+                                        kernel_size, kernel_size, weight_shift,
+                                        neurons_prev_Layer);
 }
 
 static SbsLayer * SbsFullyConnectedLayer_new(uint16_t neurons,
@@ -1676,16 +1834,17 @@ static SbsLayer * SbsFullyConnectedLayer_new(uint16_t neurons,
                                                   WeightShift weight_shift,
                                                   uint16_t neurons_prev_Layer)
 {
-  return (SbsLayer *) SbsBaseLayer_new (1, 1, neurons, kernel_size, 1,
-                                        weight_shift, neurons_prev_Layer);
+  return (SbsLayer *) SbsBaseLayer_new (FULLY_CONNECTED_LAYER, 1, 1, neurons,
+                                        kernel_size, 1, weight_shift,
+                                        neurons_prev_Layer);
 }
 
 static SbsLayer * SbsOutputLayer_new(uint16_t neurons,
-                                  WeightShift weight_shift,
-                                  uint16_t neurons_prev_Layer)
+                                     WeightShift weight_shift,
+                                     uint16_t neurons_prev_Layer)
 {
-  return (SbsLayer *) SbsBaseLayer_new (1, 1, neurons, 1, 1, weight_shift,
-                                        neurons_prev_Layer);
+  return (SbsLayer *) SbsBaseLayer_new (OUTPUT_LAYER, 1, 1, neurons, 1, 1,
+                                        weight_shift, neurons_prev_Layer);
 }
 /*****************************************************************************/
 
@@ -1697,7 +1856,7 @@ static SbsWeightMatrix SbsWeightMatrix_new(uint16_t rows, uint16_t columns, char
 
   if (file_name != NULL)
   {
-    weight_watrix = Multivector_new(&Accelerator[0].hardwareConfig->ddrMem, sizeof(Weight), 2, rows, columns);
+    weight_watrix = Multivector_new(NULL, sizeof(Weight), 2, rows, columns);
 
     ASSERT(weight_watrix != NULL);
     ASSERT(weight_watrix->dimensionality == 2);
@@ -1762,7 +1921,7 @@ SbsNetwork _SbsNetwork = {SbsBaseNetwork_new,
 SbsLayer _SbsLayer = {SbsBaseLayer_new,
                       SbsBaseLayer_delete,
                       SbsBaseLayer_setEpsilon,
-                      SbsBaseLayer_giveWeights};
+                      SbsBaseLayer_setWeights};
 
 SbsNew sbs_new = {SbsBaseNetwork_new,
                   SbsBaseLayer_new,
