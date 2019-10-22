@@ -1,3 +1,3 @@
 
-void sgenrand(unsigned long seed);
-unsigned long genrand();
+void sgenrand(unsigned int seed);
+unsigned int genrand();
