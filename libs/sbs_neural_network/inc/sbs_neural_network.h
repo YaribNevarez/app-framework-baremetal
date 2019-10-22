@@ -25,13 +25,23 @@ typedef enum
   COLUMN_SHIFT
 } WeightShift;
 
+typedef enum
+{
+  INPUT_LAYER,
+  CONVOLUTION_LAYER,
+  POOLING_LAYER,
+  FULLY_CONNECTED_LAYER,
+  OUTPUT_LAYER
+} SbsLayerType;
+
 typedef float  NeuronState;
 typedef void * SbsWeightMatrix;
 
 typedef struct SbsLayer_VTable SbsLayer;
 struct SbsLayer_VTable
 {
-  SbsLayer * (*new)        (uint16_t rows,
+  SbsLayer * (*new)        (SbsLayerType layer_type,
+                            uint16_t rows,
                             uint16_t columns,
                             uint16_t neurons,
                             uint16_t kernel_size,
@@ -65,7 +75,8 @@ typedef struct
 {
   SbsNetwork *    (*Network)(void);
 
-  SbsLayer *      (*Layer)  (uint16_t rows,
+  SbsLayer *      (*Layer)  (SbsLayerType layer_type,
+                             uint16_t rows,
                              uint16_t columns,
                              uint16_t neurons,
                              uint16_t kernel_size,

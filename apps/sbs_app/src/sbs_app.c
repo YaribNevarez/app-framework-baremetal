@@ -102,7 +102,7 @@ Result SnnApp_run (void)
   /** Layer = 24x24x32, Spike = 24x24, Weight = 50x32 **/
   SbsLayer * H1 = sbs_new.ConvolutionLayer (24, 24, 32, 1, ROW_SHIFT, 50);
   H1->setEpsilon (H1, 0.1);
-  H1->giveWeights (H1, P_IN_H1);
+  H1->setWeights (H1, P_IN_H1);
   network->giveLayer (network, H1);
 
   SbsWeightMatrix P_H1_H2 = sbs_new.WeightMatrix (32 * 2 * 2, 32,
@@ -111,7 +111,7 @@ Result SnnApp_run (void)
   /** Layer = 12x12x32, Spike = 12x12, Weight = 128x32 **/
   SbsLayer * H2 = sbs_new.PoolingLayer (12, 12, 32, 2, COLUMN_SHIFT, 32);
   H2->setEpsilon (H2, 0.1 / 4.0);
-  H2->giveWeights (H2, P_H1_H2);
+  H2->setWeights (H2, P_H1_H2);
   network->giveLayer (network, H2);
 
   SbsWeightMatrix P_H2_H3 = sbs_new.WeightMatrix (32 * 5 * 5, 64,
@@ -120,7 +120,7 @@ Result SnnApp_run (void)
   /** Layer = 8x8x64, Spike = 8x8, Weight = 800x64 **/
   SbsLayer * H3 = sbs_new.ConvolutionLayer (8, 8, 64, 5, COLUMN_SHIFT, 32);
   H3->setEpsilon (H3, 0.1 / 25.0);
-  H3->giveWeights (H3, P_H2_H3);
+  H3->setWeights (H3, P_H2_H3);
   network->giveLayer (network, H3);
 
   SbsWeightMatrix P_H3_H4 = sbs_new.WeightMatrix (64 * 2 * 2, 64,
@@ -129,7 +129,7 @@ Result SnnApp_run (void)
   /** Layer = 4x4x64, Spike = 4x4, Weight = 256x64 **/
   SbsLayer * H4 = sbs_new.PoolingLayer (4, 4, 64, 2, COLUMN_SHIFT, 64);
   H4->setEpsilon (H4, 0.1 / 4.0);
-  H4->giveWeights (H4, P_H3_H4);
+  H4->setWeights (H4, P_H3_H4);
   network->giveLayer (network, H4);
 
   SbsWeightMatrix P_H4_H5 = sbs_new.WeightMatrix (64 * 4 * 4, 1024,
@@ -138,7 +138,7 @@ Result SnnApp_run (void)
   /** Layer = 1x1x1024, Spike = 1x1, Weight = 1024x1024 **/
   SbsLayer * H5 = sbs_new.FullyConnectedLayer (1024, 4, ROW_SHIFT, 64);
   H5->setEpsilon (H5, 0.1 / 16.0);
-  H5->giveWeights (H5, P_H4_H5);
+  H5->setWeights (H5, P_H4_H5);
   network->giveLayer (network, H5);
 
   SbsWeightMatrix P_H5_HY = sbs_new.WeightMatrix (1024, 10,
@@ -147,7 +147,7 @@ Result SnnApp_run (void)
   /** Layer = 1x1x10, Spike = 1x1, Weight = 1024x10 **/
   SbsLayer * HY = sbs_new.OutputLayer (10, ROW_SHIFT, 0);
   HY->setEpsilon (HY, 0.1);
-  HY->giveWeights (HY, P_H5_HY);
+  HY->setWeights (HY, P_H5_HY);
   network->giveLayer (network, HY);
 
   // Perform Network load pattern and update cycle
