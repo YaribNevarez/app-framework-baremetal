@@ -671,6 +671,9 @@ void SbsHardware_shutdown (void)
   }
 }
 
+int accelerator_dmaTxBdRingPtr_PostCnt = 0;
+int accelerator_dmaRxBdRingPtr_PostCnt = 0;
+
 static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
                               uint32_t      layerSize,
                               uint32_t      kernelSize,
@@ -695,8 +698,8 @@ static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
 
   XSbs_update_Set_epsilon (&accelerator->updateHardware, *(uint32_t*) &epsilon);
 
-  while (accelerator->dmaTxBdRingPtr->PostCnt);
-  while (accelerator->dmaRxBdRingPtr->PostCnt);
+  while (accelerator->dmaTxBdRingPtr->PostCnt) accelerator_dmaTxBdRingPtr_PostCnt++;
+  while (accelerator->dmaRxBdRingPtr->PostCnt) accelerator_dmaRxBdRingPtr_PostCnt++;
 
   ASSERT(0 < XAxiDma_BdRingGetFreeCnt(accelerator->dmaTxBdRingPtr));
 
@@ -723,20 +726,14 @@ static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
   accelerator->txWeightCounter = 0;
 }
 
-static SpikeID SbsStateVector_generateSpikeIP (NeuronState * state_vector, uint16_t size);
-
 static void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
-                                         NeuronState * state_vector,
-                                         SpikeID * spike_id)
+                                         NeuronState * state_vector)
 {
   int status;
 
   ASSERT (accelerator != NULL);
   ASSERT (state_vector != NULL);
   ASSERT (0 < accelerator->vectorSize);
-  ASSERT (spike_id != NULL);
-
-  *spike_id = SbsStateVector_generateSpikeIP (state_vector, accelerator->vectorSize);
 
   /************************** Tx state_vector ********************************/
   Xil_DCacheFlushRange ((UINTPTR) state_vector, accelerator->vectorSize * sizeof(NeuronState));
@@ -818,12 +815,15 @@ static void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
   }
 }
 
+int XSbs_update_IsReady_cnt[7][NUM_ACCELERATOR_INSTANCES] = {0};
+int XSbs_update_IsReady_layer = 0;
+
 static void Accelerator_start(SbSUpdateAccelerator * accelerator)
 {
   uint32_t allocatedDmaBd;
   int status;
 
-  while (!XSbs_update_IsReady (&accelerator->updateHardware));
+  while (!XSbs_update_IsReady (&accelerator->updateHardware)) XSbs_update_IsReady_cnt[XSbs_update_IsReady_layer][accelerator->hardwareConfig->updateDeviceID]++;
 
   XSbs_update_Start (&accelerator->updateHardware);
 
@@ -1061,7 +1061,7 @@ static void SbsLayerPartition_delete(SbsLayerPartition ** partition)
   }
 }
 
-static void SbsLayerPartition_initializeIP(NeuronState * state_vector, uint16_t size)
+static void SbsLayerPartition_initializeIP (NeuronState * state_vector, uint16_t size)
 {
   ASSERT(state_vector != NULL);
   ASSERT(0 < size);
@@ -1103,7 +1103,7 @@ static void SbsLayerPartition_initialize (SbsLayerPartition * partition)
 }
 
 static void SbsLayerPartition_setWeights (SbsLayerPartition * partition,
-                                           SbsWeightMatrix weight_matrix)
+                                          SbsWeightMatrix weight_matrix)
 {
   ASSERT(partition != NULL);
   ASSERT(partition->accelerator != NULL);
@@ -1143,6 +1143,7 @@ static SbsLayer * SbsBaseLayer_new(SbsLayerType layer_type,
   {
     int           i;
     Multivector * spike_matrix;
+    SbSUpdateAccelerator * accelerator_group[NUM_ACCELERATOR_INSTANCES] = {0};
 
     memset(layer, 0x00, sizeof(SbsBaseLayer));
 
@@ -1153,13 +1154,31 @@ static SbsLayer * SbsBaseLayer_new(SbsLayerType layer_type,
     switch (layer_type)
     {
       case CONVOLUTION_LAYER:
+        if (neurons == 32)
+        {
+          layer->num_partitions = 2;//NUM_ACCELERATOR_INSTANCES;
+          accelerator_group[0] = Accelerator_array[0];
+          accelerator_group[1] = Accelerator_array[1];
+        }
+        else if (neurons == 64)
+        {
+          layer->num_partitions = 1;//NUM_ACCELERATOR_INSTANCES;
+          accelerator_group[0] = Accelerator_array[2];
+        }
+        break;
       case POOLING_LAYER:
-        layer->num_partitions = NUM_ACCELERATOR_INSTANCES;
+        layer->num_partitions = 2;//NUM_ACCELERATOR_INSTANCES;
+        accelerator_group[0] = Accelerator_array[0];
+        accelerator_group[1] = Accelerator_array[1];
+        break;
+      case FULLY_CONNECTED_LAYER:
+        layer->num_partitions = 1;
+        accelerator_group[0] = Accelerator_array[3];
         break;
       case INPUT_LAYER:
-      case FULLY_CONNECTED_LAYER:
       case OUTPUT_LAYER:
         layer->num_partitions = 1;
+        accelerator_group[0] = Accelerator_array[0];
         break;
       default:
         ASSERT (0);
@@ -1182,9 +1201,13 @@ static SbsLayer * SbsBaseLayer_new(SbsLayerType layer_type,
       SbSUpdateAccelerator * accelerator = NULL;
       for (i = 0; i < layer->num_partitions; i++)
       {
-        if (layer_type != INPUT_LAYER)
+        if (layer_type == INPUT_LAYER)
         {
-          accelerator = Accelerator_array[i];
+          accelerator = NULL;
+        }
+        else
+        {
+          accelerator = accelerator_group[i];
         }
 
         if (0 < residual)
@@ -1473,52 +1496,46 @@ static void SbsBaseLayer_getOutputVector(SbsBaseLayer * layer,
   }                                                                           \
 }
 
-static void SbsBaseLayer_generateSpikes(SbsBaseLayer * layer)
+static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
 {
   ASSERT(layer != NULL);
-  ASSERT(layer->layer_type == INPUT_LAYER);
   ASSERT(layer->partition_array != NULL);
-  ASSERT(layer->num_partitions == 1);
-  ASSERT(layer->partition_array[0] != NULL);
-  ASSERT(layer->partition_array[0]->state_matrix != NULL);
-  ASSERT(layer->partition_array[0]->state_matrix->data != NULL);
-  ASSERT(layer->partition_array[0]->state_matrix->dimension_size[0] == layer->rows);
-  ASSERT(layer->partition_array[0]->state_matrix->dimension_size[1] == layer->columns);
+  ASSERT(0 < layer->num_partitions);
+  ASSERT(layer->spike_matrix != NULL);
 
   if ((layer != NULL)
-      && (layer->layer_type == INPUT_LAYER)
       && (layer->partition_array != NULL)
-      && (layer->num_partitions == 1)
-      && (layer->partition_array[0] != NULL)
-      && (layer->partition_array[0]->state_matrix != NULL)
-      && (layer->partition_array[0]->state_matrix->data != NULL)
-      && (layer->partition_array[0]->state_matrix->dimension_size[0] == layer->rows)
-      && (layer->partition_array[0]->state_matrix->dimension_size[1] == layer->columns))
+      && (0 < layer->num_partitions)
+      && (layer->spike_matrix != NULL))
   {
     uint16_t rows = layer->rows;
     uint16_t columns = layer->columns;
     uint16_t neurons = layer->neurons;
-    NeuronState * state_matrix_data = layer->partition_array[0]->state_matrix->data;
+
+    uint16_t partition_row = 0;
+    uint16_t partition_column = 0;
+    SbsLayerPartition *  partition = NULL;
+
     SpikeID * spike_matrix_data = layer->spike_matrix->data;
 
     uint16_t row;
     uint16_t column;
     size_t current_row_index;
-    size_t current_row_column_index;
 
     for (row = 0; row < rows; row++)
     {
       current_row_index = columns * row;
+      SbsBaseLayer_getPartition(layer, row, 0,
+                                partition, partition_row, partition_column);
+      ASSERT(partition != NULL);
       for (column = 0; column < columns; column++)
       {
-        current_row_column_index = current_row_index + column;
-        spike_matrix_data[current_row_column_index] =
-            SbsStateVector_generateSpikeIP (&state_matrix_data[current_row_column_index * neurons],
-                                            neurons);
+        spike_matrix_data[current_row_index + column] =
+            SbsStateVector_generateSpikeIP (&((NeuronState *) partition->state_matrix->data)[(partition_row * columns + partition_column) * neurons], neurons);
       }
     }
   }
-}                                                                             \
+}
 
 static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer)
 {
@@ -1575,23 +1592,19 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
          kernel_row_pos < spike_rows - (kernel_size - 1);
          kernel_row_pos += kernel_stride, layer_row ++)
     {
+      SbsBaseLayer_getPartition (layer, layer_row, 0,
+                                        update_partition, update_partition_row,
+                                        update_partition_column);
+      ASSERT(update_partition != NULL);
+
       for (kernel_column_pos = 0, layer_column = 0;
            kernel_column_pos < spike_columns - (kernel_size - 1);
            kernel_column_pos += kernel_stride, layer_column ++)
       {
-        SbsBaseLayer_getPartition (layer, layer_row, layer_column,
-                                   update_partition, update_partition_row,
-                                   update_partition_column);
 
-        ASSERT (update_partition != NULL);
-
-        if (update_partition != NULL)
-        {
-          layer_2D_access = update_partition_row * layer->columns + update_partition_column;
-          Accelerator_giveStateVector (update_partition->accelerator,
-                                       &((NeuronState*)update_partition->state_matrix->data)[layer_2D_access*layer->neurons],
-                                       &((SpikeID*)layer->spike_matrix->data)[layer_row * layer->columns  + layer_column]);
-        }
+        layer_2D_access = update_partition_row * layer->columns + update_partition_column;
+        Accelerator_giveStateVector (update_partition->accelerator,
+                                     &((NeuronState*)update_partition->state_matrix->data)[layer_2D_access*layer->neurons]);
 
         for (kernel_row = 0; kernel_row < kernel_size; kernel_row++)
         {
@@ -1719,7 +1732,7 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
   if ((network != NULL) && (3 <= network->size)
       && (network->layer_array != NULL) && (cycles != 0))
   {
-    uint16_t i;
+    int i;
     /* Initialize all layers except the input-layer */
     for (i = 1; i < network->size; i++)
     {
@@ -1730,11 +1743,15 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
     /************************ Begins Update cycle **************************/
     while (cycles--)
     {
-      SbsBaseLayer_generateSpikes(network->layer_array[0]);
-      for (i = 1; i < network->size; i++)
+      for (i = 0; i <= network->size - 1; i ++)
       {
-        SbsBaseLayer_update (network->layer_array[i],
-                             network->layer_array[i - 1]);
+        XSbs_update_IsReady_layer = i;
+
+        if (i < network->size - 1)
+          SbsBaseLayer_generateSpikes (network->layer_array[i]);
+
+        if (0 < i) SbsBaseLayer_update (network->layer_array[i],
+                                        network->layer_array[i - 1]);
       }
 
       if (cycles % 100 == 0)
@@ -1821,7 +1838,15 @@ static void SbsBaseNetwork_getOutputVector(SbsNetwork * network_ptr,
 
 static size_t SbsBaseNetwork_getMemorySize(SbsNetwork * network)
 {
-  return 0; //Memory_getBlockSize();
+  printf ("\naccelerator_dmaTxBdRingPtr_PostCnt = %d\n",
+          accelerator_dmaTxBdRingPtr_PostCnt);
+  printf ("\naccelerator_dmaRxBdRingPtr_PostCnt = %d\n",
+          accelerator_dmaRxBdRingPtr_PostCnt);
+  for (int i = 0; i < ((SbsBaseNetwork*) network)->size; i++)
+    for (int j = 0; j < NUM_ACCELERATOR_INSTANCES; j++)
+      printf ("\nXSbs_update_IsReady_layer[%d][%d] = %d\n", i, j,
+              XSbs_update_IsReady_cnt[i][j]);
+  return 0;
 }
 /*****************************************************************************/
 
