@@ -50,7 +50,7 @@ struct SbsLayer_VTable
                             uint16_t    neurons_previous_Layer);
   void       (*delete)     (SbsLayer ** layer);
   void       (*setEpsilon) (SbsLayer * layer, float epsilon);
-  void       (*setWeights)(SbsLayer * layer, SbsWeightMatrix weight_matrix);
+  void       (*giveWeights)(SbsLayer * layer, SbsWeightMatrix weight_matrix);
 };
 extern struct SbsLayer_VTable _SbsLayer;
 
