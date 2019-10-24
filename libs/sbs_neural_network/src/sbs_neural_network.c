@@ -675,55 +675,82 @@ int accelerator_dmaTxBdRingPtr_PostCnt = 0;
 int accelerator_dmaRxBdRingPtr_PostCnt = 0;
 
 static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
-                              uint32_t      layerSize,
+                              Multivector * state_matrix,
                               uint32_t      kernelSize,
-                              uint16_t      vectorSize,
                               float         epsilon)
 {
   int status;
   ASSERT (accelerator != NULL);
-  ASSERT (0 < layerSize);
+  ASSERT (state_matrix != NULL);
+  ASSERT (state_matrix->dimensionality == 3);
   ASSERT (0 < kernelSize);
-  ASSERT (0 < vectorSize);
   ASSERT (0.0 < epsilon);
 
-  XSbs_update_Set_layerSize (&accelerator->updateHardware, layerSize);
-  accelerator->layerSize = layerSize;
+  if ((accelerator != NULL)
+      && (state_matrix != NULL)
+      && (state_matrix->dimensionality == 3)
+      && (0 < kernelSize)
+      && (0.0 < epsilon))
+  {
+    uint32_t layerSize = state_matrix->dimension_size[0] * state_matrix->dimension_size[1];
+    uint32_t vectorSize = state_matrix->dimension_size[2];
 
-  XSbs_update_Set_kernelSize (&accelerator->updateHardware, kernelSize);
-  accelerator->kernelSize = kernelSize;
+    XSbs_update_Set_layerSize (&accelerator->updateHardware, layerSize);
+    accelerator->layerSize = layerSize;
 
-  XSbs_update_Set_vectorSize (&accelerator->updateHardware, vectorSize);
-  accelerator->vectorSize = vectorSize;
+    XSbs_update_Set_kernelSize (&accelerator->updateHardware, kernelSize);
+    accelerator->kernelSize = kernelSize;
 
-  XSbs_update_Set_epsilon (&accelerator->updateHardware, *(uint32_t*) &epsilon);
+    XSbs_update_Set_vectorSize (&accelerator->updateHardware, vectorSize);
+    accelerator->vectorSize = vectorSize;
 
-  while (accelerator->dmaTxBdRingPtr->PostCnt) accelerator_dmaTxBdRingPtr_PostCnt++;
-  while (accelerator->dmaRxBdRingPtr->PostCnt) accelerator_dmaRxBdRingPtr_PostCnt++;
+    XSbs_update_Set_epsilon (&accelerator->updateHardware, *(uint32_t*) &epsilon);
 
-  ASSERT(0 < XAxiDma_BdRingGetFreeCnt(accelerator->dmaTxBdRingPtr));
+    while (accelerator->dmaTxBdRingPtr->PostCnt) accelerator_dmaTxBdRingPtr_PostCnt++;
+    while (accelerator->dmaRxBdRingPtr->PostCnt) accelerator_dmaRxBdRingPtr_PostCnt++;
 
-  status = XAxiDma_BdRingAlloc (accelerator->dmaTxBdRingPtr,
-                                accelerator->layerSize * (accelerator->kernelSize + 1),
-                                &accelerator->dmaFirstTxBdPtr);
-  ASSERT (status == XST_SUCCESS);
+    ASSERT(0 < XAxiDma_BdRingGetFreeCnt(accelerator->dmaTxBdRingPtr));
 
-  XAxiDma_BdSetCtrl (accelerator->dmaFirstTxBdPtr, XAXIDMA_BD_CTRL_TXSOF_MASK);
+    status = XAxiDma_BdRingAlloc (accelerator->dmaTxBdRingPtr,
+                                  accelerator->layerSize * (accelerator->kernelSize + 1),
+                                  &accelerator->dmaFirstTxBdPtr);
+    ASSERT (status == XST_SUCCESS);
 
-  accelerator->dmaCurrentTxBdPtr = accelerator->dmaFirstTxBdPtr;
+    XAxiDma_BdSetCtrl (accelerator->dmaFirstTxBdPtr, XAXIDMA_BD_CTRL_TXSOF_MASK);
 
-  /************************** Rx Setup **************************/
-  ASSERT(0 < XAxiDma_BdRingGetFreeCnt(accelerator->dmaRxBdRingPtr));
+    accelerator->dmaCurrentTxBdPtr = accelerator->dmaFirstTxBdPtr;
 
-  status = XAxiDma_BdRingAlloc (accelerator->dmaRxBdRingPtr,
-                                layerSize,
-                                &accelerator->dmaFirstRxBdPtr);
-  ASSERT(status == XST_SUCCESS);
+    /************************** Rx Setup **************************/
+    ASSERT(0 < XAxiDma_BdRingGetFreeCnt(accelerator->dmaRxBdRingPtr));
 
-  accelerator->dmaCurrentRxBdPtr = accelerator->dmaFirstRxBdPtr;
+    status = XAxiDma_BdRingAlloc (accelerator->dmaRxBdRingPtr,
+                                  1,
+                                  &accelerator->dmaFirstRxBdPtr);
+    ASSERT(status == XST_SUCCESS);
 
-  accelerator->txStateCounter = 0;
-  accelerator->txWeightCounter = 0;
+    accelerator->dmaCurrentRxBdPtr = accelerator->dmaFirstRxBdPtr;
+
+    /************************** Rx state_vector ********************************/
+    ASSERT (accelerator->dmaCurrentRxBdPtr != NULL);
+    status = XAxiDma_BdSetBufAddr (accelerator->dmaCurrentRxBdPtr,
+                                   (UINTPTR) state_matrix->data);
+    ASSERT(status == XST_SUCCESS);
+
+    ASSERT(0 < accelerator->vectorSize);
+    status = XAxiDma_BdSetLength (accelerator->dmaCurrentRxBdPtr,
+                                  layerSize * vectorSize * state_matrix->data_type_size,
+                                  accelerator->dmaRxBdRingPtr->MaxTransferLen);
+    ASSERT(status == XST_SUCCESS);
+
+    accelerator->dmaCurrentRxBdPtr =
+        (XAxiDma_Bd *) XAxiDma_BdRingNext(accelerator->dmaRxBdRingPtr,
+                                          accelerator->dmaCurrentRxBdPtr);
+
+    ASSERT (accelerator->dmaCurrentRxBdPtr != NULL);
+
+    accelerator->txStateCounter = 0;
+    accelerator->txWeightCounter = 0;
+  }
 }
 
 static void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
@@ -751,24 +778,6 @@ static void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
                                         accelerator->dmaCurrentTxBdPtr);
 
   ASSERT (accelerator->dmaCurrentTxBdPtr != NULL);
-
-  /************************** Rx state_vector ********************************/
-  ASSERT (accelerator->dmaCurrentRxBdPtr != NULL);
-  status = XAxiDma_BdSetBufAddr (accelerator->dmaCurrentRxBdPtr,
-                                 (UINTPTR) state_vector);
-  ASSERT(status == XST_SUCCESS);
-
-  ASSERT(0 < accelerator->vectorSize);
-  status = XAxiDma_BdSetLength (accelerator->dmaCurrentRxBdPtr,
-                                accelerator->vectorSize * sizeof(NeuronState),
-                                accelerator->dmaRxBdRingPtr->MaxTransferLen);
-  ASSERT(status == XST_SUCCESS);
-
-  accelerator->dmaCurrentRxBdPtr =
-      (XAxiDma_Bd *) XAxiDma_BdRingNext(accelerator->dmaRxBdRingPtr,
-                                        accelerator->dmaCurrentRxBdPtr);
-
-  ASSERT (accelerator->dmaCurrentRxBdPtr != NULL);
 
   accelerator->txStateCounter ++;
   ASSERT(accelerator->txStateCounter <= accelerator->layerSize);
@@ -835,10 +844,10 @@ static void Accelerator_start(SbSUpdateAccelerator * accelerator)
   ASSERT(status == XST_SUCCESS);
 
 
-  ASSERT (accelerator->layerSize == accelerator->dmaRxBdRingPtr->PreCnt);
+  ASSERT (accelerator->dmaRxBdRingPtr->PreCnt == 1);
 
   status = XAxiDma_BdRingToHw (accelerator->dmaRxBdRingPtr,
-                               accelerator->layerSize,
+                               1,
                                accelerator->dmaFirstRxBdPtr);
   ASSERT(status == XST_SUCCESS);
 
@@ -1633,9 +1642,8 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
     {
       update_partition = layer->partition_array[i];
       Accelerator_setup (update_partition->accelerator,
-                         update_partition->state_matrix->dimension_size[0] * update_partition->state_matrix->dimension_size[1],
+                         update_partition->state_matrix,
                          kernel_size * kernel_size,
-                         layer->neurons,
                          epsilon);
     }
 
