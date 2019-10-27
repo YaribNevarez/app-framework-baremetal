@@ -153,33 +153,35 @@ Result SnnApp_run (void)
   // Perform Network load pattern and update cycle
   network->loadInput (network, SBS_INPUT_PATTERN_FILE);
 
-  printf ("\n==========  Update Cycle ======================\n");
-
-  network->updateCycle (network, 1000);
-
-  printf ("\n==========  Results ===========================\n");
-
-  printf ("\n Output value: %d \n", network->getInferredOutput (network));
-  printf ("\n Label value: %d \n", network->getInputLabel (network));
-
-  network->getOutputVector (network, &output_vector, &output_vector_size);
-
-  printf ("\n==========  Output layer values ===============\n");
-
-  while (output_vector_size--)
+  for (;;)
   {
-    NeuronState h = output_vector[output_vector_size]; /* Ensure data alignment */
-    printf (" [ %d ] = %.6f\n", output_vector_size, h);
-  }
+    printf ("\n==========  Update Cycle ======================\n");
 
-  printf ("\n===============================================\n");
+    network->updateCycle (network, 1000);
+
+    printf ("\n==========  Results ===========================\n");
+
+    printf ("\n Output value: %d \n", network->getInferredOutput (network));
+    printf ("\n Label value: %d \n", network->getInputLabel (network));
+
+    network->getOutputVector (network, &output_vector, &output_vector_size);
+
+    printf ("\n==========  Output layer values ===============\n");
+
+    while (output_vector_size--)
+    {
+      NeuronState h = output_vector[output_vector_size]; /* Ensure data alignment */
+      printf (" [ %d ] = %.6f\n", output_vector_size, h);
+    }
+
+    printf ("\n===============================================\n");
 
 #ifdef USE_XILINX
-  printf ("\n Pool size: %d \n", network->getMemorySize (network));
+    printf ("\n Pool size: %d \n", network->getMemorySize (network));
 #else
-  printf ("\n Pool size: %ld \n", network->getMemorySize(network));
+    printf ("\n Pool size: %ld \n", network->getMemorySize(network));
 #endif
-
+  }
   network->delete (&network);
 
   SbsHardware_shutdown ();
