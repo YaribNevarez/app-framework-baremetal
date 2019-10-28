@@ -33,6 +33,7 @@ typedef uint16_t  SpikeID;
 typedef struct
 {
   void *   data;
+  size_t   data_type_size;
   uint8_t  dimensionality;
   uint16_t dimension_size[1]; /*[0] = rows, [1] = columns, [2] = neurons... [n] = N*/
 } Multivector;
@@ -128,6 +129,7 @@ static Multivector * Multivector_new(uint8_t data_type_size, uint8_t dimensional
         memset(multivector->data, 0x00, data_size * data_type_size);
 
       multivector->dimensionality = dimensionality;
+      multivector->data_type_size = data_type_size;
     }
   }
 
@@ -143,6 +145,68 @@ static void Multivector_delete(Multivector ** multivector)
   {
     free(*multivector);
     *multivector = NULL;
+  }
+}
+
+void * Multivector_2DAccess(Multivector * multivector, uint16_t row, uint16_t column)
+{
+  void * data = NULL;
+  ASSERT (multivector != NULL);
+  ASSERT (multivector->data != NULL);
+  ASSERT (2 <= multivector->dimensionality);
+  ASSERT (row <= multivector->dimension_size[0]);
+  ASSERT (column <= multivector->dimension_size[1]);
+
+  if ((multivector != NULL)
+      && (multivector->data != NULL)
+      && (2 <= multivector->dimensionality)
+      && (row <= multivector->dimension_size[0])
+      && (column <= multivector->dimension_size[1]))
+  {
+    uint16_t dimensionality = multivector->dimensionality;
+    size_t data_size = multivector->data_type_size;
+
+    while (dimensionality-- > 2)
+    {
+      data_size *= multivector->dimension_size[dimensionality];
+    }
+
+    data = multivector->data
+        + (row * multivector->dimension_size[1] + column) * data_size;
+  }
+
+  return data;
+}
+
+static void Multivector_saveToCSV(Multivector * multivector, char * file_name)
+{
+  ASSERT(multivector != NULL);
+  ASSERT(file_name != NULL);
+  if ((multivector != NULL) && (file_name != NULL))
+  {
+    FILE * file = fopen (file_name, "w");
+    ASSERT(file != NULL);
+
+    if (file != NULL)
+    {
+      int row;
+      int column;
+      char * cell_ending;
+
+      for (row = 0; row < multivector->dimension_size[0]; row++)
+      {
+        for (column = 0; column < multivector->dimension_size[1]; column++)
+        {
+          cell_ending =
+              (column == multivector->dimension_size[1] - 1) ? "\n" : ",";
+
+          fprintf (file, "%d%s",
+              *(SpikeID *) Multivector_2DAccess (multivector, row, column),
+              cell_ending);
+        }
+      }
+      fclose(file);
+    }
   }
 }
 /*****************************************************************************/
@@ -695,6 +759,8 @@ static void SbsBaseNetwork_loadInput(SbsNetwork * network_ptr, char * file_name)
 static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles)
 {
   SbsBaseNetwork * network = (SbsBaseNetwork *) network_ptr;
+  uint16_t cycle;
+  char file_name[80];
   ASSERT(network != NULL);
   ASSERT(3 <= network->size);
   ASSERT(network->layer_array != NULL);
@@ -712,19 +778,26 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
     }
 
     /************************ Begins Update cycle **************************/
-    while (cycles--)
+    for (cycle = 0; cycle < cycles; cycle ++)
     {
       for (i = 0; i < network->size; i++)
       {
         if (i < network->size - 1)
+        {
           SbsBaseLayer_generateSpikes(network->layer_array[i]);
+
+#if defined(SAVE_SPIKES)
+          sprintf (file_name, "spike_layer[%d]_cycle[%d].csv", i, cycle);
+          Multivector_saveToCSV (network->layer_array[i]->spike_matrix, file_name);
+#endif
+        }
 
         if (0 < i)
           SbsBaseLayer_update(network->layer_array[i],
               network->layer_array[i - 1]->spike_matrix);
       }
 
-      if (cycles % 100 == 0)
+      if (cycle % 100 == 0)
         printf(" - Spike cycle: %d\n", cycles);
     }
     /************************ Ends Update cycle ****************************/
