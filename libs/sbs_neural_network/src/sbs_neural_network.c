@@ -26,6 +26,10 @@
 #include "xsbs_update.h"
 #include "xscugic.h"
 
+//#define DEBUG
+
+#ifdef DEBUG
+
 void sbs_assert(const char * file, int line, const char * function, const char * expression)
 {
   printf ("Fail: %s, in \"%s\" [%s, %d]\n", expression, function, file, line);
@@ -33,8 +37,10 @@ void sbs_assert(const char * file, int line, const char * function, const char *
   for (;;);
 }
 
-
-#define ASSERT(expr)  //if (!(expr)) sbs_assert(__FILE__, __LINE__, __func__, #expr);//assert(expr)
+#define ASSERT(expr) if (!(expr)) sbs_assert(__FILE__, __LINE__, __func__, #expr);
+#else
+#define ASSERT(expr)
+#endif
 
 /*****************************************************************************/
 #define   MEMORY_SIZE         (4771384)
@@ -62,8 +68,6 @@ typedef struct
   uint32_t    updateIntVecID;
   uint32_t    dmaTxIntVecID;
   uint32_t    dmaRxIntVecID;
-  uint32_t    dmaTxBDNum;
-  uint32_t    dmaRxBDNum;
   MemoryBlock ddrMem;
 } SbSHardwareConfig;
 
@@ -72,23 +76,27 @@ typedef struct
   SbSHardwareConfig * hardwareConfig;
   XSbs_update         updateHardware;
   XAxiDma             dmaHardware;
-  XAxiDma_BdRing *    dmaRxBdRingPtr;
-  XAxiDma_BdRing *    dmaTxBdRingPtr;
-  XAxiDma_Bd *        dmaFirstTxBdPtr;
-  XAxiDma_Bd *        dmaFirstRxBdPtr;
-  XAxiDma_Bd *        dmaCurrentTxBdPtr;
-  XAxiDma_Bd *        dmaCurrentRxBdPtr;
+
+#ifdef DEBUG
   uint16_t            txStateCounter;
   uint16_t            txWeightCounter;
+#endif
 
+  uint8_t           txDone;
+  uint8_t           rxDone;
   uint8_t           acceleratorReady;
+
   uint16_t          vectorSize;
   uint32_t          kernelSize;
   uint32_t          layerSize;
   float             epsilon;
 
-  uint32_t          buffer_index;
-  uint32_t *        buffer;
+  uint32_t          txBufferIndex;
+  uint32_t *        txBuffer;
+  size_t            txBufferSize;
+
+  uint32_t *        rxBuffer;
+  size_t            rxBufferSize;
 
   uint8_t           errorFlags;
 } SbSUpdateAccelerator;
@@ -263,8 +271,6 @@ SbSHardwareConfig HardwareConfig[] =
     .updateIntVecID = XPAR_FABRIC_SBS_UPDATE_0_VEC_ID,
     .dmaTxIntVecID = XPAR_FABRIC_AXIDMA_0_MM2S_INTROUT_VEC_ID,
     .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_0_S2MM_INTROUT_VEC_ID,
-    .dmaTxBDNum = MAX_LAYER_SIZE * (MAX_KERNEL_SIZE + 1 + 1),
-    .dmaRxBDNum = (1 + 1) * MAX_LAYER_SIZE,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x30000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x33FFFFFF,
@@ -279,8 +285,6 @@ SbSHardwareConfig HardwareConfig[] =
     .updateIntVecID = XPAR_FABRIC_SBS_UPDATE_1_VEC_ID,
     .dmaTxIntVecID = XPAR_FABRIC_AXIDMA_1_MM2S_INTROUT_VEC_ID,
     .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_1_S2MM_INTROUT_VEC_ID,
-    .dmaTxBDNum = MAX_LAYER_SIZE * (MAX_KERNEL_SIZE + 1 + 1),
-    .dmaRxBDNum = (1 + 1) * MAX_LAYER_SIZE,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x34000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x37FFFFFF,
@@ -296,8 +300,6 @@ SbSHardwareConfig HardwareConfig[] =
     .updateIntVecID = XPAR_FABRIC_SBS_UPDATE_2_VEC_ID,
     .dmaTxIntVecID = XPAR_FABRIC_AXIDMA_2_MM2S_INTROUT_VEC_ID,
     .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_2_S2MM_INTROUT_VEC_ID,
-    .dmaTxBDNum = MAX_LAYER_SIZE * (MAX_KERNEL_SIZE + 1 + 1),
-    .dmaRxBDNum = (1 + 1) * MAX_LAYER_SIZE,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x38000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3BFFFFFF,
@@ -313,8 +315,6 @@ SbSHardwareConfig HardwareConfig[] =
     .updateIntVecID = XPAR_FABRIC_SBS_UPDATE_3_VEC_ID,
     .dmaTxIntVecID = XPAR_FABRIC_AXIDMA_3_MM2S_INTROUT_VEC_ID,
     .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_3_S2MM_INTROUT_VEC_ID,
-    .dmaTxBDNum = MAX_LAYER_SIZE * (MAX_KERNEL_SIZE + 1 + 1),
-    .dmaRxBDNum = (1 + 1) * MAX_LAYER_SIZE,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3C000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3FFFFFFF,
@@ -333,10 +333,10 @@ static XScuGic                 ScuGic = {0};
 
 static void Accelerator_txInterruptHandler(void * data)
 {
-  SbSUpdateAccelerator * accelerator = (SbSUpdateAccelerator *) data;
-  u32 IrqStatus = XAxiDma_BdRingGetIrq(accelerator->dmaTxBdRingPtr);
+  XAxiDma *AxiDmaInst = &((SbSUpdateAccelerator *) data)->dmaHardware;
+  u32 IrqStatus = XAxiDma_IntrGetIrq(AxiDmaInst, XAXIDMA_DMA_TO_DEVICE);
 
-  XAxiDma_BdRingAckIrq(accelerator->dmaTxBdRingPtr, IrqStatus);
+  XAxiDma_IntrAckIrq(AxiDmaInst, IrqStatus, XAXIDMA_DMA_TO_DEVICE);
 
   if (!(IrqStatus & XAXIDMA_IRQ_ALL_MASK))
   {
@@ -346,65 +346,31 @@ static void Accelerator_txInterruptHandler(void * data)
   if ((IrqStatus & XAXIDMA_IRQ_ERROR_MASK))
   {
     int TimeOut;
-    XAxiDma_BdRingDumpRegs (accelerator->dmaTxBdRingPtr);
 
-    accelerator->errorFlags |= 0x01;
+    ((SbSUpdateAccelerator *) data)->errorFlags |= 0x01;
 
-    XAxiDma_Reset (&accelerator->dmaHardware);
+    XAxiDma_Reset (AxiDmaInst);
 
-    TimeOut = ACCELERATOR_DMA_RESET_TIMEOUT;
-
-    while (TimeOut)
-    {
-      if (XAxiDma_ResetIsDone (&accelerator->dmaHardware))
-      {
-        break;
-      }
-
-      TimeOut -= 1;
-    }
+    for (TimeOut = ACCELERATOR_DMA_RESET_TIMEOUT; 0 < TimeOut; TimeOut--)
+      if (XAxiDma_ResetIsDone (AxiDmaInst)) break;
 
     printf("Possible illegal address access\n");
     ASSERT(0);
     return;
   }
 
-  if ((IrqStatus & (XAXIDMA_IRQ_DELAY_MASK | XAXIDMA_IRQ_IOC_MASK)))
+  if (IrqStatus &  XAXIDMA_IRQ_IOC_MASK)
   {
-    XAxiDma_Bd *BdPtr;
-    XAxiDma_Bd *BdCurPtr;
-    int status;
-    int BdCount;
-    u32 BdSts;
-    int Index;
-
-    BdCount = XAxiDma_BdRingFromHw(accelerator->dmaTxBdRingPtr, XAXIDMA_ALL_BDS, &BdPtr);
-
-    BdCurPtr = BdPtr;
-    for (Index = 0; Index < BdCount; Index++)
-    {
-      BdSts = XAxiDma_BdGetSts(BdCurPtr);
-      if ((BdSts & XAXIDMA_BD_STS_ALL_ERR_MASK) || (!(BdSts & XAXIDMA_BD_STS_COMPLETE_MASK)))
-      {
-        accelerator->errorFlags |= 0x02;
-        break;
-      }
-
-      BdCurPtr = (XAxiDma_Bd *) XAxiDma_BdRingNext(accelerator->dmaTxBdRingPtr,
-                                                   BdCurPtr);
-    }
-
-    status = XAxiDma_BdRingFree(accelerator->dmaTxBdRingPtr, BdCount, BdPtr);
-    ASSERT(status == XST_SUCCESS);
+    ((SbSUpdateAccelerator *) data)->txDone = 1;
   }
 }
 
 static void Accelerator_rxInterruptHandler (void * data)
 {
-  SbSUpdateAccelerator * accelerator = (SbSUpdateAccelerator *) data;
-  u32 IrqStatus = XAxiDma_BdRingGetIrq(accelerator->dmaRxBdRingPtr);
+  XAxiDma *AxiDmaInst = &((SbSUpdateAccelerator *) data)->dmaHardware;
+  u32 IrqStatus = XAxiDma_IntrGetIrq(AxiDmaInst, XAXIDMA_DEVICE_TO_DMA);
 
-  XAxiDma_BdRingAckIrq(accelerator->dmaRxBdRingPtr, IrqStatus);
+  XAxiDma_IntrAckIrq(AxiDmaInst, IrqStatus, XAXIDMA_DEVICE_TO_DMA);
 
   if (!(IrqStatus & XAXIDMA_IRQ_ALL_MASK))
   {
@@ -414,56 +380,22 @@ static void Accelerator_rxInterruptHandler (void * data)
   if ((IrqStatus & XAXIDMA_IRQ_ERROR_MASK))
   {
     int TimeOut;
-    XAxiDma_BdRingDumpRegs (accelerator->dmaRxBdRingPtr);
 
-    accelerator->errorFlags |= 0x01;
+    ((SbSUpdateAccelerator *) data)->errorFlags |= 0x01;
 
-    XAxiDma_Reset (&accelerator->dmaHardware);
+    XAxiDma_Reset (AxiDmaInst);
 
-    TimeOut = ACCELERATOR_DMA_RESET_TIMEOUT;
-
-    while (TimeOut)
-    {
-      if (XAxiDma_ResetIsDone (&accelerator->dmaHardware))
-      {
-        break;
-      }
-
-      TimeOut -= 1;
-    }
+    for (TimeOut = ACCELERATOR_DMA_RESET_TIMEOUT; 0 < TimeOut; TimeOut--)
+      if (XAxiDma_ResetIsDone (AxiDmaInst)) break;
 
     printf("Possible illegal address access\n");
     ASSERT(0);
     return;
   }
 
-  if ((IrqStatus & (XAXIDMA_IRQ_DELAY_MASK | XAXIDMA_IRQ_IOC_MASK)))
+  if (IrqStatus &  XAXIDMA_IRQ_IOC_MASK)
   {
-    XAxiDma_Bd *BdPtr;
-    XAxiDma_Bd *BdCurPtr;
-    int status;
-    int BdCount;
-    u32 BdSts;
-    int Index;
-
-    BdCount = XAxiDma_BdRingFromHw(accelerator->dmaRxBdRingPtr, XAXIDMA_ALL_BDS, &BdPtr);
-
-    BdCurPtr = BdPtr;
-    for (Index = 0; Index < BdCount; Index++)
-    {
-      BdSts = XAxiDma_BdGetSts(BdCurPtr);
-      if ((BdSts & XAXIDMA_BD_STS_ALL_ERR_MASK) || (!(BdSts & XAXIDMA_BD_STS_COMPLETE_MASK)))
-      {
-        accelerator->errorFlags |= 0x02;
-        break;
-      }
-
-      BdCurPtr = (XAxiDma_Bd *) XAxiDma_BdRingNext(accelerator->dmaRxBdRingPtr,
-                                                   BdCurPtr);
-    }
-
-    status = XAxiDma_BdRingFree(accelerator->dmaRxBdRingPtr, BdCount, BdPtr);
-    ASSERT(status == XST_SUCCESS);
+    ((SbSUpdateAccelerator *) data)->rxDone = 1;
   }
 }
 
@@ -481,10 +413,6 @@ static int Accelerator_initialize(SbSUpdateAccelerator * accelerator, SbSHardwar
 {
   XScuGic_Config *    IntcConfig;
   XAxiDma_Config *    dmaConfig;
-  XAxiDma_Bd          dmaBdTemplate;
-  u32                 freeBdCount;
-  UINTPTR             dmaRxBDBaseAddress;
-  UINTPTR             dmaTxBDBaseAddress;
   int                 status;
 
   ASSERT (accelerator != NULL);
@@ -493,7 +421,7 @@ static int Accelerator_initialize(SbSUpdateAccelerator * accelerator, SbSHardwar
   if (accelerator == NULL || hardware_config == NULL)
     return XST_FAILURE;
 
-  memset(accelerator, 0x00, sizeof(SbSUpdateAccelerator));
+  memset (accelerator, 0x00, sizeof(SbSUpdateAccelerator));
 
   accelerator->hardwareConfig = hardware_config;
 
@@ -513,126 +441,20 @@ static int Accelerator_initialize(SbSUpdateAccelerator * accelerator, SbSHardwar
     return XST_FAILURE;
   }
 
-  if (!XAxiDma_HasSg(&accelerator->dmaHardware))
+  if (XAxiDma_HasSg(&accelerator->dmaHardware))
   {
-    xil_printf ("Device configured as Simple mode \r\n");
+    xil_printf ("Device configured as SG mode \r\n");
 
     return XST_FAILURE;
   }
 
-  /**************************** DMA SG RX BD initialization ******************/
-  dmaRxBDBaseAddress = (UINTPTR)MemoryBlock_alloc(&hardware_config->ddrMem,
-                                         XAxiDma_BdRingMemCalc(XAXIDMA_BD_MINIMUM_ALIGNMENT,
-                                                               hardware_config->dmaRxBDNum));
+  XAxiDma_IntrEnable(&accelerator->dmaHardware,
+                     XAXIDMA_IRQ_ALL_MASK,
+                     XAXIDMA_DMA_TO_DEVICE);
 
-  if ((void *) dmaRxBDBaseAddress == NULL)
-  {
-    xil_printf ("Rx BD allocation error \r\n");
-
-    return XST_FAILURE;
-  }
-
-  accelerator->dmaRxBdRingPtr = XAxiDma_GetRxRing(&accelerator->dmaHardware);
-
-  XAxiDma_BdRingIntEnable(accelerator->dmaRxBdRingPtr, XAXIDMA_IRQ_ALL_MASK);
-
-  XAxiDma_BdRingSetCoalesce (accelerator->dmaRxBdRingPtr, 1, 0);
-
-  status = XAxiDma_BdRingCreate (accelerator->dmaRxBdRingPtr,
-                                 dmaRxBDBaseAddress,
-                                 dmaRxBDBaseAddress,
-                                 XAXIDMA_BD_MINIMUM_ALIGNMENT,
-                                 hardware_config->dmaRxBDNum);
-
-  if (status != XST_SUCCESS)
-  {
-    xil_printf ("RX create BD ring failed %d\r\n", status);
-
-    return XST_FAILURE;
-  }
-
-  XAxiDma_BdClear(&dmaBdTemplate);
-
-  status = XAxiDma_BdRingClone (accelerator->dmaRxBdRingPtr, &dmaBdTemplate);
-  if (status != XST_SUCCESS)
-  {
-    xil_printf ("RX clone BD failed %d\r\n", status);
-
-    return XST_FAILURE;
-  }
-
-  freeBdCount = XAxiDma_BdRingGetFreeCnt(accelerator->dmaRxBdRingPtr);
-
-  if (freeBdCount != hardware_config->dmaRxBDNum)
-  {
-    xil_printf ("RX BD creation inconsistency\r\n");
-
-    return XST_FAILURE;
-  }
-
-  status = XAxiDma_BdRingStart (accelerator->dmaRxBdRingPtr);
-  if (status != XST_SUCCESS)
-  {
-    xil_printf ("RX start hardware failed %d\r\n", status);
-
-    return XST_FAILURE;
-  }
-
-  /**************************** DMA SG TX BD initialization ******************/
-  dmaTxBDBaseAddress = (UINTPTR)MemoryBlock_alloc(&hardware_config->ddrMem,
-                                         XAxiDma_BdRingMemCalc(XAXIDMA_BD_MINIMUM_ALIGNMENT,
-                                                               hardware_config->dmaTxBDNum));
-
-  if ((void *) dmaTxBDBaseAddress == NULL)
-  {
-    xil_printf ("Tx BD allocation error \r\n");
-
-    return XST_FAILURE;
-  }
-
-  accelerator->dmaTxBdRingPtr = XAxiDma_GetTxRing(&accelerator->dmaHardware);
-
-  XAxiDma_BdRingIntEnable(accelerator->dmaTxBdRingPtr, XAXIDMA_IRQ_ALL_MASK);
-
-  XAxiDma_BdRingSetCoalesce (accelerator->dmaTxBdRingPtr, 1, 0);
-
-
-  status = XAxiDma_BdRingCreate (accelerator->dmaTxBdRingPtr,
-                                 dmaTxBDBaseAddress,
-                                 dmaTxBDBaseAddress,
-                                 XAXIDMA_BD_MINIMUM_ALIGNMENT,
-                                 hardware_config->dmaTxBDNum);
-  if (status != XST_SUCCESS)
-  {
-    xil_printf ("Failed to create BD ring in TX setup\r\n");
-
-    return XST_FAILURE;
-  }
-
-  status = XAxiDma_BdRingClone (accelerator->dmaTxBdRingPtr, &dmaBdTemplate);
-  if (status != XST_SUCCESS)
-  {
-    xil_printf ("Failed to BD ring clone in TX setup %d\r\n", status);
-
-    return XST_FAILURE;
-  }
-
-  freeBdCount = XAxiDma_BdRingGetFreeCnt(accelerator->dmaTxBdRingPtr);
-
-  if (freeBdCount != hardware_config->dmaTxBDNum)
-  {
-    xil_printf ("RX BD creation inconsistency\r\n");
-
-    return XST_FAILURE;
-  }
-
-  status = XAxiDma_BdRingStart (accelerator->dmaTxBdRingPtr);
-  if (status != XST_SUCCESS)
-  {
-    xil_printf ("Failed starting BD ring TX setup %d\r\n", status);
-
-    return XST_FAILURE;
-  }
+  XAxiDma_IntrEnable(&accelerator->dmaHardware,
+                     XAXIDMA_IRQ_ALL_MASK,
+                     XAXIDMA_DEVICE_TO_DMA);
 
   /***************************************************************************/
   /**************************** GIC initialization ***************************/
@@ -711,14 +533,16 @@ static int Accelerator_initialize(SbSUpdateAccelerator * accelerator, SbSHardwar
   XSbs_update_InterruptGlobalEnable (&accelerator->updateHardware);
   XSbs_update_InterruptEnable (&accelerator->updateHardware, 1);
   accelerator->acceleratorReady = 1;
+  accelerator->rxDone = 1;
+  accelerator->txDone = 1;
 
   /***************************************************************************/
-  accelerator->buffer = MemoryBlock_alloc(&hardware_config->ddrMem,
+  accelerator->txBuffer = MemoryBlock_alloc(&hardware_config->ddrMem,
                                           (MAX_LAYER_SIZE/2) * (MAX_KERNEL_SIZE + 1) * MAX_IP_VECTOR_SIZE * sizeof(NeuronState));
 
-  ASSERT (accelerator->buffer != NULL);
+  ASSERT (accelerator->txBuffer != NULL);
 
-  if (accelerator->buffer == NULL)
+  if (accelerator->txBuffer == NULL)
   {
     xil_printf ("DMA TX buffer allocation error\r\n");
 
@@ -737,6 +561,7 @@ static void Accelerator_shutdown(SbSUpdateAccelerator * accelerator)
   {
     XScuGic_Disconnect (&ScuGic, accelerator->hardwareConfig->dmaTxIntVecID);
     XScuGic_Disconnect (&ScuGic, accelerator->hardwareConfig->dmaRxIntVecID);
+    XScuGic_Disconnect (&ScuGic, accelerator->hardwareConfig->updateIntVecID);
   }
 }
 
@@ -811,17 +636,11 @@ void SbsHardware_shutdown (void)
   }
 }
 
-int accelerator_dmaTxBdRingPtr_PostCnt = 0;
-int accelerator_dmaRxBdRingPtr_PostCnt = 0;
-int XSbs_update_IsReady_cnt[7][NUM_ACCELERATOR_INSTANCES] = {0};
-int XSbs_update_IsReady_layer = 0;
-
 static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
                               Multivector * state_matrix,
                               uint32_t      kernelSize,
                               float         epsilon)
 {
-  int status;
   ASSERT (accelerator != NULL);
   ASSERT (state_matrix != NULL);
   ASSERT (state_matrix->dimensionality == 3);
@@ -850,69 +669,19 @@ static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
                              *(uint32_t*) &epsilon);
     accelerator->epsilon = epsilon;
 
-    while (accelerator->dmaTxBdRingPtr->PostCnt) accelerator_dmaTxBdRingPtr_PostCnt++;
-    while (accelerator->dmaRxBdRingPtr->PostCnt) accelerator_dmaRxBdRingPtr_PostCnt++;
-
     /************************** Tx Setup **************************/
-    ASSERT(0 < XAxiDma_BdRingGetFreeCnt(accelerator->dmaTxBdRingPtr));
-
-    status = XAxiDma_BdRingAlloc (accelerator->dmaTxBdRingPtr,
-                                  1,
-                                  &accelerator->dmaFirstTxBdPtr);
-    ASSERT (status == XST_SUCCESS);
-
-    XAxiDma_BdSetCtrl (accelerator->dmaFirstTxBdPtr, XAXIDMA_BD_CTRL_TXSOF_MASK | XAXIDMA_BD_CTRL_TXEOF_MASK);
-
-    accelerator->dmaCurrentTxBdPtr = accelerator->dmaFirstTxBdPtr;
-
-    ASSERT(accelerator->dmaCurrentTxBdPtr != NULL);
-    status = XAxiDma_BdSetBufAddr (accelerator->dmaCurrentTxBdPtr,
-                                   (UINTPTR) accelerator->buffer);
-    ASSERT(status == XST_SUCCESS);
-
-    status = XAxiDma_BdSetLength (accelerator->dmaCurrentTxBdPtr,
-                                  layerSize * (kernelSize + 1) * vectorSize * state_matrix->data_type_size,
-                                  accelerator->dmaTxBdRingPtr->MaxTransferLen);
-    ASSERT(status == XST_SUCCESS);
-
-    accelerator->dmaCurrentTxBdPtr =
-        (XAxiDma_Bd *) XAxiDma_BdRingNext(accelerator->dmaTxBdRingPtr,
-                                          accelerator->dmaCurrentTxBdPtr);
-
-    ASSERT(accelerator->dmaCurrentTxBdPtr != NULL);
-
-    accelerator->buffer_index = 0;
+    ASSERT(accelerator->txBuffer != NULL);
+    accelerator->txBufferIndex = 0;
+    accelerator->txBufferSize = layerSize * (kernelSize + 1) * vectorSize * sizeof(NeuronState);
 
     /************************** Rx Setup **************************/
-    ASSERT(0 < XAxiDma_BdRingGetFreeCnt(accelerator->dmaRxBdRingPtr));
+    accelerator->rxBuffer = state_matrix->data;
+    accelerator->rxBufferSize = layerSize * vectorSize * state_matrix->data_type_size;
 
-    status = XAxiDma_BdRingAlloc (accelerator->dmaRxBdRingPtr,
-                                  1,
-                                  &accelerator->dmaFirstRxBdPtr);
-    ASSERT(status == XST_SUCCESS);
-
-    accelerator->dmaCurrentRxBdPtr = accelerator->dmaFirstRxBdPtr;
-
-    /************************** Rx state_matrix ********************************/
-    ASSERT (accelerator->dmaCurrentRxBdPtr != NULL);
-    status = XAxiDma_BdSetBufAddr (accelerator->dmaCurrentRxBdPtr,
-                                   (UINTPTR) state_matrix->data);
-    ASSERT(status == XST_SUCCESS);
-
-    ASSERT(0 < accelerator->vectorSize);
-    status = XAxiDma_BdSetLength (accelerator->dmaCurrentRxBdPtr,
-                                  layerSize * vectorSize * state_matrix->data_type_size,
-                                  accelerator->dmaRxBdRingPtr->MaxTransferLen);
-    ASSERT(status == XST_SUCCESS);
-
-    accelerator->dmaCurrentRxBdPtr =
-        (XAxiDma_Bd *) XAxiDma_BdRingNext(accelerator->dmaRxBdRingPtr,
-                                          accelerator->dmaCurrentRxBdPtr);
-
-    ASSERT (accelerator->dmaCurrentRxBdPtr != NULL);
-
+#ifdef DEBUG
     accelerator->txStateCounter = 0;
     accelerator->txWeightCounter = 0;
+#endif
   }
 }
 
@@ -922,15 +691,17 @@ static void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
   ASSERT (accelerator != NULL);
   ASSERT (state_vector != NULL);
 
-
-  /************************** Tx state_vector ********************************/
-  memcpy(&accelerator->buffer[accelerator->buffer_index],
+  memcpy(&accelerator->txBuffer[accelerator->txBufferIndex],
          state_vector,
          accelerator->vectorSize * sizeof(NeuronState));
-  accelerator->buffer_index += accelerator->vectorSize;
 
-  accelerator->txStateCounter ++;
+  accelerator->txBufferIndex += accelerator->vectorSize;
+
   ASSERT(accelerator->txStateCounter <= accelerator->layerSize);
+
+#ifdef DEBUG
+  accelerator->txStateCounter ++;
+#endif
 }
 
 static void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
@@ -938,48 +709,54 @@ static void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
 {
   ASSERT (weight_vector != NULL);
 
-  accelerator->txWeightCounter ++;
-
   ASSERT(accelerator->txWeightCounter <= accelerator->kernelSize * accelerator->layerSize);
 
-  memcpy(&accelerator->buffer[accelerator->buffer_index],
+  memcpy(&accelerator->txBuffer[accelerator->txBufferIndex],
          weight_vector,
          accelerator->vectorSize * sizeof(Weight));
-  accelerator->buffer_index += accelerator->vectorSize;
 
+  accelerator->txBufferIndex += accelerator->vectorSize;
+
+#ifdef DEBUG
+  accelerator->txWeightCounter ++;
+#endif
 }
+
+uint64_t accelerator_wait [7][4] = {0};
+uint64_t tx_wait [7][4] = {0};
+uint64_t rx_wait [7][4] = {0};
+int layer_wait = 0;
 
 static void Accelerator_start(SbSUpdateAccelerator * accelerator)
 {
   int status;
 
-  while (accelerator->acceleratorReady == 0) XSbs_update_IsReady_cnt[XSbs_update_IsReady_layer][accelerator->hardwareConfig->updateDeviceID]++;
+#ifdef DEBUG
+  ASSERT (accelerator->layerSize == accelerator->txStateCounter);
+  ASSERT (accelerator->kernelSize * accelerator->layerSize == accelerator->txWeightCounter);
+#endif
 
+  Xil_DCacheFlushRange ((UINTPTR) accelerator->txBuffer, accelerator->txBufferSize);
+
+  while (accelerator->txDone == 0) tx_wait[layer_wait][accelerator->hardwareConfig->updateDeviceID] ++;
+  status = XAxiDma_SimpleTransfer (&accelerator->dmaHardware,
+                                   (UINTPTR) accelerator->txBuffer,
+                                   accelerator->txBufferSize,
+                                   XAXIDMA_DMA_TO_DEVICE);
+  ASSERT(status == XST_SUCCESS);
+  accelerator->txDone = 0;
+
+  while (accelerator->rxDone == 0) rx_wait[layer_wait][accelerator->hardwareConfig->updateDeviceID] ++;
+  status = XAxiDma_SimpleTransfer (&accelerator->dmaHardware,
+                                   (UINTPTR) accelerator->rxBuffer,
+                                   accelerator->rxBufferSize,
+                                   XAXIDMA_DEVICE_TO_DMA);
+  ASSERT(status == XST_SUCCESS);
+  accelerator->rxDone = 0;
+
+  while (accelerator->acceleratorReady == 0) accelerator_wait[layer_wait][accelerator->hardwareConfig->updateDeviceID] ++;
   XSbs_update_Start (&accelerator->updateHardware);
   accelerator->acceleratorReady = 0;
-
-  ASSERT (accelerator->dmaTxBdRingPtr->PreCnt == 1);
-  ASSERT (accelerator->layerSize == accelerator->txStateCounter);
-
-  Xil_DCacheFlushRange ((UINTPTR) accelerator->buffer, accelerator->layerSize * (accelerator->kernelSize + 1) * accelerator->vectorSize * sizeof(NeuronState));
-
-  status = XAxiDma_BdRingToHw (accelerator->dmaTxBdRingPtr,
-                               1,
-                               accelerator->dmaFirstTxBdPtr);
-  ASSERT(status == XST_SUCCESS);
-
-
-  ASSERT (accelerator->dmaRxBdRingPtr->PreCnt == 1);
-
-  status = XAxiDma_BdRingToHw (accelerator->dmaRxBdRingPtr,
-                               1,
-                               accelerator->dmaFirstRxBdPtr);
-  ASSERT(status == XST_SUCCESS);
-
-  accelerator->dmaFirstTxBdPtr = NULL;
-  accelerator->dmaFirstRxBdPtr = NULL;
-  accelerator->dmaCurrentTxBdPtr = NULL;
-  accelerator->dmaCurrentRxBdPtr = NULL;
 }
 
 /*****************************************************************************/
@@ -1929,11 +1706,10 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
     {
       for (i = 0; i <= network->size - 1; i ++)
       {
-        XSbs_update_IsReady_layer = i;
-
         if (i < network->size - 1)
           SbsBaseLayer_generateSpikes (network->layer_array[i]);
 
+        layer_wait = i;
         if (0 < i) SbsBaseLayer_update (network->layer_array[i],
                                         network->layer_array[i - 1]);
       }
@@ -2022,15 +1798,16 @@ static void SbsBaseNetwork_getOutputVector(SbsNetwork * network_ptr,
 
 static size_t SbsBaseNetwork_getMemorySize (SbsNetwork * network)
 {
-  printf ("\naccelerator_dmaTxBdRingPtr_PostCnt = %d\n",
-          accelerator_dmaTxBdRingPtr_PostCnt);
-  printf ("\naccelerator_dmaRxBdRingPtr_PostCnt = %d\n",
-          accelerator_dmaRxBdRingPtr_PostCnt);
-  for (int i = 0; i < ((SbsBaseNetwork*) network)->size; i++)
-    for (int j = 0; j < NUM_ACCELERATOR_INSTANCES; j++)
-      if (XSbs_update_IsReady_cnt[i][j])
-        printf ("\nXSbs_update_IsReady_layer[%d][%d] = %d\n", i, j,
-                XSbs_update_IsReady_cnt[i][j]);
+  for (int l = 0; l < ((SbsBaseNetwork *) network)->size; l++)
+    for (int a = 0; a < 4; a++)
+    {
+      if (accelerator_wait[l][a]) printf ("accelerator_wait[%d][%d] = %ld", l, a,
+                                          accelerator_wait[l][a]);
+
+      if (tx_wait[l][a]) printf ("tx_wait[%d][%d] = %ld", l, a, tx_wait[l][a]);
+
+      if (rx_wait[l][a]) printf ("rx_wait[%d][%d] = %ld", l, a, rx_wait[l][a]);
+    }
   return 0;
 }
 /*****************************************************************************/
