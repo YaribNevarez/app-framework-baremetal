@@ -73,9 +73,24 @@ typedef struct
 
 typedef struct
 {
-  SbSHardwareConfig * hardwareConfig;
-  XSbs_update         updateHardware;
-  XAxiDma             dmaHardware;
+  uint32_t    layerSize;
+  uint32_t    kernelSize;
+  uint32_t    vectorSize;
+  float       epsilon;
+
+  sigset_t    vectorBufferSize;
+
+  size_t      txBufferSize;
+  uint32_t *  rxBuffer;
+  size_t      rxBufferSize;
+} SbsAcceleratorProfie;
+
+typedef struct
+{
+  SbSHardwareConfig *     hardwareConfig;
+  XSbs_update             updateHardware;
+  XAxiDma                 dmaHardware;
+  SbsAcceleratorProfie *  profile;
 
 #ifdef DEBUG
   uint16_t            txStateCounter;
@@ -85,11 +100,6 @@ typedef struct
   uint8_t           txDone;
   uint8_t           rxDone;
   uint8_t           acceleratorReady;
-
-  uint16_t          vectorSize;
-  uint32_t          kernelSize;
-  uint32_t          layerSize;
-  float             epsilon;
 
   uint32_t          txBufferIndex;
   uint32_t *        txBuffer;
@@ -116,7 +126,8 @@ typedef struct
 
 typedef struct
 {
-  SbSUpdateAccelerator * accelerator;
+  SbSUpdateAccelerator *  accelerator;
+  SbsAcceleratorProfie    profile;
   uint16_t      x_pos;
   uint16_t      y_pos;
   Multivector * state_matrix;
@@ -598,6 +609,136 @@ void Accelerator_delete (SbSUpdateAccelerator ** accelerator)
   }
 }
 
+static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
+                              SbsAcceleratorProfie * profile)
+{
+  ASSERT (accelerator != NULL);
+  ASSERT (profile != NULL);
+
+  if (accelerator->profile != profile)
+  {
+    accelerator->profile = profile;
+
+    XSbs_update_Set_layerSize (&accelerator->updateHardware,
+                               profile->layerSize);
+
+    XSbs_update_Set_kernelSize (&accelerator->updateHardware,
+                                profile->kernelSize);
+
+    XSbs_update_Set_vectorSize (&accelerator->updateHardware,
+                                profile->vectorSize);
+
+    XSbs_update_Set_epsilon (&accelerator->updateHardware,
+                             *(uint32_t*) &profile->epsilon);
+
+    /************************** Tx Setup **************************/
+    ASSERT(accelerator->txBuffer != NULL);
+    accelerator->txBufferSize = profile->txBufferSize;
+
+    /************************** Rx Setup **************************/
+    accelerator->rxBuffer = profile->rxBuffer;
+    accelerator->rxBufferSize = profile->rxBufferSize;
+  }
+
+  accelerator->txBufferIndex = 0;
+
+#ifdef DEBUG
+  accelerator->txStateCounter = 0;
+  accelerator->txWeightCounter = 0;
+#endif
+}
+
+static void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
+                                         NeuronState * state_vector)
+{
+  ASSERT (accelerator != NULL);
+  ASSERT (accelerator->profile != NULL);
+  ASSERT (0 < accelerator->profile->layerSize);
+  ASSERT (0 < accelerator->profile->vectorBufferSize);
+  ASSERT (state_vector != NULL);
+
+  memcpy(&accelerator->txBuffer[accelerator->txBufferIndex],
+         state_vector,
+         accelerator->profile->vectorBufferSize);
+
+
+  accelerator->txBufferIndex += accelerator->profile->vectorSize;
+
+  ASSERT(accelerator->txStateCounter <= accelerator->profile->layerSize);
+
+#ifdef DEBUG
+  accelerator->txStateCounter ++;
+#endif
+}
+
+static void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
+                                          Weight * weight_vector)
+{
+  ASSERT (accelerator != NULL);
+  ASSERT (accelerator->profile != NULL);
+  ASSERT (0 < accelerator->profile->vectorBufferSize);
+  ASSERT (0 < accelerator->profile->kernelSize);
+  ASSERT (0 < accelerator->profile->layerSize);
+  ASSERT (weight_vector != NULL);
+
+  ASSERT(accelerator->txWeightCounter <= accelerator->profile->kernelSize * accelerator->profile->layerSize);
+
+  memcpy(&accelerator->txBuffer[accelerator->txBufferIndex],
+         weight_vector,
+         accelerator->profile->vectorBufferSize);
+
+  accelerator->txBufferIndex += accelerator->profile->vectorSize;
+
+#ifdef DEBUG
+  accelerator->txWeightCounter ++;
+#endif
+}
+
+uint64_t accelerator_wait [7][4] = {0};
+uint64_t tx_wait [7][4] = {0};
+uint64_t rx_wait [7][4] = {0};
+int layer_wait = 0;
+
+static void Accelerator_start(SbSUpdateAccelerator * accelerator)
+{
+  int status;
+
+  ASSERT (accelerator != NULL);
+  ASSERT (accelerator->profile != NULL);
+  ASSERT (0 < accelerator->profile->vectorBufferSize);
+  ASSERT (0 < accelerator->profile->kernelSize);
+  ASSERT (0 < accelerator->profile->layerSize);
+
+#ifdef DEBUG
+  ASSERT (accelerator->profile->layerSize == accelerator->txStateCounter);
+  ASSERT (accelerator->profile->kernelSize * accelerator->profile->layerSize == accelerator->txWeightCounter);
+#endif
+
+  Xil_DCacheFlushRange ((UINTPTR) accelerator->txBuffer, accelerator->txBufferSize);
+
+  while (accelerator->txDone == 0) tx_wait[layer_wait][accelerator->hardwareConfig->updateDeviceID] ++;
+  status = XAxiDma_SimpleTransfer (&accelerator->dmaHardware,
+                                   (UINTPTR) accelerator->txBuffer,
+                                   accelerator->txBufferSize,
+                                   XAXIDMA_DMA_TO_DEVICE);
+  ASSERT(status == XST_SUCCESS);
+  accelerator->txDone = 0;
+
+  while (accelerator->rxDone == 0) rx_wait[layer_wait][accelerator->hardwareConfig->updateDeviceID] ++;
+  status = XAxiDma_SimpleTransfer (&accelerator->dmaHardware,
+                                   (UINTPTR) accelerator->rxBuffer,
+                                   accelerator->rxBufferSize,
+                                   XAXIDMA_DEVICE_TO_DMA);
+  ASSERT(status == XST_SUCCESS);
+  accelerator->rxDone = 0;
+
+  while (accelerator->acceleratorReady == 0) accelerator_wait[layer_wait][accelerator->hardwareConfig->updateDeviceID] ++;
+  XSbs_update_Start (&accelerator->updateHardware);
+  accelerator->acceleratorReady = 0;
+}
+
+/*****************************************************************************/
+
 Result SbsHardware_initialize (void)
 {
   int i;
@@ -636,130 +777,6 @@ void SbsHardware_shutdown (void)
   }
 }
 
-static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
-                              Multivector * state_matrix,
-                              uint32_t      kernelSize,
-                              float         epsilon)
-{
-  ASSERT (accelerator != NULL);
-  ASSERT (state_matrix != NULL);
-  ASSERT (state_matrix->dimensionality == 3);
-  ASSERT (0 < kernelSize);
-  ASSERT (0.0 < epsilon);
-
-  if ((accelerator != NULL)
-      && (state_matrix != NULL)
-      && (state_matrix->dimensionality == 3)
-      && (0 < kernelSize)
-      && (0.0 < epsilon))
-  {
-    uint32_t layerSize = state_matrix->dimension_size[0] * state_matrix->dimension_size[1];
-    uint32_t vectorSize = state_matrix->dimension_size[2];
-
-    XSbs_update_Set_layerSize (&accelerator->updateHardware, layerSize);
-    accelerator->layerSize = layerSize;
-
-    XSbs_update_Set_kernelSize (&accelerator->updateHardware, kernelSize);
-    accelerator->kernelSize = kernelSize;
-
-    XSbs_update_Set_vectorSize (&accelerator->updateHardware, vectorSize);
-    accelerator->vectorSize = vectorSize;
-
-    XSbs_update_Set_epsilon (&accelerator->updateHardware,
-                             *(uint32_t*) &epsilon);
-    accelerator->epsilon = epsilon;
-
-    /************************** Tx Setup **************************/
-    ASSERT(accelerator->txBuffer != NULL);
-    accelerator->txBufferIndex = 0;
-    accelerator->txBufferSize = layerSize * (kernelSize + 1) * vectorSize * sizeof(NeuronState);
-
-    /************************** Rx Setup **************************/
-    accelerator->rxBuffer = state_matrix->data;
-    accelerator->rxBufferSize = layerSize * vectorSize * state_matrix->data_type_size;
-
-#ifdef DEBUG
-    accelerator->txStateCounter = 0;
-    accelerator->txWeightCounter = 0;
-#endif
-  }
-}
-
-static void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
-                                         NeuronState * state_vector)
-{
-  ASSERT (accelerator != NULL);
-  ASSERT (state_vector != NULL);
-
-  memcpy(&accelerator->txBuffer[accelerator->txBufferIndex],
-         state_vector,
-         accelerator->vectorSize * sizeof(NeuronState));
-
-  accelerator->txBufferIndex += accelerator->vectorSize;
-
-  ASSERT(accelerator->txStateCounter <= accelerator->layerSize);
-
-#ifdef DEBUG
-  accelerator->txStateCounter ++;
-#endif
-}
-
-static void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
-                                          Weight * weight_vector)
-{
-  ASSERT (weight_vector != NULL);
-
-  ASSERT(accelerator->txWeightCounter <= accelerator->kernelSize * accelerator->layerSize);
-
-  memcpy(&accelerator->txBuffer[accelerator->txBufferIndex],
-         weight_vector,
-         accelerator->vectorSize * sizeof(Weight));
-
-  accelerator->txBufferIndex += accelerator->vectorSize;
-
-#ifdef DEBUG
-  accelerator->txWeightCounter ++;
-#endif
-}
-
-uint64_t accelerator_wait [7][4] = {0};
-uint64_t tx_wait [7][4] = {0};
-uint64_t rx_wait [7][4] = {0};
-int layer_wait = 0;
-
-static void Accelerator_start(SbSUpdateAccelerator * accelerator)
-{
-  int status;
-
-#ifdef DEBUG
-  ASSERT (accelerator->layerSize == accelerator->txStateCounter);
-  ASSERT (accelerator->kernelSize * accelerator->layerSize == accelerator->txWeightCounter);
-#endif
-
-  Xil_DCacheFlushRange ((UINTPTR) accelerator->txBuffer, accelerator->txBufferSize);
-
-  while (accelerator->txDone == 0) tx_wait[layer_wait][accelerator->hardwareConfig->updateDeviceID] ++;
-  status = XAxiDma_SimpleTransfer (&accelerator->dmaHardware,
-                                   (UINTPTR) accelerator->txBuffer,
-                                   accelerator->txBufferSize,
-                                   XAXIDMA_DMA_TO_DEVICE);
-  ASSERT(status == XST_SUCCESS);
-  accelerator->txDone = 0;
-
-  while (accelerator->rxDone == 0) rx_wait[layer_wait][accelerator->hardwareConfig->updateDeviceID] ++;
-  status = XAxiDma_SimpleTransfer (&accelerator->dmaHardware,
-                                   (UINTPTR) accelerator->rxBuffer,
-                                   accelerator->rxBufferSize,
-                                   XAXIDMA_DEVICE_TO_DMA);
-  ASSERT(status == XST_SUCCESS);
-  accelerator->rxDone = 0;
-
-  while (accelerator->acceleratorReady == 0) accelerator_wait[layer_wait][accelerator->hardwareConfig->updateDeviceID] ++;
-  XSbs_update_Start (&accelerator->updateHardware);
-  accelerator->acceleratorReady = 0;
-}
-
-/*****************************************************************************/
 /*****************************************************************************/
 
 static Multivector * Multivector_new(MemoryBlock * memory_def, uint8_t data_type_size, uint8_t dimensionality, ...)
@@ -918,6 +935,45 @@ static void Multivector_delete(Multivector ** multivector)
 }
 
 /*****************************************************************************/
+void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
+                                     Multivector * state_matrix,
+                                     uint32_t kernel_size,
+                                     float epsilon)
+{
+  ASSERT (profile != NULL);
+  ASSERT (state_matrix != NULL);
+  ASSERT (state_matrix->dimensionality == 3);
+  ASSERT (state_matrix->data != NULL);
+  ASSERT (0 < kernel_size);
+  ASSERT (0.0 < epsilon);
+
+  if ((profile != NULL)
+      && (state_matrix != NULL)
+      && (state_matrix->dimensionality == 3)
+      && (state_matrix->data != NULL)
+      && (0 < kernel_size)
+      && (0.0 < epsilon))
+  {
+    profile->layerSize = state_matrix->dimension_size[0]
+        * state_matrix->dimension_size[1];
+    profile->vectorSize = state_matrix->dimension_size[2];
+    profile->kernelSize = kernel_size * kernel_size;
+    profile->epsilon = epsilon;
+    profile->txBufferSize = profile->layerSize
+                            * (profile->kernelSize + 1)
+                            * profile->vectorSize
+                            * state_matrix->data_type_size;
+
+    profile->rxBuffer = state_matrix->data;
+    profile->rxBufferSize = profile->layerSize
+                            * profile->vectorSize
+                            * state_matrix->data_type_size;
+
+    profile->vectorBufferSize = profile->vectorSize * state_matrix->data_type_size;
+  }
+}
+
+/*****************************************************************************/
 static SbsLayerPartition * SbsLayerPartition_new (SbSUpdateAccelerator * accelerator,
                                                   uint16_t x_pos,
                                                   uint16_t y_pos,
@@ -1000,7 +1056,9 @@ static void SbsLayerPartition_initializeIP (NeuronState * state_vector, uint16_t
   }
 }
 
-static void SbsLayerPartition_initialize (SbsLayerPartition * partition)
+static void SbsLayerPartition_initialize (SbsLayerPartition * partition,
+                                          uint32_t kernel_size,
+                                          float epsilon)
 {
   ASSERT(partition != NULL);
 
@@ -1024,6 +1082,10 @@ static void SbsLayerPartition_initialize (SbsLayerPartition * partition)
         SbsLayerPartition_initializeIP (&state_matrix_data[current_row_index + column * neurons], neurons);
       }
     }
+
+    SbsAcceleratorProfie_initialize(&partition->profile,
+                                    state_matrix,
+                                    kernel_size, epsilon);
   }
 }
 
@@ -1218,7 +1280,9 @@ static void SbsBaseLayer_initialize(SbsBaseLayer * layer)
   {
     int i;
     for (i = 0; i < layer->num_partitions; i++)
-      SbsLayerPartition_initialize (layer->partition_array[i]);
+      SbsLayerPartition_initialize (layer->partition_array[i],
+                                    layer->kernel_size,
+                                    layer->epsilon);
   }
 }
 
@@ -1540,9 +1604,7 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
     {
       update_partition = layer->partition_array[i];
       Accelerator_setup (update_partition->accelerator,
-                         update_partition->state_matrix,
-                         kernel_size * kernel_size,
-                         epsilon);
+                         &update_partition->profile);
     }
 
 
