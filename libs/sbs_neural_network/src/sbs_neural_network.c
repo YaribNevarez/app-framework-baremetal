@@ -26,7 +26,7 @@
 #include "xsbs_update.h"
 #include "xscugic.h"
 
-//#define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 
@@ -694,9 +694,9 @@ static void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
 #endif
 }
 
-uint64_t accelerator_wait [7][4] = {0};
-uint64_t tx_wait [7][4] = {0};
-uint64_t rx_wait [7][4] = {0};
+int accelerator_wait [7][4] = {0};
+int tx_wait [7][4] = {0};
+int rx_wait [7][4] = {0};
 int layer_wait = 0;
 
 static void Accelerator_start(SbSUpdateAccelerator * accelerator)
@@ -1564,25 +1564,20 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
 {
   {
     int i;
-    uint32_t             layer_2D_access;
     SbsLayerPartition *  update_partition = NULL;
     uint16_t             update_partition_row;
 
     SpikeID   spikeID       = 0;
     uint16_t  spike_rows    = spike_layer->rows;
     uint16_t  spike_columns = spike_layer->columns;
-    uint16_t  spike_row_index = 0;
 
 
     Weight * weight_vector  = NULL;
+    NeuronState* state_vector;
 
 
     uint16_t kernel_stride  = layer->kernel_stride;
     uint16_t kernel_size    = layer->kernel_size;
-    uint16_t row_shift      = kernel_size;
-    uint16_t column_shift   = 1;
-    uint16_t kernel_row_shift = 0;
-    uint16_t section_shift  = 0;
 
 
     uint16_t layer_row;         /* Row index for navigation on the layer */
@@ -1596,12 +1591,6 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
     uint16_t kernel_row_final_pos = spike_rows - (kernel_size - 1);
 
     SpikeID * spike_matrix_data = layer->spike_matrix->data;
-
-    if (layer->weight_shift == ROW_SHIFT)
-    {
-      row_shift = 1;
-      column_shift = kernel_size;
-    }
 
     for (i = 0; i < layer->num_partitions; i ++)
     {
@@ -1622,27 +1611,30 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
            kernel_column_pos < kernel_column_final_pos;
            kernel_column_pos += kernel_stride, layer_column ++)
       {
-        layer_2D_access = update_partition_row * layer->columns + layer_column;
+        state_vector = Multivector_2DAccess(update_partition->state_matrix, update_partition_row, layer_column);
 
-        spike_matrix_data[layer_row * layer->columns  + layer_column] =
-                    SbsStateVector_generateSpikeIP (&((NeuronState*)update_partition->state_matrix->data)[layer_2D_access*layer->neurons], layer->neurons);
+        spike_matrix_data = Multivector_2DAccess(layer->spike_matrix, layer_row, layer_column);
 
-        Accelerator_giveStateVector (update_partition->accelerator,
-                                     &((NeuronState*)update_partition->state_matrix->data)[layer_2D_access*layer->neurons]);
+        * spike_matrix_data = SbsStateVector_generateSpikeIP (state_vector, layer->neurons);
+
+        Accelerator_giveStateVector (update_partition->accelerator, state_vector);
 
         for (kernel_row = 0; kernel_row < kernel_size; kernel_row++)
         {
-          spike_row_index = (kernel_row_pos + kernel_row) * spike_layer->columns + kernel_column_pos;
-          kernel_row_shift = kernel_row * row_shift;
           for (kernel_column = 0; kernel_column < kernel_size; kernel_column++)
           {
-            spikeID = ((SpikeID *) spike_layer->spike_matrix->data)[spike_row_index + kernel_column];
-
-            section_shift = (kernel_row_shift + kernel_column * column_shift) * layer->neurons_previous_Layer;
+            spikeID = *(SpikeID *) Multivector_2DAccess(spike_layer->spike_matrix, kernel_row_pos + kernel_row, kernel_column_pos + kernel_column);
 
             ASSERT(layer->neurons == update_partition->weight_matrix->dimension_size[1]);
 
-            weight_vector = &((Weight *) update_partition->weight_matrix->data)[(spikeID + section_shift) * layer->neurons];
+            if (layer->weight_shift == ROW_SHIFT)
+            {
+              weight_vector = &((Weight *) update_partition->weight_matrix->data)[(spikeID + (kernel_row + kernel_column * kernel_size) * layer->neurons_previous_Layer) * layer->neurons];
+            }
+            else
+            {
+              weight_vector = &((Weight *) update_partition->weight_matrix->data)[(spikeID + (kernel_row * kernel_size + kernel_column) * layer->neurons_previous_Layer) * layer->neurons];
+            }
 
             Accelerator_giveWeightVector (update_partition->accelerator, weight_vector);
           }
@@ -1870,12 +1862,12 @@ static size_t SbsBaseNetwork_getMemorySize (SbsNetwork * network)
   for (int l = 0; l < ((SbsBaseNetwork *) network)->size; l++)
     for (int a = 0; a < 4; a++)
     {
-      if (accelerator_wait[l][a]) printf ("accelerator_wait[%d][%d] = %ld", l, a,
+      if (accelerator_wait[l][a]) printf ("accelerator_wait[%d][%d] = %d\n", l, a,
                                           accelerator_wait[l][a]);
 
-      if (tx_wait[l][a]) printf ("tx_wait[%d][%d] = %ld", l, a, tx_wait[l][a]);
+      if (tx_wait[l][a]) printf ("tx_wait[%d][%d] = %d\n", l, a, tx_wait[l][a]);
 
-      if (rx_wait[l][a]) printf ("rx_wait[%d][%d] = %ld", l, a, rx_wait[l][a]);
+      if (rx_wait[l][a]) printf ("rx_wait[%d][%d] = %d\n", l, a, rx_wait[l][a]);
     }
   return 0;
 }
