@@ -1592,7 +1592,10 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
     uint16_t kernel_row;        /* Row index for navigation inside kernel */
     uint16_t kernel_column;     /* Column index for navigation inside kernel */
 
-    float epsilon = layer->epsilon;
+    uint16_t kernel_column_final_pos = spike_columns - (kernel_size - 1);
+    uint16_t kernel_row_final_pos = spike_rows - (kernel_size - 1);
+
+    SpikeID * spike_matrix_data = layer->spike_matrix->data;
 
     if (layer->weight_shift == ROW_SHIFT)
     {
@@ -1607,20 +1610,23 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
                          &update_partition->profile);
     }
 
-
     /* Update begins */
     for (kernel_row_pos = 0, layer_row = 0;
-         kernel_row_pos < spike_rows - (kernel_size - 1);
+         kernel_row_pos < kernel_row_final_pos;
          kernel_row_pos += kernel_stride, layer_row ++)
     {
       update_partition = SbsBaseLayer_getPartition (layer, layer_row, 0,
                                                     &update_partition_row, NULL);
       ASSERT(update_partition != NULL);
       for (kernel_column_pos = 0, layer_column = 0;
-           kernel_column_pos < spike_columns - (kernel_size - 1);
+           kernel_column_pos < kernel_column_final_pos;
            kernel_column_pos += kernel_stride, layer_column ++)
       {
         layer_2D_access = update_partition_row * layer->columns + layer_column;
+
+        spike_matrix_data[layer_row * layer->columns  + layer_column] =
+                    SbsStateVector_generateSpikeIP (&((NeuronState*)update_partition->state_matrix->data)[layer_2D_access*layer->neurons], layer->neurons);
+
         Accelerator_giveStateVector (update_partition->accelerator,
                                      &((NeuronState*)update_partition->state_matrix->data)[layer_2D_access*layer->neurons]);
 
@@ -1768,7 +1774,8 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
     {
       for (i = 0; i <= network->size - 1; i ++)
       {
-        if (i < network->size - 1)
+//        if (i < network->size - 1)
+        if (i == 0)
           SbsBaseLayer_generateSpikes (network->layer_array[i]);
 
         layer_wait = i;
