@@ -26,7 +26,7 @@
 #include "xsbs_update.h"
 #include "xscugic.h"
 
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 
@@ -115,12 +115,197 @@ typedef struct
 typedef float     Weight;
 typedef uint32_t  SpikeID;
 
+typedef enum
+{
+  M32BIT_TYPE_BEGIN = 0,
+  M32BIT_24_24_ID,
+  M32BIT_24_24_50_ID,
+  M32BIT_12_24_32_ID,
+  M32BIT_1_1_50_32_ID,
+  M32BIT_6_12_32_ID,
+  M32BIT_12_12_ID,
+  M32BIT_2_2_32_32_ID,
+  M32BIT_8_8_64_ID,
+  M32BIT_8_8_ID,
+  M32BIT_5_5_32_64_ID,
+  M32BIT_2_4_64_ID,
+  M32BIT_4_4_ID,
+  M32BIT_2_2_64_64_ID,
+  M32BIT_1_1_1024_ID,
+  M32BIT_1_1_ID,
+  M32BIT_4_4_64_1024_ID,
+  M32BIT_1_1_10_ID,
+  M32BIT_1_1_1024_10_ID,
+  M32BIT_TYPE_END = (unsigned)-1
+} M32BitTypeID;
+
+typedef uint32_t M32Bit_24_24[24][24];
+typedef uint32_t M32Bit_24_24_50[24][24][50];
+typedef uint32_t M32Bit_12_24_32[12][24][32];
+typedef uint32_t M32Bit_1_1_50_32[1][1][50][32];
+typedef uint32_t M32Bit_6_12_32[6][12][32];
+typedef uint32_t M32Bit_12_12[12][12];
+typedef uint32_t M32Bit_2_2_32_32[2][2][32][32];
+typedef uint32_t M32Bit_8_8_64[8][8][64];
+typedef uint32_t M32Bit_8_8[8][8];
+typedef uint32_t M32Bit_5_5_32_64[5][5][32][64];
+typedef uint32_t M32Bit_2_4_64[2][4][64];
+typedef uint32_t M32Bit_4_4[4][4];
+typedef uint32_t M32Bit_2_2_64_64[2][2][64][64];
+typedef uint32_t M32Bit_1_1_1024[1][1][1024];
+typedef uint32_t M32Bit_1_1[1][1];
+typedef uint32_t M32Bit_4_4_64_1024[4][4][64][1024];
+typedef uint32_t M32Bit_1_1_10[1][1][10];
+typedef uint32_t M32Bit_1_1_1024_10[1][1][1024][10];
+
 typedef struct
 {
-  void *   data;
-  size_t   data_type_size;
-  uint8_t  dimensionality;
+  M32BitTypeID type_id;
+  uint8_t data_type_size;
+  uint8_t dimensionality;
+  uint16_t dimension_size[4];
+} M32BitFormat;
+
+M32BitFormat M32BitFormat_list[] =
+{
+    {
+        .type_id = M32BIT_24_24_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 2,
+        .dimension_size = {24, 24, 0, 0}
+    },
+    {
+        .type_id = M32BIT_24_24_50_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 3,
+        .dimension_size = {24, 24, 50, 0}
+    },
+    {
+        .type_id = M32BIT_12_24_32_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 3,
+        .dimension_size = {12, 24, 32, 0}
+    },
+    {
+        .type_id = M32BIT_1_1_50_32_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 4,
+        .dimension_size = {1, 1, 50, 32}
+    },
+    {
+        .type_id = M32BIT_6_12_32_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 3,
+        .dimension_size = {6, 12, 32, 0}
+    },
+    {
+        .type_id = M32BIT_12_12_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 2,
+        .dimension_size = {12, 12, 0, 0}
+    },
+    {
+        .type_id = M32BIT_2_2_32_32_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 4,
+        .dimension_size = {2, 2, 32, 32}
+    },
+    {
+        .type_id = M32BIT_8_8_64_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 3,
+        .dimension_size = {8, 8, 64, 0}
+    },
+    {
+        .type_id = M32BIT_8_8_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 2,
+        .dimension_size = {8, 8, 0, 0}
+    },
+    {
+        .type_id = M32BIT_5_5_32_64_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 4,
+        .dimension_size = {5, 5, 32, 64}
+    },
+    {
+        .type_id = M32BIT_2_4_64_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 3,
+        .dimension_size = {2, 4, 64, 0}
+    },
+    {
+        .type_id = M32BIT_4_4_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 2,
+        .dimension_size = {4, 4, 0, 0}
+    },
+    {
+        .type_id = M32BIT_2_2_64_64_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 4,
+        .dimension_size = {2, 2, 64, 64}
+    },
+    {
+        .type_id = M32BIT_1_1_1024_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 3,
+        .dimension_size = {1, 1, 1024, 0}
+    },
+    {
+        .type_id = M32BIT_1_1_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 2,
+        .dimension_size = {1, 1, 0, 0}
+    },
+    {
+        .type_id = M32BIT_4_4_64_1024_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 4,
+        .dimension_size = {4, 4, 64, 1024}
+    },
+    {
+        .type_id = M32BIT_1_1_10_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 3,
+        .dimension_size = {1, 1, 10, 0}
+    },
+    {
+        .type_id = M32BIT_1_1_1024_10_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 4,
+        .dimension_size = {1, 1, 1024, 10}
+    }
+};
+
+const unsigned M32BitFormat_list_length = (sizeof(M32BitFormat_list) / sizeof (M32BitFormat));
+
+M32BitTypeID M32BitFormat_getTypeID(uint8_t data_type_size, uint8_t dimensionality, uint16_t * dimension_size)
+{
+  int i;
+  M32BitTypeID type_ID = M32BIT_TYPE_END;
+
+  for (i = 0; i < M32BitFormat_list_length; i++)
+    if (M32BitFormat_list[i].data_type_size == data_type_size
+        && M32BitFormat_list[i].dimensionality == dimensionality
+        && 0 == memcmp (M32BitFormat_list[i].dimension_size,
+                        dimension_size,
+                        dimensionality * sizeof(uint16_t)))
+      type_ID = M32BitFormat_list[i].type_id;
+
+  ASSERT (type_ID != M32BIT_TYPE_END);
+
+  return type_ID;
+}
+
+typedef struct
+{
   MemoryBlock * memory_def_parent;
+
+  void *   data;
+  M32BitTypeID type_id;
+  uint8_t  data_type_size;
+  uint8_t  dimensionality;
   uint16_t dimension_size[1]; /*[0] = rows, [1] = columns, [2] = neurons... [n] = N*/
 } Multivector;
 
@@ -609,6 +794,9 @@ void Accelerator_delete (SbSUpdateAccelerator ** accelerator)
   }
 }
 
+inline static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
+                              SbsAcceleratorProfie * profile) __attribute__((always_inline));
+
 static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
                               SbsAcceleratorProfie * profile)
 {
@@ -648,7 +836,10 @@ static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
 #endif
 }
 
-static void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
+inline static void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
+                                         NeuronState * state_vector) __attribute__((always_inline));
+
+inline static void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
                                          NeuronState * state_vector)
 {
   ASSERT (accelerator != NULL);
@@ -671,7 +862,10 @@ static void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
 #endif
 }
 
-static void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
+inline static void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
+                                          Weight * weight_vector) __attribute__((always_inline));
+
+inline static void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
                                           Weight * weight_vector)
 {
   ASSERT (accelerator != NULL);
@@ -822,13 +1016,134 @@ static Multivector * Multivector_new(MemoryBlock * memory_def, uint8_t data_type
 
       multivector->dimensionality = dimensionality;
       multivector->data_type_size = data_type_size;
+      multivector->type_id = M32BitFormat_getTypeID(data_type_size,
+                                                    dimensionality,
+                                                    multivector->dimension_size);
     }
   }
 
   return multivector;
 }
 
-void * Multivector_2DAccess(Multivector * multivector, uint16_t row, uint16_t column)
+//Multivector * multivector_array[80] = { 0 };
+//int multivector_array_count = 0;
+//
+//void MultivectorArray_add(Multivector * multivector)
+//{
+//  int i;
+//  for (i = 0;
+//      i < multivector_array_count && multivector_array[i] != multivector;
+//      i++);
+//
+//  if (i == multivector_array_count)
+//  {
+//    for (int t = 0; t < multivector_array_count; t ++)
+//      if (multivector_array[t]->dimensionality == multivector->dimensionality)
+//      {
+//        int d;
+//        for (d = 0; d < multivector_array[t]->dimensionality && (multivector_array[t]->dimension_size[d] == multivector->dimension_size[d]); d ++);
+//
+//        if (d == multivector_array[t]->dimensionality && multivector_array[t]->data_type_size == multivector->data_type_size)
+//          return;
+//      }
+//
+//    multivector_array[i] = multivector;
+//    multivector_array_count ++;
+//  }
+//}
+//
+//int str_len (char * str)
+//{
+//  int i = 0;
+//  while (str[i] != 0)
+//    i++;
+//  return i;
+//}
+//
+//void MultivectorArray_print()
+//{
+//  int i;
+//  int d;
+//  char text[900] = {0};
+//  for (i = 0; i < multivector_array_count; i++)
+//  {
+//    sprintf (&text[str_len(text)], "M[%d] = ", i);
+//    for (d = 0; d < multivector_array[i]->dimensionality; d ++)
+//      sprintf (&text[str_len(text)], "[%d]",multivector_array[i]->dimension_size[d]);
+//    sprintf (&text[str_len(text)], "(%d)",multivector_array[i]->data_type_size);
+//    sprintf (&text[str_len(text)], "\n");
+//  }
+//  printf ("Multivector catalog:\n%s\n",text);
+//}
+
+//void * Multivector_2DAccess(Multivector * multivector, uint16_t row, uint16_t column)
+//{
+//  void * data = NULL;
+//  ASSERT (multivector != NULL);
+//  ASSERT (multivector->data != NULL);
+//  ASSERT (2 <= multivector->dimensionality);
+//  ASSERT (row <= multivector->dimension_size[0]);
+//  ASSERT (column <= multivector->dimension_size[1]);
+//
+//  MultivectorArray_add(multivector);
+//
+//  if ((multivector != NULL)
+//      && (multivector->data != NULL)
+//      && (2 <= multivector->dimensionality)
+//      && (row <= multivector->dimension_size[0])
+//      && (column <= multivector->dimension_size[1]))
+//  {
+//    uint16_t dimensionality = multivector->dimensionality;
+//    size_t data_size = multivector->data_type_size;
+//
+//    while (dimensionality-- > 2)
+//    {
+//      data_size *= multivector->dimension_size[dimensionality];
+//    }
+//
+//    data = multivector->data
+//        + (row * multivector->dimension_size[1] + column) * data_size;
+//  }
+//
+//  return data;
+//}
+//
+//void * Multivector_3DAccess (Multivector * multivector, uint16_t row, uint16_t column, uint16_t position)
+//{
+//  void * data = NULL;
+//  ASSERT (multivector != NULL);
+//  ASSERT (multivector->data != NULL);
+//  ASSERT (3 <= multivector->dimensionality);
+//  ASSERT (row <= multivector->dimension_size[0]);
+//  ASSERT (column <= multivector->dimension_size[1]);
+//  ASSERT (position <= multivector->dimension_size[2]);
+//
+//  MultivectorArray_add(multivector);
+//
+//  if ((multivector != NULL)
+//      && (multivector->data != NULL)
+//      && (3 <= multivector->dimensionality)
+//      && (row <= multivector->dimension_size[0])
+//      && (column <= multivector->dimension_size[1])
+//      && (position <= multivector->dimension_size[2]))
+//  {
+//    uint16_t dimensionality = multivector->dimensionality;
+//    size_t data_size = multivector->data_type_size;
+//
+//    while (dimensionality-- > 3)
+//    {
+//      data_size *= multivector->dimension_size[dimensionality];
+//    }
+//
+//    data = multivector->data
+//        + ((row * multivector->dimension_size[1] + column)
+//            * multivector->dimension_size[2] + position) * data_size;
+//  }
+//
+//  return data;
+//}
+void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uint16_t column) __attribute__((always_inline));
+void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uint16_t column)
 {
   void * data = NULL;
   ASSERT (multivector != NULL);
@@ -837,55 +1152,123 @@ void * Multivector_2DAccess(Multivector * multivector, uint16_t row, uint16_t co
   ASSERT (row <= multivector->dimension_size[0]);
   ASSERT (column <= multivector->dimension_size[1]);
 
-  if ((multivector != NULL)
-      && (multivector->data != NULL)
-      && (2 <= multivector->dimensionality)
-      && (row <= multivector->dimension_size[0])
-      && (column <= multivector->dimension_size[1]))
+  switch (multivector->type_id)
   {
-    uint16_t dimensionality = multivector->dimensionality;
-    size_t data_size = multivector->data_type_size;
-
-    while (dimensionality-- > 2)
-    {
-      data_size *= multivector->dimension_size[dimensionality];
-    }
-
-    data = multivector->data
-        + (row * multivector->dimension_size[1] + column) * data_size;
+    case M32BIT_24_24_ID:
+      data = &(*(M32Bit_24_24*) multivector->data)[row][column];
+      break;
+    case M32BIT_24_24_50_ID:
+      data = &(*(M32Bit_24_24_50*) multivector->data)[row][column];
+      break;
+    case M32BIT_12_24_32_ID:
+      data = &(*(M32Bit_12_24_32*) multivector->data)[row][column];
+      break;
+    case M32BIT_1_1_50_32_ID:
+      data = &(*(M32Bit_1_1_50_32*) multivector->data)[row][column];
+      break;
+    case M32BIT_6_12_32_ID:
+      data = &(*(M32Bit_6_12_32*) multivector->data)[row][column];
+      break;
+    case M32BIT_12_12_ID:
+      data = &(*(M32Bit_12_12*) multivector->data)[row][column];
+      break;
+    case M32BIT_2_2_32_32_ID:
+      data = &(*(M32Bit_2_2_32_32*) multivector->data)[row][column];
+      break;
+    case M32BIT_8_8_64_ID:
+      data = &(*(M32Bit_8_8_64*) multivector->data)[row][column];
+      break;
+    case M32BIT_8_8_ID:
+      data = &(*(M32Bit_8_8*) multivector->data)[row][column];
+      break;
+    case M32BIT_5_5_32_64_ID:
+      data = &(*(M32Bit_5_5_32_64*) multivector->data)[row][column];
+      break;
+    case M32BIT_2_4_64_ID:
+      data = &(*(M32Bit_2_4_64*) multivector->data)[row][column];
+      break;
+    case M32BIT_4_4_ID:
+      data = &(*(M32Bit_4_4*) multivector->data)[row][column];
+      break;
+    case M32BIT_2_2_64_64_ID:
+      data = &(*(M32Bit_2_2_64_64*) multivector->data)[row][column];
+      break;
+    case M32BIT_1_1_1024_ID:
+      data = &(*(M32Bit_1_1_1024*) multivector->data)[row][column];
+      break;
+    case M32BIT_1_1_ID:
+      data = &(*(M32Bit_1_1*) multivector->data)[row][column];
+      break;
+    case M32BIT_4_4_64_1024_ID:
+      data = &(*(M32Bit_4_4_64_1024*) multivector->data)[row][column];
+      break;
+    case M32BIT_1_1_10_ID:
+      data = &(*(M32Bit_1_1_10*) multivector->data)[row][column];
+      break;
+    case M32BIT_1_1_1024_10_ID:
+      data = &(*(M32Bit_1_1_1024_10*) multivector->data)[row][column];
+      break;
+    default: ASSERT (0);
   }
 
   return data;
 }
 
-void * Multivector_3DAccess (Multivector * multivector, uint16_t row, uint16_t column, uint16_t position)
+void inline * Multivector_3DAccess (Multivector * multivector, uint16_t row, uint16_t column, uint16_t position) __attribute__((always_inline));
+void inline * Multivector_3DAccess (Multivector * multivector, uint16_t row, uint16_t column, uint16_t position)
 {
   void * data = NULL;
-  ASSERT (multivector != NULL);
-  ASSERT (multivector->data != NULL);
-  ASSERT (3 <= multivector->dimensionality);
-  ASSERT (row <= multivector->dimension_size[0]);
-  ASSERT (column <= multivector->dimension_size[1]);
-  ASSERT (position <= multivector->dimension_size[2]);
+  ASSERT(multivector != NULL);
+  ASSERT(multivector->data != NULL);
+  ASSERT(3 <= multivector->dimensionality);
+  ASSERT(row <= multivector->dimension_size[0]);
+  ASSERT(column <= multivector->dimension_size[1]);
+  ASSERT(position <= multivector->dimension_size[2]);
 
-  if ((multivector != NULL)
-      && (multivector->data != NULL)
-      && (3 <= multivector->dimensionality)
-      && (row <= multivector->dimension_size[0])
-      && (column <= multivector->dimension_size[1])
-      && (position <= multivector->dimension_size[2]))
+  switch (multivector->type_id)
   {
-    uint16_t dimensionality = multivector->dimensionality;
-    size_t data_size = multivector->data_type_size;
-
-    while (dimensionality-- > 3)
-    {
-      data_size *= multivector->dimension_size[dimensionality];
-    }
-
-    data = multivector->data
-        + ((row * multivector->dimension_size[1] + column)
-            * multivector->dimension_size[2] + position) * data_size;
+    case M32BIT_24_24_50_ID:
+      data = &(*(M32Bit_24_24_50*) multivector->data)[row][column][position];
+      break;
+    case M32BIT_12_24_32_ID:
+      data = &(*(M32Bit_12_24_32*) multivector->data)[row][column][position];
+      break;
+    case M32BIT_1_1_50_32_ID:
+      data = &(*(M32Bit_1_1_50_32*) multivector->data)[row][column][position];
+      break;
+    case M32BIT_6_12_32_ID:
+      data = &(*(M32Bit_6_12_32*) multivector->data)[row][column][position];
+      break;
+    case M32BIT_2_2_32_32_ID:
+      data = &(*(M32Bit_2_2_32_32*) multivector->data)[row][column][position];
+      break;
+    case M32BIT_8_8_64_ID:
+      data = &(*(M32Bit_8_8_64*) multivector->data)[row][column][position];
+      break;
+    case M32BIT_5_5_32_64_ID:
+      data = &(*(M32Bit_5_5_32_64*) multivector->data)[row][column][position];
+      break;
+    case M32BIT_2_4_64_ID:
+      data = &(*(M32Bit_2_4_64*) multivector->data)[row][column][position];
+      break;
+    case M32BIT_2_2_64_64_ID:
+      data = &(*(M32Bit_2_2_64_64*) multivector->data)[row][column][position];
+      break;
+    case M32BIT_1_1_1024_ID:
+      data = &(*(M32Bit_1_1_1024*) multivector->data)[row][column][position];
+      break;
+    case M32BIT_4_4_64_1024_ID:
+      data = &(*(M32Bit_4_4_64_1024*) multivector->data)[row][column][position];
+      break;
+    case M32BIT_1_1_10_ID:
+      data = &(*(M32Bit_1_1_10*) multivector->data)[row][column][position];
+      break;
+    case M32BIT_1_1_1024_10_ID:
+      data = &(*(M32Bit_1_1_1024_10*) multivector->data)[row][column][position];
+      break;
+    default:
+      ASSERT(0)
+      ;
   }
 
   return data;
@@ -1524,7 +1907,10 @@ static void SbsBaseLayer_getOutputVector(SbsBaseLayer * layer,
   }
 }
 
-SbsLayerPartition * SbsBaseLayer_getPartition(SbsBaseLayer * layer, uint16_t row, uint16_t column,
+inline SbsLayerPartition * SbsBaseLayer_getPartition(SbsBaseLayer * layer, uint16_t row, uint16_t column,
+                                              uint16_t * partition_row, uint16_t * partition_column) __attribute__((always_inline));
+
+inline SbsLayerPartition * SbsBaseLayer_getPartition(SbsBaseLayer * layer, uint16_t row, uint16_t column,
                                               uint16_t * partition_row, uint16_t * partition_column)
 {
   SbsLayerPartition * partition = NULL;
@@ -1609,6 +1995,7 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
     SpikeID   spikeID       = 0;
     uint16_t  spike_rows    = spike_layer->rows;
     uint16_t  spike_columns = spike_layer->columns;
+    Multivector * spike_layer_spike_matrix = spike_layer->spike_matrix;
 
 
     Weight * weight_vector  = NULL;
@@ -1629,7 +2016,14 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
     uint16_t kernel_column_final_pos = spike_columns - (kernel_size - 1);
     uint16_t kernel_row_final_pos = spike_rows - (kernel_size - 1);
 
+    Multivector * update_partition_weight_matrix = NULL;
+    SbSUpdateAccelerator * update_partition_accelerator = NULL;
+
     SpikeID * spike_matrix_data = layer->spike_matrix->data;
+
+    WeightShift layer_weight_shift = layer->weight_shift;
+
+    uint16_t layer_neurons = layer->neurons;
 
     for (i = 0; i < layer->num_partitions; i ++)
     {
@@ -1645,7 +2039,11 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
     {
       update_partition = SbsBaseLayer_getPartition (layer, layer_row, 0,
                                                     &update_partition_row, NULL);
+      update_partition_weight_matrix = update_partition->weight_matrix;
+      update_partition_accelerator = update_partition->accelerator;
+
       ASSERT(update_partition != NULL);
+
       for (kernel_column_pos = 0, layer_column = 0;
            kernel_column_pos < kernel_column_final_pos;
            kernel_column_pos += kernel_stride, layer_column ++)
@@ -1654,28 +2052,28 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
 
         spike_matrix_data = Multivector_2DAccess(layer->spike_matrix, layer_row, layer_column);
 
-        * spike_matrix_data = SbsStateVector_generateSpike (state_vector, layer->neurons);
+        * spike_matrix_data = SbsStateVector_generateSpike (state_vector, layer_neurons);
 
-        Accelerator_giveStateVector (update_partition->accelerator, state_vector);
+        Accelerator_giveStateVector (update_partition_accelerator, state_vector);
 
         for (kernel_row = 0; kernel_row < kernel_size; kernel_row++)
         {
           for (kernel_column = 0; kernel_column < kernel_size; kernel_column++)
           {
-            spikeID = *(SpikeID *) Multivector_2DAccess(spike_layer->spike_matrix, kernel_row_pos + kernel_row, kernel_column_pos + kernel_column);
+            spikeID = *(SpikeID *) Multivector_2DAccess(spike_layer_spike_matrix, kernel_row_pos + kernel_row, kernel_column_pos + kernel_column);
 
             ASSERT(layer->neurons == update_partition->weight_matrix->dimension_size[3]);
 
-            if (layer->weight_shift == ROW_SHIFT)
+            if (layer_weight_shift == COLUMN_SHIFT)
             {
-              weight_vector = Multivector_3DAccess (update_partition->weight_matrix, kernel_column, kernel_row, spikeID);
+              weight_vector = Multivector_3DAccess (update_partition_weight_matrix, kernel_row, kernel_column, spikeID);
             }
             else
             {
-              weight_vector = Multivector_3DAccess (update_partition->weight_matrix, kernel_row, kernel_column, spikeID);
+              weight_vector = Multivector_3DAccess (update_partition_weight_matrix, kernel_column, kernel_row, spikeID);
             }
 
-            Accelerator_giveWeightVector (update_partition->accelerator, weight_vector);
+            Accelerator_giveWeightVector (update_partition_accelerator, weight_vector);
           }
         }
       }
@@ -1908,6 +2306,8 @@ static size_t SbsBaseNetwork_getMemorySize (SbsNetwork * network)
 
       if (rx_wait[l][a]) printf ("rx_wait[%d][%d] = %d\n", l, a, rx_wait[l][a]);
     }
+
+  //MultivectorArray_print ();
   return 0;
 }
 /*****************************************************************************/
