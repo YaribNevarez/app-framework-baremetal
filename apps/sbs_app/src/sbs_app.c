@@ -96,7 +96,7 @@ Result SnnApp_run (void)
   SbsLayer * input_layer = sbs_new.InputLayer (24, 24, 50);
   network->giveLayer (network, input_layer);
 
-  SbsWeightMatrix P_IN_H1 = sbs_new.WeightMatrix (2 * 5 * 5, 32,
+  SbsWeightMatrix P_IN_H1 = sbs_new.WeightMatrix (1, 1, 50, 32,
                                                   SBS_P_IN_H1_WEIGHTS_FILE);
 
   /** Layer = 24x24x32, Spike = 24x24, Weight = 50x32 **/
@@ -105,7 +105,7 @@ Result SnnApp_run (void)
   H1->giveWeights (H1, P_IN_H1);
   network->giveLayer (network, H1);
 
-  SbsWeightMatrix P_H1_H2 = sbs_new.WeightMatrix (32 * 2 * 2, 32,
+  SbsWeightMatrix P_H1_H2 = sbs_new.WeightMatrix (2, 2, 32, 32,
                                                   SBS_P_H1_H2_WEIGHTS_FILE);
 
   /** Layer = 12x12x32, Spike = 12x12, Weight = 128x32 **/
@@ -114,7 +114,7 @@ Result SnnApp_run (void)
   H2->giveWeights (H2, P_H1_H2);
   network->giveLayer (network, H2);
 
-  SbsWeightMatrix P_H2_H3 = sbs_new.WeightMatrix (32 * 5 * 5, 64,
+  SbsWeightMatrix P_H2_H3 = sbs_new.WeightMatrix (5, 5, 32, 64,
                                                   SBS_P_H2_H3_WEIGHTS_FILE);
 
   /** Layer = 8x8x64, Spike = 8x8, Weight = 800x64 **/
@@ -123,7 +123,7 @@ Result SnnApp_run (void)
   H3->giveWeights (H3, P_H2_H3);
   network->giveLayer (network, H3);
 
-  SbsWeightMatrix P_H3_H4 = sbs_new.WeightMatrix (64 * 2 * 2, 64,
+  SbsWeightMatrix P_H3_H4 = sbs_new.WeightMatrix (2, 2, 64, 64,
                                                   SBS_P_H3_H4_WEIGHTS_FILE);
 
   /** Layer = 4x4x64, Spike = 4x4, Weight = 256x64 **/
@@ -132,7 +132,7 @@ Result SnnApp_run (void)
   H4->giveWeights (H4, P_H3_H4);
   network->giveLayer (network, H4);
 
-  SbsWeightMatrix P_H4_H5 = sbs_new.WeightMatrix (64 * 4 * 4, 1024,
+  SbsWeightMatrix P_H4_H5 = sbs_new.WeightMatrix (4, 4, 64, 1024,
                                                   SBS_P_H4_H5_WEIGHTS_FILE);
 
   /** Layer = 1x1x1024, Spike = 1x1, Weight = 1024x1024 **/
@@ -141,7 +141,7 @@ Result SnnApp_run (void)
   H5->giveWeights (H5, P_H4_H5);
   network->giveLayer (network, H5);
 
-  SbsWeightMatrix P_H5_HY = sbs_new.WeightMatrix (1024, 10,
+  SbsWeightMatrix P_H5_HY = sbs_new.WeightMatrix (1, 1, 1024, 10,
                                                   SBS_P_H5_HY_WEIGHTS_FILE);
 
   /** Layer = 1x1x10, Spike = 1x1, Weight = 1024x10 **/

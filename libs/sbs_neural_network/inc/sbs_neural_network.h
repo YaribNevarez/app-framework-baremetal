@@ -84,7 +84,7 @@ typedef struct
                              WeightShift weight_shift,
                              uint16_t    neurons_previous_Layer);
 
-  SbsWeightMatrix (*WeightMatrix)(uint16_t rows, uint16_t columns, char * file_name);
+  SbsWeightMatrix (*WeightMatrix)(uint16_t rows, uint16_t columns, uint16_t depth, uint16_t neurons, char * file_name);
 
   SbsLayer *      (*InputLayer)  (uint16_t rows, uint16_t columns, uint16_t neurons);
 

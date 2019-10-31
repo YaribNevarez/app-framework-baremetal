@@ -858,6 +858,39 @@ void * Multivector_2DAccess(Multivector * multivector, uint16_t row, uint16_t co
   return data;
 }
 
+void * Multivector_3DAccess (Multivector * multivector, uint16_t row, uint16_t column, uint16_t position)
+{
+  void * data = NULL;
+  ASSERT (multivector != NULL);
+  ASSERT (multivector->data != NULL);
+  ASSERT (3 <= multivector->dimensionality);
+  ASSERT (row <= multivector->dimension_size[0]);
+  ASSERT (column <= multivector->dimension_size[1]);
+  ASSERT (position <= multivector->dimension_size[2]);
+
+  if ((multivector != NULL)
+      && (multivector->data != NULL)
+      && (3 <= multivector->dimensionality)
+      && (row <= multivector->dimension_size[0])
+      && (column <= multivector->dimension_size[1])
+      && (position <= multivector->dimension_size[2]))
+  {
+    uint16_t dimensionality = multivector->dimensionality;
+    size_t data_size = multivector->data_type_size;
+
+    while (dimensionality-- > 3)
+    {
+      data_size *= multivector->dimension_size[dimensionality];
+    }
+
+    data = multivector->data
+        + ((row * multivector->dimension_size[1] + column)
+            * multivector->dimension_size[2] + position) * data_size;
+  }
+
+  return data;
+}
+
 static Multivector * Multivector_duplicate(MemoryBlock * memory_def,
                                            Multivector * original)
 {
@@ -1328,7 +1361,7 @@ static void SbsBaseLayer_setEpsilon(SbsLayer * layer, float epsilon)
     ((SbsBaseLayer *)layer)->epsilon = epsilon;
 }
 
-static SpikeID SbsStateVector_generateSpikeIP (NeuronState * state_vector, uint16_t size)
+static SpikeID SbsStateVector_generateSpike (NeuronState * state_vector, uint16_t size)
 {
   ASSERT(state_vector != NULL);
   ASSERT(0 < size);
@@ -1540,21 +1573,27 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
     uint16_t partition_row = 0;
     SbsLayerPartition *  partition = NULL;
 
-    SpikeID * spike_matrix_data = layer->spike_matrix->data;
+    SpikeID * spike;
+    NeuronState * state_vector;
 
     uint16_t row;
     uint16_t column;
-    size_t current_row_index;
 
     for (row = 0; row < rows; row++)
     {
-      current_row_index = columns * row;
-      partition = SbsBaseLayer_getPartition(layer, row, 0, &partition_row, NULL);
+      partition = SbsBaseLayer_getPartition (layer,
+                                             row,
+                                             0,
+                                             &partition_row,
+                                             NULL);
       ASSERT(partition != NULL);
       for (column = 0; column < columns; column++)
       {
-        spike_matrix_data[current_row_index + column] =
-            SbsStateVector_generateSpikeIP (&((NeuronState *) partition->state_matrix->data)[(partition_row * columns + column) * neurons], neurons);
+        spike = Multivector_2DAccess (layer->spike_matrix, row, column);
+        state_vector = Multivector_2DAccess (partition->state_matrix,
+                                             partition_row,
+                                             column);
+        *spike = SbsStateVector_generateSpike (state_vector, neurons);
       }
     }
   }
@@ -1615,7 +1654,7 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
 
         spike_matrix_data = Multivector_2DAccess(layer->spike_matrix, layer_row, layer_column);
 
-        * spike_matrix_data = SbsStateVector_generateSpikeIP (state_vector, layer->neurons);
+        * spike_matrix_data = SbsStateVector_generateSpike (state_vector, layer->neurons);
 
         Accelerator_giveStateVector (update_partition->accelerator, state_vector);
 
@@ -1625,15 +1664,15 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
           {
             spikeID = *(SpikeID *) Multivector_2DAccess(spike_layer->spike_matrix, kernel_row_pos + kernel_row, kernel_column_pos + kernel_column);
 
-            ASSERT(layer->neurons == update_partition->weight_matrix->dimension_size[1]);
+            ASSERT(layer->neurons == update_partition->weight_matrix->dimension_size[3]);
 
             if (layer->weight_shift == ROW_SHIFT)
             {
-              weight_vector = &((Weight *) update_partition->weight_matrix->data)[(spikeID + (kernel_row + kernel_column * kernel_size) * layer->neurons_previous_Layer) * layer->neurons];
+              weight_vector = Multivector_3DAccess (update_partition->weight_matrix, kernel_column, kernel_row, spikeID);
             }
             else
             {
-              weight_vector = &((Weight *) update_partition->weight_matrix->data)[(spikeID + (kernel_row * kernel_size + kernel_column) * layer->neurons_previous_Layer) * layer->neurons];
+              weight_vector = Multivector_3DAccess (update_partition->weight_matrix, kernel_row, kernel_column, spikeID);
             }
 
             Accelerator_giveWeightVector (update_partition->accelerator, weight_vector);
@@ -1922,7 +1961,11 @@ static SbsLayer * SbsOutputLayer_new(uint16_t neurons,
 }
 /*****************************************************************************/
 
-static SbsWeightMatrix SbsWeightMatrix_new(uint16_t rows, uint16_t columns, char * file_name)
+static SbsWeightMatrix SbsWeightMatrix_new (uint16_t rows,
+                                            uint16_t columns,
+                                            uint16_t depth,
+                                            uint16_t neurons,
+                                            char * file_name)
 {
   Multivector * weight_watrix = NULL;
 
@@ -1930,19 +1973,23 @@ static SbsWeightMatrix SbsWeightMatrix_new(uint16_t rows, uint16_t columns, char
 
   if (file_name != NULL)
   {
-    weight_watrix = Multivector_new(NULL, sizeof(Weight), 2, rows, columns);
+    weight_watrix = Multivector_new(NULL, sizeof(Weight), 4, rows, columns, depth, neurons);
 
     ASSERT(weight_watrix != NULL);
-    ASSERT(weight_watrix->dimensionality == 2);
+    ASSERT(weight_watrix->dimensionality == 4);
     ASSERT(weight_watrix->data != NULL);
     ASSERT(weight_watrix->dimension_size[0] == rows);
     ASSERT(weight_watrix->dimension_size[1] == columns);
+    ASSERT(weight_watrix->dimension_size[2] == depth);
+    ASSERT(weight_watrix->dimension_size[3] == neurons);
 
     if ((weight_watrix != NULL)
-        && (weight_watrix->dimensionality == 2)
+        && (weight_watrix->dimensionality == 4)
         && (weight_watrix->data != NULL)
         && (weight_watrix->dimension_size[0] == rows)
-        && (weight_watrix->dimension_size[1] == columns))
+        && (weight_watrix->dimension_size[1] == columns)
+        && (weight_watrix->dimension_size[2] == depth)
+        && (weight_watrix->dimension_size[3] == neurons))
     {
 #ifdef USE_XILINX
       FIL fil; /* File object */
@@ -1953,7 +2000,7 @@ static SbsWeightMatrix SbsWeightMatrix_new(uint16_t rows, uint16_t columns, char
       if (rc == FR_OK)
       {
         size_t read_size;
-        size_t data_size = rows * columns * sizeof(Weight);
+        size_t data_size = rows * columns * depth * neurons * sizeof(Weight);
         rc = f_read (&fil, weight_watrix->data, data_size, &read_size);
         ASSERT((rc == FR_OK) && (read_size == data_size));
         f_close (&fil);
@@ -1966,7 +2013,7 @@ static SbsWeightMatrix SbsWeightMatrix_new(uint16_t rows, uint16_t columns, char
 
       if (file != NULL)
       {
-        size_t data_size = rows * columns * sizeof(Weight);
+        size_t data_size = rows * columns * depth * neurons * sizeof(Weight);
         size_t read_result = fread(weight_watrix->data, 1, data_size, file);
         ASSERT(data_size == read_result);
         fclose(file);
