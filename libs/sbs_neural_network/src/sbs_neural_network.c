@@ -793,9 +793,6 @@ void Accelerator_delete (SbSUpdateAccelerator ** accelerator)
   }
 }
 
-inline static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
-                              SbsAcceleratorProfie * profile) __attribute__((always_inline));
-
 static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
                               SbsAcceleratorProfie * profile)
 {
@@ -1917,12 +1914,14 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
       && (0 < layer->num_partitions)
       && (layer->spike_matrix != NULL))
   {
-    uint16_t rows = layer->rows;
+    int i;
     uint16_t columns = layer->columns;
     uint16_t neurons = layer->neurons;
 
     uint16_t partition_row = 0;
     SbsLayerPartition *  partition = NULL;
+    Multivector * partition_state_matrix = NULL;
+    Multivector* layer_spike_matrix = layer->spike_matrix;
 
     SpikeID * spike;
     NeuronState * state_vector;
@@ -1930,28 +1929,36 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
     uint16_t row;
     uint16_t column;
 
-    for (row = 0; row < rows; row++)
+    for (i = 0; i < layer->num_partitions; i ++)
     {
-      partition = SbsBaseLayer_getPartition (layer,
-                                             row,
-                                             0,
-                                             &partition_row,
-                                             NULL);
-      ASSERT(partition != NULL);
-      for (column = 0; column < columns; column++)
+      ASSERT(layer->partition_array[i] != NULL);
+      ASSERT(layer->partition_array[i]->state_matrix != NULL);
+      partition = layer->partition_array[i];
+      partition_state_matrix = partition->state_matrix;
+
+      for (row = partition->y_pos, partition_row = 0;
+          partition_row < partition_state_matrix->dimension_size[0];
+          partition_row++, row ++)
       {
-        spike = Multivector_2DAccess (layer->spike_matrix, row, column);
-        state_vector = Multivector_2DAccess (partition->state_matrix,
-                                             partition_row,
-                                             column);
-        *spike = SbsStateVector_generateSpike (state_vector, neurons);
+        for (column = 0; column < columns; column++)
+        {
+          spike = Multivector_2DAccess (layer_spike_matrix, row, column);
+          state_vector = Multivector_2DAccess (partition_state_matrix,
+                                               partition_row,
+                                               column);
+          *spike = SbsStateVector_generateSpike (state_vector, neurons);
+        }
       }
     }
   }
 }
 
-static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer)
+inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer) __attribute__((always_inline));
+inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer)
 {
+  ASSERT (layer != NULL);
+  ASSERT (spike_layer != NULL);
+  if ((layer != NULL) && (spike_layer != NULL))
   {
     int i;
     SbsLayerPartition *  update_partition = NULL;
@@ -1976,7 +1983,6 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
     uint16_t kernel_row;        /* Row index for navigation inside kernel */
     uint16_t kernel_column;     /* Column index for navigation inside kernel */
 
-    uint16_t layer_rows = layer->rows;
     uint16_t layer_columns = layer->columns;
 
     Multivector * update_partition_weight_matrix = NULL;
@@ -1990,65 +1996,61 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
 
     uint16_t layer_neurons = layer->neurons;
 
+    kernel_row_pos = 0, layer_row = 0;
     for (i = 0; i < layer->num_partitions; i ++)
     {
       update_partition = layer->partition_array[i];
-      Accelerator_setup (update_partition->accelerator,
-                         &update_partition->profile);
-    }
+      ASSERT(update_partition != NULL);
 
-    /* Update begins */
-    for (kernel_row_pos = 0, layer_row = 0;
-         layer_row < layer_rows;
-         kernel_row_pos += kernel_stride, layer_row ++)
-    {
-      update_partition = SbsBaseLayer_getPartition (layer, layer_row, 0,
-                                                    &update_partition_row, NULL);
       update_partition_weight_matrix = update_partition->weight_matrix;
       update_partition_accelerator = update_partition->accelerator;
       update_partition_state_matrix = update_partition->state_matrix;
 
-      ASSERT(update_partition != NULL);
+      Accelerator_setup (update_partition_accelerator,
+                         &update_partition->profile);
 
-      for (kernel_column_pos = 0, layer_column = 0;
-          layer_column < layer_columns;
-           kernel_column_pos += kernel_stride, layer_column ++)
+      /* Update begins */
+      for (update_partition_row = 0;
+          update_partition_row < update_partition_state_matrix->dimension_size[0];
+           update_partition_row ++,
+           kernel_row_pos += kernel_stride, layer_row ++)
       {
-        state_vector = Multivector_2DAccess(update_partition_state_matrix, update_partition_row, layer_column);
-
-        spike_matrix_data = Multivector_2DAccess(layer_spike_matrix, layer_row, layer_column);
-
-        * spike_matrix_data = SbsStateVector_generateSpike (state_vector, layer_neurons);
-
-        Accelerator_giveStateVector (update_partition_accelerator, state_vector);
-
-        for (kernel_row = 0; kernel_row < kernel_size; kernel_row++)
+        for (kernel_column_pos = 0, layer_column = 0;
+            layer_column < layer_columns;
+             kernel_column_pos += kernel_stride, layer_column ++)
         {
-          for (kernel_column = 0; kernel_column < kernel_size; kernel_column++)
+          state_vector = Multivector_2DAccess(update_partition_state_matrix, update_partition_row, layer_column);
+
+          spike_matrix_data = Multivector_2DAccess(layer_spike_matrix, layer_row, layer_column);
+
+          * spike_matrix_data = SbsStateVector_generateSpike (state_vector, layer_neurons);
+
+          Accelerator_giveStateVector (update_partition_accelerator, state_vector);
+
+          for (kernel_row = 0; kernel_row < kernel_size; kernel_row++)
           {
-            spikeID = *(SpikeID *) Multivector_2DAccess(spike_layer_spike_matrix, kernel_row_pos + kernel_row, kernel_column_pos + kernel_column);
-
-            ASSERT(layer->neurons == update_partition->weight_matrix->dimension_size[3]);
-
-            if (layer_weight_shift == COLUMN_SHIFT)
+            for (kernel_column = 0; kernel_column < kernel_size; kernel_column++)
             {
-              weight_vector = Multivector_3DAccess (update_partition_weight_matrix, kernel_row, kernel_column, spikeID);
-            }
-            else
-            {
-              weight_vector = Multivector_3DAccess (update_partition_weight_matrix, kernel_column, kernel_row, spikeID);
-            }
+              spikeID = *(SpikeID *) Multivector_2DAccess(spike_layer_spike_matrix, kernel_row_pos + kernel_row, kernel_column_pos + kernel_column);
 
-            Accelerator_giveWeightVector (update_partition_accelerator, weight_vector);
+              ASSERT(layer->neurons == update_partition->weight_matrix->dimension_size[3]);
+
+              if (layer_weight_shift == COLUMN_SHIFT)
+              {
+                weight_vector = Multivector_3DAccess (update_partition_weight_matrix, kernel_row, kernel_column, spikeID);
+              }
+              else
+              {
+                weight_vector = Multivector_3DAccess (update_partition_weight_matrix, kernel_column, kernel_row, spikeID);
+              }
+
+              Accelerator_giveWeightVector (update_partition_accelerator, weight_vector);
+            }
           }
         }
       }
-    }
-
-    for (i = 0; i < layer->num_partitions; i ++)
-    {
-      update_partition = layer->partition_array[i];
-      Accelerator_start (update_partition->accelerator);
+      /* Update ends */
+      Accelerator_start (update_partition_accelerator);
     }
   }
 }
