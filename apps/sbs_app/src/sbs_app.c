@@ -100,7 +100,7 @@ Result SnnApp_run (void)
                                                   SBS_P_IN_H1_WEIGHTS_FILE);
 
   /** Layer = 24x24x32, Spike = 24x24, Weight = 50x32 **/
-  SbsLayer * H1 = sbs_new.ConvolutionLayer (24, 24, 32, 1, ROW_SHIFT, 50);
+  SbsLayer * H1 = sbs_new.ConvolutionLayer (24, 24, 32, 1, ROW_SHIFT);
   H1->setEpsilon (H1, 0.1);
   H1->giveWeights (H1, P_IN_H1);
   network->giveLayer (network, H1);
@@ -109,7 +109,7 @@ Result SnnApp_run (void)
                                                   SBS_P_H1_H2_WEIGHTS_FILE);
 
   /** Layer = 12x12x32, Spike = 12x12, Weight = 128x32 **/
-  SbsLayer * H2 = sbs_new.PoolingLayer (12, 12, 32, 2, COLUMN_SHIFT, 32);
+  SbsLayer * H2 = sbs_new.PoolingLayer (12, 12, 32, 2, COLUMN_SHIFT);
   H2->setEpsilon (H2, 0.1 / 4.0);
   H2->giveWeights (H2, P_H1_H2);
   network->giveLayer (network, H2);
@@ -118,7 +118,7 @@ Result SnnApp_run (void)
                                                   SBS_P_H2_H3_WEIGHTS_FILE);
 
   /** Layer = 8x8x64, Spike = 8x8, Weight = 800x64 **/
-  SbsLayer * H3 = sbs_new.ConvolutionLayer (8, 8, 64, 5, COLUMN_SHIFT, 32);
+  SbsLayer * H3 = sbs_new.ConvolutionLayer (8, 8, 64, 5, COLUMN_SHIFT);
   H3->setEpsilon (H3, 0.1 / 25.0);
   H3->giveWeights (H3, P_H2_H3);
   network->giveLayer (network, H3);
@@ -127,7 +127,7 @@ Result SnnApp_run (void)
                                                   SBS_P_H3_H4_WEIGHTS_FILE);
 
   /** Layer = 4x4x64, Spike = 4x4, Weight = 256x64 **/
-  SbsLayer * H4 = sbs_new.PoolingLayer (4, 4, 64, 2, COLUMN_SHIFT, 64);
+  SbsLayer * H4 = sbs_new.PoolingLayer (4, 4, 64, 2, COLUMN_SHIFT);
   H4->setEpsilon (H4, 0.1 / 4.0);
   H4->giveWeights (H4, P_H3_H4);
   network->giveLayer (network, H4);
@@ -136,7 +136,7 @@ Result SnnApp_run (void)
                                                   SBS_P_H4_H5_WEIGHTS_FILE);
 
   /** Layer = 1x1x1024, Spike = 1x1, Weight = 1024x1024 **/
-  SbsLayer * H5 = sbs_new.FullyConnectedLayer (1024, 4, ROW_SHIFT, 64);
+  SbsLayer * H5 = sbs_new.FullyConnectedLayer (1024, 4, ROW_SHIFT);
   H5->setEpsilon (H5, 0.1 / 16.0);
   H5->giveWeights (H5, P_H4_H5);
   network->giveLayer (network, H5);
@@ -145,7 +145,7 @@ Result SnnApp_run (void)
                                                   SBS_P_H5_HY_WEIGHTS_FILE);
 
   /** Layer = 1x1x10, Spike = 1x1, Weight = 1024x10 **/
-  SbsLayer * HY = sbs_new.OutputLayer (10, ROW_SHIFT, 0);
+  SbsLayer * HY = sbs_new.OutputLayer (10, ROW_SHIFT);
   HY->setEpsilon (HY, 0.1);
   HY->giveWeights (HY, P_H5_HY);
   network->giveLayer (network, HY);

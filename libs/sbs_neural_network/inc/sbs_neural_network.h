@@ -46,8 +46,7 @@ struct SbsLayer_VTable
                             uint16_t neurons,
                             uint16_t kernel_size,
                             uint16_t kernel_stride,
-                            WeightShift weight_shift,
-                            uint16_t    neurons_previous_Layer);
+                            WeightShift weight_shift);
   void       (*delete)     (SbsLayer ** layer);
   void       (*setEpsilon) (SbsLayer * layer, float epsilon);
   void       (*giveWeights)(SbsLayer * layer, SbsWeightMatrix weight_matrix);
@@ -81,8 +80,7 @@ typedef struct
                              uint16_t neurons,
                              uint16_t kernel_size,
                              uint16_t kernel_stride,
-                             WeightShift weight_shift,
-                             uint16_t    neurons_previous_Layer);
+                             WeightShift weight_shift);
 
   SbsWeightMatrix (*WeightMatrix)(uint16_t rows, uint16_t columns, uint16_t depth, uint16_t neurons, char * file_name);
 
@@ -92,24 +90,20 @@ typedef struct
                                       uint16_t columns,
                                       uint16_t neurons,
                                       uint16_t kernel_size,
-                                      WeightShift weight_shift,
-                                      uint16_t neurons_prev_Layer);
+                                      WeightShift weight_shift);
 
   SbsLayer *      (*PoolingLayer)(uint16_t rows,
                                   uint16_t columns,
                                   uint16_t neurons,
                                   uint16_t kernel_size,
-                                  WeightShift weight_shift,
-                                  uint16_t neurons_prev_Layer);
+                                  WeightShift weight_shift);
 
   SbsLayer *      (*FullyConnectedLayer)(uint16_t neurons,
                                          uint16_t kernel_size,
-                                         WeightShift weight_shift,
-                                         uint16_t neurons_prev_Layer);
+                                         WeightShift weight_shift);
 
   SbsLayer *      (*OutputLayer)(uint16_t neurons,
-                                 WeightShift weight_shift,
-                                 uint16_t neurons_prev_Layer);
+                                 WeightShift weight_shift);
 } SbsNew;
 
 extern SbsNew sbs_new;

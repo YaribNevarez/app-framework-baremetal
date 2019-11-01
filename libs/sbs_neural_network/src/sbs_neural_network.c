@@ -331,7 +331,6 @@ typedef struct
   uint16_t              neurons;
   uint16_t              kernel_size;
   uint16_t              kernel_stride;
-  uint16_t              neurons_previous_Layer;
   WeightShift           weight_shift;
   float                 epsilon;
 } SbsBaseLayer;
@@ -1514,8 +1513,7 @@ static SbsLayer * SbsBaseLayer_new(SbsLayerType layer_type,
                                    uint16_t neurons,
                                    uint16_t kernel_size,
                                    uint16_t kernel_stride,
-                                   WeightShift weight_shift,
-                                   uint16_t    neurons_previous_Layer)
+                                   WeightShift weight_shift)
 {
   SbsBaseLayer * layer = malloc(sizeof(SbsBaseLayer));
 
@@ -1627,7 +1625,6 @@ static SbsLayer * SbsBaseLayer_new(SbsLayerType layer_type,
     layer->kernel_size   = kernel_size;
     layer->kernel_stride = kernel_stride;
     layer->weight_shift  = weight_shift;
-    layer->neurons_previous_Layer = neurons_previous_Layer;
   }
 
   return (SbsLayer *) layer;
@@ -1710,7 +1707,9 @@ static void SbsBaseLayer_setEpsilon(SbsLayer * layer, float epsilon)
     ((SbsBaseLayer *)layer)->epsilon = epsilon;
 }
 
-static SpikeID SbsStateVector_generateSpike (NeuronState * state_vector, uint16_t size)
+inline static SpikeID SbsStateVector_generateSpike (NeuronState * state_vector, uint16_t size) __attribute__((always_inline));
+
+inline static SpikeID SbsStateVector_generateSpike (NeuronState * state_vector, uint16_t size)
 {
   ASSERT(state_vector != NULL);
   ASSERT(0 < size);
@@ -1959,8 +1958,6 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
     uint16_t             update_partition_row;
 
     SpikeID   spikeID       = 0;
-    uint16_t  spike_rows    = spike_layer->rows;
-    uint16_t  spike_columns = spike_layer->columns;
     Multivector * spike_layer_spike_matrix = spike_layer->spike_matrix;
 
 
@@ -1979,8 +1976,8 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
     uint16_t kernel_row;        /* Row index for navigation inside kernel */
     uint16_t kernel_column;     /* Column index for navigation inside kernel */
 
-    uint16_t kernel_column_final_pos = spike_columns - (kernel_size - 1);
-    uint16_t kernel_row_final_pos = spike_rows - (kernel_size - 1);
+    uint16_t layer_rows = layer->rows;
+    uint16_t layer_columns = layer->columns;
 
     Multivector * update_partition_weight_matrix = NULL;
     SbSUpdateAccelerator * update_partition_accelerator = NULL;
@@ -2002,7 +1999,7 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
 
     /* Update begins */
     for (kernel_row_pos = 0, layer_row = 0;
-         kernel_row_pos < kernel_row_final_pos;
+         layer_row < layer_rows;
          kernel_row_pos += kernel_stride, layer_row ++)
     {
       update_partition = SbsBaseLayer_getPartition (layer, layer_row, 0,
@@ -2014,7 +2011,7 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
       ASSERT(update_partition != NULL);
 
       for (kernel_column_pos = 0, layer_column = 0;
-           kernel_column_pos < kernel_column_final_pos;
+          layer_column < layer_columns;
            kernel_column_pos += kernel_stride, layer_column ++)
       {
         state_vector = Multivector_2DAccess(update_partition_state_matrix, update_partition_row, layer_column);
@@ -2284,49 +2281,42 @@ static size_t SbsBaseNetwork_getMemorySize (SbsNetwork * network)
 static SbsLayer * SbsInputLayer_new(uint16_t rows, uint16_t columns, uint16_t neurons)
 {
   return (SbsLayer *) SbsBaseLayer_new (INPUT_LAYER, rows, columns, neurons, 0,
-                                        0, ROW_SHIFT, 0);
+                                        0, ROW_SHIFT);
 }
 
 static SbsLayer * SbsConvolutionLayer_new(uint16_t rows,
                                             uint16_t columns,
                                             uint16_t neurons,
                                             uint16_t kernel_size,
-                                            WeightShift weight_shift,
-                                            uint16_t neurons_prev_Layer)
+                                            WeightShift weight_shift)
 {
   return (SbsLayer *) SbsBaseLayer_new (CONVOLUTION_LAYER, rows, columns,
-                                        neurons, kernel_size, 1, weight_shift,
-                                        neurons_prev_Layer);
+                                        neurons, kernel_size, 1, weight_shift);
 }
 
 static SbsLayer * SbsPoolingLayer_new(uint16_t rows,
                                     uint16_t columns,
                                     uint16_t neurons,
                                     uint16_t kernel_size,
-                                    WeightShift weight_shift,
-                                    uint16_t neurons_prev_Layer)
+                                    WeightShift weight_shift)
 {
   return (SbsLayer *) SbsBaseLayer_new (POOLING_LAYER, rows, columns, neurons,
-                                        kernel_size, kernel_size, weight_shift,
-                                        neurons_prev_Layer);
+                                        kernel_size, kernel_size, weight_shift);
 }
 
 static SbsLayer * SbsFullyConnectedLayer_new(uint16_t neurons,
                                                   uint16_t kernel_size,
-                                                  WeightShift weight_shift,
-                                                  uint16_t neurons_prev_Layer)
+                                                  WeightShift weight_shift)
 {
   return (SbsLayer *) SbsBaseLayer_new (FULLY_CONNECTED_LAYER, 1, 1, neurons,
-                                        kernel_size, 1, weight_shift,
-                                        neurons_prev_Layer);
+                                        kernel_size, 1, weight_shift);
 }
 
 static SbsLayer * SbsOutputLayer_new(uint16_t neurons,
-                                     WeightShift weight_shift,
-                                     uint16_t neurons_prev_Layer)
+                                     WeightShift weight_shift)
 {
   return (SbsLayer *) SbsBaseLayer_new (OUTPUT_LAYER, 1, 1, neurons, 1, 1,
-                                        weight_shift, neurons_prev_Layer);
+                                        weight_shift);
 }
 /*****************************************************************************/
 
