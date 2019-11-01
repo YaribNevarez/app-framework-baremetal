@@ -1145,7 +1145,6 @@ static Multivector * Multivector_new(MemoryBlock * memory_def, uint8_t data_type
 void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uint16_t column) __attribute__((always_inline));
 void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uint16_t column)
 {
-  void * data = NULL;
   ASSERT (multivector != NULL);
   ASSERT (multivector->data != NULL);
   ASSERT (2 <= multivector->dimensionality);
@@ -1155,69 +1154,50 @@ void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uin
   switch (multivector->type_id)
   {
     case M32BIT_24_24_ID:
-      data = &(*(M32Bit_24_24*) multivector->data)[row][column];
-      break;
+      return &(*(M32Bit_24_24*) multivector->data)[row][column];
     case M32BIT_24_24_50_ID:
-      data = &(*(M32Bit_24_24_50*) multivector->data)[row][column];
-      break;
+      return &(*(M32Bit_24_24_50*) multivector->data)[row][column];
     case M32BIT_12_24_32_ID:
-      data = &(*(M32Bit_12_24_32*) multivector->data)[row][column];
-      break;
+      return &(*(M32Bit_12_24_32*) multivector->data)[row][column];
     case M32BIT_1_1_50_32_ID:
-      data = &(*(M32Bit_1_1_50_32*) multivector->data)[row][column];
-      break;
+      return &(*(M32Bit_1_1_50_32*) multivector->data)[row][column];
     case M32BIT_6_12_32_ID:
-      data = &(*(M32Bit_6_12_32*) multivector->data)[row][column];
-      break;
+      return &(*(M32Bit_6_12_32*) multivector->data)[row][column];
     case M32BIT_12_12_ID:
-      data = &(*(M32Bit_12_12*) multivector->data)[row][column];
-      break;
+      return &(*(M32Bit_12_12*) multivector->data)[row][column];
     case M32BIT_2_2_32_32_ID:
-      data = &(*(M32Bit_2_2_32_32*) multivector->data)[row][column];
-      break;
+      return &(*(M32Bit_2_2_32_32*) multivector->data)[row][column];
     case M32BIT_8_8_64_ID:
-      data = &(*(M32Bit_8_8_64*) multivector->data)[row][column];
-      break;
+      return &(*(M32Bit_8_8_64*) multivector->data)[row][column];
     case M32BIT_8_8_ID:
-      data = &(*(M32Bit_8_8*) multivector->data)[row][column];
-      break;
+      return &(*(M32Bit_8_8*) multivector->data)[row][column];
     case M32BIT_5_5_32_64_ID:
-      data = &(*(M32Bit_5_5_32_64*) multivector->data)[row][column];
-      break;
+      return &(*(M32Bit_5_5_32_64*) multivector->data)[row][column];
     case M32BIT_2_4_64_ID:
-      data = &(*(M32Bit_2_4_64*) multivector->data)[row][column];
-      break;
+      return &(*(M32Bit_2_4_64*) multivector->data)[row][column];
     case M32BIT_4_4_ID:
-      data = &(*(M32Bit_4_4*) multivector->data)[row][column];
-      break;
+      return &(*(M32Bit_4_4*) multivector->data)[row][column];
     case M32BIT_2_2_64_64_ID:
-      data = &(*(M32Bit_2_2_64_64*) multivector->data)[row][column];
-      break;
+      return &(*(M32Bit_2_2_64_64*) multivector->data)[row][column];
     case M32BIT_1_1_1024_ID:
-      data = &(*(M32Bit_1_1_1024*) multivector->data)[row][column];
-      break;
+      return &(*(M32Bit_1_1_1024*) multivector->data)[row][column];
     case M32BIT_1_1_ID:
-      data = &(*(M32Bit_1_1*) multivector->data)[row][column];
-      break;
+      return &(*(M32Bit_1_1*) multivector->data)[row][column];
     case M32BIT_4_4_64_1024_ID:
-      data = &(*(M32Bit_4_4_64_1024*) multivector->data)[row][column];
-      break;
+      return &(*(M32Bit_4_4_64_1024*) multivector->data)[row][column];
     case M32BIT_1_1_10_ID:
-      data = &(*(M32Bit_1_1_10*) multivector->data)[row][column];
-      break;
+      return &(*(M32Bit_1_1_10*) multivector->data)[row][column];
     case M32BIT_1_1_1024_10_ID:
-      data = &(*(M32Bit_1_1_1024_10*) multivector->data)[row][column];
-      break;
-    default: ASSERT (0);
+      return &(*(M32Bit_1_1_1024_10*) multivector->data)[row][column];
+    default:
+      ASSERT (0);
   }
-
-  return data;
+  return NULL;
 }
 
 void inline * Multivector_3DAccess (Multivector * multivector, uint16_t row, uint16_t column, uint16_t position) __attribute__((always_inline));
 void inline * Multivector_3DAccess (Multivector * multivector, uint16_t row, uint16_t column, uint16_t position)
 {
-  void * data = NULL;
   ASSERT(multivector != NULL);
   ASSERT(multivector->data != NULL);
   ASSERT(3 <= multivector->dimensionality);
@@ -1228,50 +1208,36 @@ void inline * Multivector_3DAccess (Multivector * multivector, uint16_t row, uin
   switch (multivector->type_id)
   {
     case M32BIT_24_24_50_ID:
-      data = &(*(M32Bit_24_24_50*) multivector->data)[row][column][position];
-      break;
+      return &(*(M32Bit_24_24_50*) multivector->data)[row][column][position];
     case M32BIT_12_24_32_ID:
-      data = &(*(M32Bit_12_24_32*) multivector->data)[row][column][position];
-      break;
+      return &(*(M32Bit_12_24_32*) multivector->data)[row][column][position];
     case M32BIT_1_1_50_32_ID:
-      data = &(*(M32Bit_1_1_50_32*) multivector->data)[row][column][position];
-      break;
+      return &(*(M32Bit_1_1_50_32*) multivector->data)[row][column][position];
     case M32BIT_6_12_32_ID:
-      data = &(*(M32Bit_6_12_32*) multivector->data)[row][column][position];
-      break;
+      return &(*(M32Bit_6_12_32*) multivector->data)[row][column][position];
     case M32BIT_2_2_32_32_ID:
-      data = &(*(M32Bit_2_2_32_32*) multivector->data)[row][column][position];
-      break;
+      return &(*(M32Bit_2_2_32_32*) multivector->data)[row][column][position];
     case M32BIT_8_8_64_ID:
-      data = &(*(M32Bit_8_8_64*) multivector->data)[row][column][position];
-      break;
+      return &(*(M32Bit_8_8_64*) multivector->data)[row][column][position];
     case M32BIT_5_5_32_64_ID:
-      data = &(*(M32Bit_5_5_32_64*) multivector->data)[row][column][position];
-      break;
+      return &(*(M32Bit_5_5_32_64*) multivector->data)[row][column][position];
     case M32BIT_2_4_64_ID:
-      data = &(*(M32Bit_2_4_64*) multivector->data)[row][column][position];
-      break;
+      return &(*(M32Bit_2_4_64*) multivector->data)[row][column][position];
     case M32BIT_2_2_64_64_ID:
-      data = &(*(M32Bit_2_2_64_64*) multivector->data)[row][column][position];
-      break;
+      return &(*(M32Bit_2_2_64_64*) multivector->data)[row][column][position];
     case M32BIT_1_1_1024_ID:
-      data = &(*(M32Bit_1_1_1024*) multivector->data)[row][column][position];
-      break;
+      return &(*(M32Bit_1_1_1024*) multivector->data)[row][column][position];
     case M32BIT_4_4_64_1024_ID:
-      data = &(*(M32Bit_4_4_64_1024*) multivector->data)[row][column][position];
-      break;
+      return &(*(M32Bit_4_4_64_1024*) multivector->data)[row][column][position];
     case M32BIT_1_1_10_ID:
-      data = &(*(M32Bit_1_1_10*) multivector->data)[row][column][position];
-      break;
+      return &(*(M32Bit_1_1_10*) multivector->data)[row][column][position];
     case M32BIT_1_1_1024_10_ID:
-      data = &(*(M32Bit_1_1_1024_10*) multivector->data)[row][column][position];
-      break;
+      return &(*(M32Bit_1_1_1024_10*) multivector->data)[row][column][position];
     default:
       ASSERT(0)
       ;
   }
-
-  return data;
+  return NULL;
 }
 
 static Multivector * Multivector_duplicate(MemoryBlock * memory_def,
@@ -2018,8 +1984,10 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
 
     Multivector * update_partition_weight_matrix = NULL;
     SbSUpdateAccelerator * update_partition_accelerator = NULL;
+    Multivector * update_partition_state_matrix = NULL;
 
-    SpikeID * spike_matrix_data = layer->spike_matrix->data;
+    Multivector * layer_spike_matrix = layer->spike_matrix;
+    SpikeID * spike_matrix_data = NULL;
 
     WeightShift layer_weight_shift = layer->weight_shift;
 
@@ -2041,6 +2009,7 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
                                                     &update_partition_row, NULL);
       update_partition_weight_matrix = update_partition->weight_matrix;
       update_partition_accelerator = update_partition->accelerator;
+      update_partition_state_matrix = update_partition->state_matrix;
 
       ASSERT(update_partition != NULL);
 
@@ -2048,9 +2017,9 @@ static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer
            kernel_column_pos < kernel_column_final_pos;
            kernel_column_pos += kernel_stride, layer_column ++)
       {
-        state_vector = Multivector_2DAccess(update_partition->state_matrix, update_partition_row, layer_column);
+        state_vector = Multivector_2DAccess(update_partition_state_matrix, update_partition_row, layer_column);
 
-        spike_matrix_data = Multivector_2DAccess(layer->spike_matrix, layer_row, layer_column);
+        spike_matrix_data = Multivector_2DAccess(layer_spike_matrix, layer_row, layer_column);
 
         * spike_matrix_data = SbsStateVector_generateSpike (state_vector, layer_neurons);
 
