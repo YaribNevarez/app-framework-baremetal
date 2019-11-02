@@ -1989,12 +1989,12 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
     SbSUpdateAccelerator * update_partition_accelerator = NULL;
     Multivector * update_partition_state_matrix = NULL;
 
+#ifdef SPIKE_IN_UPDATE
     Multivector * layer_spike_matrix = layer->spike_matrix;
     SpikeID * spike_matrix_data = NULL;
-
-    WeightShift layer_weight_shift = layer->weight_shift;
-
     uint16_t layer_neurons = layer->neurons;
+#endif
+    WeightShift layer_weight_shift = layer->weight_shift;
 
     kernel_row_pos = 0, layer_row = 0;
     for (i = 0; i < layer->num_partitions; i ++)
@@ -2020,11 +2020,11 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
              kernel_column_pos += kernel_stride, layer_column ++)
         {
           state_vector = Multivector_2DAccess(update_partition_state_matrix, update_partition_row, layer_column);
-
+#ifdef SPIKE_IN_UPDATE
           spike_matrix_data = Multivector_2DAccess(layer_spike_matrix, layer_row, layer_column);
 
           * spike_matrix_data = SbsStateVector_generateSpike (state_vector, layer_neurons);
-
+#endif
           Accelerator_giveStateVector (update_partition_accelerator, state_vector);
 
           for (kernel_row = 0; kernel_row < kernel_size; kernel_row++)
@@ -2171,8 +2171,11 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
     {
       for (i = 0; i <= network->size - 1; i ++)
       {
-//        if (i < network->size - 1)
+#ifdef SPIKE_IN_UPDATE
         if (i == 0)
+#else
+        if (i < network->size - 1)
+#endif
           SbsBaseLayer_generateSpikes (network->layer_array[i]);
 
         layer_wait = i;
