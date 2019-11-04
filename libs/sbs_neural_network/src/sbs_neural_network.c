@@ -30,15 +30,19 @@
 #include "xsbs_update_32.h"
 #include "xsbs_update_64.h"
 
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 
 void sbs_assert(const char * file, int line, const char * function, const char * expression)
 {
+  int BypassFail = 0;
   printf ("Fail: %s, in \"%s\" [%s, %d]\n", expression, function, file, line);
 
-  for (;;);
+  while (!BypassFail)
+    ;
+
+  printf ("Bypass Fail\n");
 }
 
 #define ASSERT(expr) if (!(expr)) sbs_assert(__FILE__, __LINE__, __func__, #expr);
@@ -126,8 +130,8 @@ SbsHardwareDriver SbsHardwareDriver_spike = {
   .Get_layerSize = XSbs_spike_50_Get_layerSize,
   .Set_kernelSize = NULL,
   .Get_kernelSize = NULL,
-  .Set_vectorSize = NULL,
-  .Get_vectorSize = NULL,
+  .Set_vectorSize = XSbs_spike_50_Set_vectorSize,
+  .Get_vectorSize = XSbs_spike_50_Get_vectorSize,
   .Set_epsilon = NULL,
   .Get_epsilon = NULL,
 
@@ -299,7 +303,6 @@ typedef struct
 
 typedef struct
 {
-  SbsLayerType  layerType;
   uint32_t      layerSize;
   uint32_t      kernelSize;
   uint32_t      vectorSize;
@@ -348,15 +351,18 @@ typedef enum
   M32BIT_TYPE_BEGIN = 0,
   M32BIT_24_24_ID,
   M32BIT_24_24_50_ID,
+  M32BIT_24_24_32_ID,
   M32BIT_12_24_32_ID,
   M32BIT_1_1_50_32_ID,
   M32BIT_6_12_32_ID,
+  M32BIT_12_12_32_ID,
   M32BIT_12_12_ID,
   M32BIT_2_2_32_32_ID,
   M32BIT_8_8_64_ID,
   M32BIT_8_8_ID,
   M32BIT_5_5_32_64_ID,
   M32BIT_2_4_64_ID,
+  M32BIT_4_4_64_ID,
   M32BIT_4_4_ID,
   M32BIT_2_2_64_64_ID,
   M32BIT_1_1_1024_ID,
@@ -370,14 +376,17 @@ typedef enum
 typedef uint32_t M32Bit_24_24[24][24];
 typedef uint32_t M32Bit_24_24_50[24][24][50];
 typedef uint32_t M32Bit_12_24_32[12][24][32];
+typedef uint32_t M32Bit_24_24_32[24][24][32];
 typedef uint32_t M32Bit_1_1_50_32[1][1][50][32];
 typedef uint32_t M32Bit_6_12_32[6][12][32];
+typedef uint32_t M32Bit_12_12_32[6][12][32];
 typedef uint32_t M32Bit_12_12[12][12];
 typedef uint32_t M32Bit_2_2_32_32[2][2][32][32];
 typedef uint32_t M32Bit_8_8_64[8][8][64];
 typedef uint32_t M32Bit_8_8[8][8];
 typedef uint32_t M32Bit_5_5_32_64[5][5][32][64];
 typedef uint32_t M32Bit_2_4_64[2][4][64];
+typedef uint32_t M32Bit_4_4_64[4][4][64];
 typedef uint32_t M32Bit_4_4[4][4];
 typedef uint32_t M32Bit_2_2_64_64[2][2][64][64];
 typedef uint32_t M32Bit_1_1_1024[1][1][1024];
@@ -409,6 +418,12 @@ M32BitFormat M32BitFormat_list[] =
         .dimension_size = {24, 24, 50, 0}
     },
     {
+        .type_id = M32BIT_24_24_32_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 3,
+        .dimension_size = {24, 24, 32, 0}
+    },
+    {
         .type_id = M32BIT_12_24_32_ID,
         .data_type_size = sizeof(uint32_t),
         .dimensionality = 3,
@@ -425,6 +440,12 @@ M32BitFormat M32BitFormat_list[] =
         .data_type_size = sizeof(uint32_t),
         .dimensionality = 3,
         .dimension_size = {6, 12, 32, 0}
+    },
+    {
+        .type_id = M32BIT_12_12_32_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 3,
+        .dimension_size = {12, 12, 32, 0}
     },
     {
         .type_id = M32BIT_12_12_ID,
@@ -461,6 +482,12 @@ M32BitFormat M32BitFormat_list[] =
         .data_type_size = sizeof(uint32_t),
         .dimensionality = 3,
         .dimension_size = {2, 4, 64, 0}
+    },
+    {
+        .type_id = M32BIT_4_4_64_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 3,
+        .dimension_size = {4, 4, 64, 0}
     },
     {
         .type_id = M32BIT_4_4_ID,
@@ -947,7 +974,7 @@ static int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
   /***************************************************************************/
   /**************************** GIC initialization ***************************/
   IntcConfig = XScuGic_LookupConfig (XPAR_SCUGIC_SINGLE_DEVICE_ID);
-  ASSERT (status != XST_SUCCESS);
+  ASSERT (NULL != IntcConfig);
   if (NULL == IntcConfig)
   {
     return XST_FAILURE;
@@ -955,7 +982,7 @@ static int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
 
   status = XScuGic_CfgInitialize (&ScuGic, IntcConfig,
                                   IntcConfig->CpuBaseAddress);
-  ASSERT (status != XST_SUCCESS);
+  ASSERT (status == XST_SUCCESS);
   if (status != XST_SUCCESS)
   {
     return XST_FAILURE;
@@ -969,7 +996,7 @@ static int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
     status = XScuGic_Connect (&ScuGic, hardware_config->dmaTxIntVecID,
                               (Xil_InterruptHandler) Accelerator_txInterruptHandler,
                               accelerator);
-    ASSERT (status != XST_SUCCESS);
+    ASSERT (status == XST_SUCCESS);
     if (status != XST_SUCCESS)
     {
       return status;
@@ -986,7 +1013,7 @@ static int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
     status = XScuGic_Connect (&ScuGic, hardware_config->dmaRxIntVecID,
                               (Xil_InterruptHandler) Accelerator_rxInterruptHandler,
                               accelerator);
-    ASSERT (status != XST_SUCCESS);
+    ASSERT (status == XST_SUCCESS);
     if (status != XST_SUCCESS)
     {
       return status;
@@ -1003,7 +1030,7 @@ static int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
     status = XScuGic_Connect (&ScuGic, hardware_config->hwIntVecID,
                               (Xil_InterruptHandler) Accelerator_hardwareInterruptHandler,
                               accelerator);
-    ASSERT (status != XST_SUCCESS);
+    ASSERT (status == XST_SUCCESS);
     if (status != XST_SUCCESS)
     {
       return status;
@@ -1028,7 +1055,7 @@ static int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
 
   status = hardware_config->hwDriver->Initialize (accelerator->updateHardware,
                                                   hardware_config->hwDeviceID);
-  ASSERT (status != XST_SUCCESS);
+  ASSERT (status == XST_SUCCESS);
   if (status != XST_SUCCESS)
   {
     xil_printf ("Sbs update hardware initialization error: %d\r\n", status);
@@ -1223,7 +1250,6 @@ static void Accelerator_start(SbSUpdateAccelerator * accelerator)
   ASSERT (accelerator != NULL);
   ASSERT (accelerator->profile != NULL);
   ASSERT (0 < accelerator->profile->vectorBufferSize);
-  ASSERT (0 < accelerator->profile->kernelSize);
   ASSERT (0 < accelerator->profile->layerSize);
 
 #ifdef DEBUG
@@ -1477,10 +1503,14 @@ void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uin
       return &(*(M32Bit_24_24_50*) multivector->data)[row][column];
     case M32BIT_12_24_32_ID:
       return &(*(M32Bit_12_24_32*) multivector->data)[row][column];
+    case M32BIT_24_24_32_ID:
+      return &(*(M32Bit_24_24_32*) multivector->data)[row][column];
     case M32BIT_1_1_50_32_ID:
       return &(*(M32Bit_1_1_50_32*) multivector->data)[row][column];
     case M32BIT_6_12_32_ID:
       return &(*(M32Bit_6_12_32*) multivector->data)[row][column];
+    case M32BIT_12_12_32_ID:
+      return &(*(M32Bit_12_12_32*) multivector->data)[row][column];
     case M32BIT_12_12_ID:
       return &(*(M32Bit_12_12*) multivector->data)[row][column];
     case M32BIT_2_2_32_32_ID:
@@ -1493,6 +1523,8 @@ void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uin
       return &(*(M32Bit_5_5_32_64*) multivector->data)[row][column];
     case M32BIT_2_4_64_ID:
       return &(*(M32Bit_2_4_64*) multivector->data)[row][column];
+    case M32BIT_4_4_64_ID:
+      return &(*(M32Bit_4_4_64*) multivector->data)[row][column];
     case M32BIT_4_4_ID:
       return &(*(M32Bit_4_4*) multivector->data)[row][column];
     case M32BIT_2_2_64_64_ID:
@@ -1663,15 +1695,11 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
   ASSERT (state_matrix != NULL);
   ASSERT (state_matrix->dimensionality == 3);
   ASSERT (state_matrix->data != NULL);
-  ASSERT (0 < kernel_size);
-  ASSERT (0.0 < epsilon);
 
   if ((profile != NULL)
       && (state_matrix != NULL)
       && (state_matrix->dimensionality == 3)
-      && (state_matrix->data != NULL)
-      && (0 < kernel_size)
-      && (0.0 < epsilon))
+      && (state_matrix->data != NULL))
   {
     profile->layerSize =
         state_matrix->dimension_size[0] * state_matrix->dimension_size[1];
@@ -1688,6 +1716,9 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
     }
     else
     {
+      ASSERT (0 < kernel_size);
+      ASSERT (0.0 < epsilon);
+
       profile->kernelSize = kernel_size * kernel_size;
       profile->epsilon = epsilon;
       profile->txBufferSize = profile->layerSize
@@ -2034,34 +2065,34 @@ static void SbsBaseLayer_setEpsilon(SbsLayer * layer, float epsilon)
     ((SbsBaseLayer *)layer)->epsilon = epsilon;
 }
 
-//inline static SpikeID SbsStateVector_generateSpike (NeuronState * state_vector, uint16_t size) __attribute__((always_inline));
-//
-//inline static SpikeID SbsStateVector_generateSpike (NeuronState * state_vector, uint16_t size)
-//{
-//  ASSERT(state_vector != NULL);
-//  ASSERT(0 < size);
-//
-//  if ((state_vector != NULL) && (0 < size))
-//  {
-//    NeuronState random_s = ((NeuronState) genrand ()) * (1.0/((NeuronState) 0xFFFFFFFF));
-//    NeuronState sum      = 0.0f;
-//    SpikeID     spikeID;
-//
-//    ASSERT(random_s <= 1.0F);
-//
-//    for (spikeID = 0; spikeID < size; spikeID++)
-//    {
-//      sum += state_vector[spikeID];
-//
-//      //ASSERT(sum <= 1 + 1e-5);
-//
-//      if (random_s <= sum)
-//        return spikeID;
-//    }
-//  }
-//
-//  return size - 1;
-//}
+inline static SpikeID SbsStateVector_generateSpike (NeuronState * state_vector, uint16_t size) __attribute__((always_inline));
+
+inline static SpikeID SbsStateVector_generateSpike (NeuronState * state_vector, uint16_t size)
+{
+  ASSERT(state_vector != NULL);
+  ASSERT(0 < size);
+
+  if ((state_vector != NULL) && (0 < size))
+  {
+    NeuronState random_s = ((NeuronState) genrand ()) * (1.0/((NeuronState) 0xFFFFFFFF));
+    NeuronState sum      = 0.0f;
+    SpikeID     spikeID;
+
+    ASSERT(random_s <= 1.0F);
+
+    for (spikeID = 0; spikeID < size; spikeID++)
+    {
+      sum += state_vector[spikeID];
+
+      //ASSERT(sum <= 1 + 1e-5);
+
+      if (random_s <= sum)
+        return spikeID;
+    }
+  }
+
+  return size - 1;
+}
 
 static void SbsLayerPartition_loadInput(SbsLayerPartition * partition, char * file_name, uint8_t * input_label)
 {
@@ -2070,7 +2101,6 @@ static void SbsLayerPartition_loadInput(SbsLayerPartition * partition, char * fi
   ASSERT(input_label != NULL);
   if ((partition != NULL) && (file_name != NULL) && (input_label != NULL))
   {
-#ifdef USE_XILINX
     FIL fil; /* File object */
     FRESULT rc;
     rc = f_open (&fil, file_name, FA_READ);
@@ -2110,46 +2140,7 @@ static void SbsLayerPartition_loadInput(SbsLayerPartition * partition, char * fi
       f_close (&fil);
       ASSERT(good_reading_flag);
     }
-#else
-    FILE * file = fopen(file_name, "rb");
 
-    ASSERT(file != NULL);
-
-    if (file != NULL)
-    {
-      uint16_t rows = partition->state_matrix->dimension_size[0];
-      uint16_t columns = partition->state_matrix->dimension_size[1];
-      uint16_t neurons = partition->state_matrix->dimension_size[2];
-      NeuronState * data = partition->state_matrix->data;
-
-      uint16_t row;
-      uint16_t column;
-      size_t read_result = 0;
-
-      uint8_t good_reading_flag = 1;
-
-      size_t inference_population_size = sizeof(NeuronState) * neurons;
-
-      for (column = 0; (column < columns) && good_reading_flag; column++)
-        for (row = 0; (row < rows) && good_reading_flag; row++)
-        {
-          read_result = fread (&data[column * neurons + row * columns * neurons], 1,
-              inference_population_size, file);
-
-          good_reading_flag = read_result == inference_population_size;
-        }
-
-      if (good_reading_flag)
-      {
-        read_result = fread(input_label, 1, sizeof(uint8_t), file);
-        (*input_label) --;
-        good_reading_flag = read_result == sizeof(uint8_t);
-      }
-
-      fclose(file);
-      ASSERT(good_reading_flag);
-    }
-#endif
   }
 }
 
@@ -2323,6 +2314,10 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
           state_vector = Multivector_2DAccess (partition_state_matrix,
                                                partition_row,
                                                column);
+//          *((SpikeID*)Multivector_2DAccess (layer->partition_array[i]->spike_matrix,
+//                                                         partition_row,
+//                                                         column)) =
+//          SbsStateVector_generateSpike(state_vector, layer->vector_size);
           Accelerator_giveStateVector (partition->accelerator, state_vector);
         }
       }
@@ -2368,11 +2363,6 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
     SbSUpdateAccelerator * update_partition_accelerator = NULL;
     Multivector * update_partition_state_matrix = NULL;
 
-#ifdef SPIKE_IN_UPDATE
-    Multivector * layer_spike_matrix = layer->spike_matrix;
-    SpikeID * spike_matrix_data = NULL;
-    uint16_t layer_neurons = layer->neurons;
-#endif
     WeightShift layer_weight_shift = layer->weight_shift;
 
     kernel_row_pos = 0, layer_row = 0;
@@ -2399,11 +2389,7 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
              kernel_column_pos += kernel_stride, layer_column ++)
         {
           state_vector = Multivector_2DAccess(update_partition_state_matrix, update_partition_row, layer_column);
-#ifdef SPIKE_IN_UPDATE
-          spike_matrix_data = Multivector_2DAccess(layer_spike_matrix, layer_row, layer_column);
 
-          * spike_matrix_data = SbsStateVector_generateSpike (state_vector, layer_neurons);
-#endif
           Accelerator_giveStateVector (update_partition_accelerator, state_vector);
 
           for (kernel_row = 0; kernel_row < kernel_size; kernel_row++)
@@ -2537,7 +2523,7 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
     int i;
     SbsBaseLayer_cacheFlush(network->layer_array[0]);
     /* Initialize all layers except the input-layer */
-    for (i = 1; i < network->size; i++)
+    for (i = 0; i < network->size; i++)
     {
       ASSERT(network->layer_array[i] != NULL);
       SbsBaseLayer_initialize(network->layer_array[i]);
@@ -2550,13 +2536,6 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
     {
       for (i = 0; i <= network->size - 1; i ++)
       {
-//#ifdef SPIKE_IN_UPDATE
-//        if (i == 0)
-//#else
-//        if (i < network->size - 1)
-//#endif
-//          SbsBaseLayer_generateSpikes (network->layer_array[i]);
-
         if (i == 0)
           SbsBaseLayer_generateSpikes (network->layer_array[i]);
 
@@ -2737,7 +2716,6 @@ static SbsWeightMatrix SbsWeightMatrix_new (uint16_t rows,
         && (weight_watrix->dimension_size[2] == depth)
         && (weight_watrix->dimension_size[3] == neurons))
     {
-#ifdef USE_XILINX
       FIL fil; /* File object */
       FRESULT rc;
       rc = f_open (&fil, file_name, FA_READ);
@@ -2752,21 +2730,6 @@ static SbsWeightMatrix SbsWeightMatrix_new (uint16_t rows,
         f_close (&fil);
       }
       else Multivector_delete (&weight_watrix);
-#else
-      FILE * file = fopen(file_name, "rb");
-
-      ASSERT(file != NULL);
-
-      if (file != NULL)
-      {
-        size_t data_size = rows * columns * depth * neurons * sizeof(Weight);
-        size_t read_result = fread(weight_watrix->data, 1, data_size, file);
-        ASSERT(data_size == read_result);
-        fclose(file);
-      }
-      else
-        Multivector_delete(&weight_watrix);
-#endif
     }
   }
 

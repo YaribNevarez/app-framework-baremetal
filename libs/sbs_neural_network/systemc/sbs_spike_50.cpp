@@ -8,17 +8,17 @@ typedef union
   float f32;
 } FloatToInt;
 
-#define VECTOR_SIZE     (50)
-
 typedef ap_axis<32, 2, 5, 6> StreamChannel;
 
 void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
                  hls::stream<StreamChannel> &stream_out,
-                 int layerSize)
+                 int layerSize,
+                 int vectorSize)
 {
 #pragma HLS INTERFACE axis      port=stream_in
 #pragma HLS INTERFACE axis      port=stream_out
 #pragma HLS INTERFACE s_axilite port=layerSize   bundle=CRTL_BUS
+#pragma HLS INTERFACE s_axilite port=vectorSize  bundle=CRTL_BUS
 #pragma HLS INTERFACE s_axilite port=return      bundle=CRTL_BUS
 
   static int ip_index;
@@ -45,14 +45,14 @@ void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
     random_value = float_to_int.f32;
 
     sum = 0.0f;
-    for (spikeID = 0; spikeID < VECTOR_SIZE; spikeID++)
+    for (spikeID = 0; spikeID < vectorSize; spikeID++)
     {
 #pragma HLS pipeline
       float_to_int.u32 = stream_in.read ().data;
       if (sum < random_value)
       {
         sum += float_to_int.f32;
-        if (random_value <= sum || (spikeID == VECTOR_SIZE - 1))
+        if (random_value <= sum || (spikeID == vectorSize - 1))
         {
           channel.last = (ip_index == layerSize - 1);
           channel.data = spikeID;
