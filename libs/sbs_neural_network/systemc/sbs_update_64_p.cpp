@@ -18,7 +18,7 @@ typedef union
 typedef ap_axis<32, 2, 5, 6> StreamChannel;
 
 
-void sbs_update_64 (hls::stream<StreamChannel> &stream_in,
+void sbs_update_64_p (hls::stream<StreamChannel> &stream_in,
                  hls::stream<StreamChannel> &stream_out,
                  int layerSize,
                  int kernelSize,
@@ -86,7 +86,7 @@ void sbs_update_64 (hls::stream<StreamChannel> &stream_in,
       if (NEGLECTING_CONSTANT < sum)
       {
         epsion_over_sum = epsilon / sum;
-        for (i = 0; i < vectorSize; i++)
+        for (i = 0; i < MAX_VECTOR_SIZE; i++)
         {
 #pragma HLS pipeline
           state_vector[i] = reverse_epsilon

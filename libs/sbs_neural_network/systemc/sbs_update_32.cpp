@@ -8,10 +8,12 @@ typedef union
   float f32;
 } FloatToInt;
 
-#define MAX_VECTOR_SIZE       (32)
-#define MAX_SPIKE_MATRIX_SIZE (24*24)
+#define MAX_LAYER_SIZE      (24*24)
+#define MAX_KERNEL_SIZE     (5*5)
+#define MAX_VECTOR_SIZE     (32)
 
 #define NEGLECTING_CONSTANT   ((float)1e-20)
+#define FLOAT32_NORMALIZATION (1.0f/((float)0xFFFFFFFF))
 
 typedef ap_axis<32, 2, 5, 6> StreamChannel;
 
@@ -35,8 +37,6 @@ void sbs_update_32 (hls::stream<StreamChannel> &stream_in,
   static int i;
   static int batch;
   static StreamChannel channel;
-  static int spike_matrix[MAX_SPIKE_MATRIX_SIZE];
-  static int spike_index;
   static float state_vector[MAX_VECTOR_SIZE];
   static float temp_data[MAX_VECTOR_SIZE];
   static float epsion_over_sum;
@@ -50,15 +50,8 @@ void sbs_update_32 (hls::stream<StreamChannel> &stream_in,
   for (ip_index = 0; ip_index < layerSize; ip_index++)
   {
 #pragma HLS pipeline
-    if (ip_index == 0)
-    {
-      channel = stream_in.read ();
-      float_to_int.u32 = channel.data;
-    }
-    else
-    {
-      float_to_int.u32 = stream_in.read ().data;
-    }
+    channel = stream_in.read ();
+    float_to_int.u32 = channel.data;
     random_value = float_to_int.f32;
 
     sum = 0.0f;
@@ -72,7 +65,8 @@ void sbs_update_32 (hls::stream<StreamChannel> &stream_in,
         sum += state_vector[i];
         if (random_value <= sum || (i == vectorSize - 1))
         {
-          spike_matrix[ip_index] = i;
+          channel.data = i;
+          stream_out.write(channel);
         }
       }
     }
@@ -105,16 +99,11 @@ void sbs_update_32 (hls::stream<StreamChannel> &stream_in,
     {
 #pragma HLS pipeline
       float_to_int.f32 = state_vector[i];
+
       channel.data = float_to_int.u32;
+      channel.last = (i == vectorSize - 1) && (ip_index == layerSize - 1);
+
       stream_out.write(channel);
     }
-  }
-
-  for (i = 0; i < layerSize; i++)
-  {
-#pragma HLS pipeline
-    channel.data = spike_matrix[i];
-    channel.last = (i == layerSize - 1);
-    stream_out.write(channel);
   }
 }

@@ -25,12 +25,12 @@
 #include "xscugic.h"
 
 #include "xsbs_spike_50.h"
-#include "xsbs_update_10.h"
-#include "xsbs_update_1024.h"
-#include "xsbs_update_32.h"
-#include "xsbs_update_64.h"
+#include "xsbs_accelerator_10.h"
+#include "xsbs_accelerator_1024.h"
+#include "xsbs_accelerator_32.h"
+#include "xsbs_accelerator_64.h"
 
-//#define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 
@@ -82,6 +82,8 @@ typedef struct
   void      (*EnableAutoRestart) (void *InstancePtr);
   void      (*DisableAutoRestart) (void *InstancePtr);
 
+  void      (*Set_mode)       (void *InstancePtr, uint32_t Data);
+  uint32_t  (*Get_mode)       (void *InstancePtr);
   void      (*Set_layerSize)  (void *InstancePtr, uint32_t Data);
   uint32_t  (*Get_layerSize)  (void *InstancePtr);
   void      (*Set_kernelSize) (void *InstancePtr, uint32_t Data);
@@ -126,6 +128,8 @@ SbsHardwareDriver SbsHardwareDriver_spike = {
   .EnableAutoRestart = XSbs_spike_50_EnableAutoRestart,
   .DisableAutoRestart = XSbs_spike_50_DisableAutoRestart,
 
+  .Set_mode = NULL,
+  .Get_mode = NULL,
   .Set_layerSize = XSbs_spike_50_Set_layerSize,
   .Get_layerSize = XSbs_spike_50_Get_layerSize,
   .Set_kernelSize = NULL,
@@ -147,146 +151,189 @@ SbsHardwareDriver SbsHardwareDriver_spike = {
 
 void * Sbs_update_10_new (void)
 {
-  return malloc (sizeof(XSbs_update_10));
+  return malloc (sizeof(XSbs_accelerator_10));
 }
 
 SbsHardwareDriver SbsHardwareDriver_update10 = {
     .new = Sbs_update_10_new,
     .delete = Sbs_driver_delete,
 
-    .Initialize = XSbs_update_10_Initialize,
-    .Start = XSbs_update_10_Start,
-    .IsDone = XSbs_update_10_IsDone,
-    .IsIdle = XSbs_update_10_IsIdle,
-    .IsReady = XSbs_update_10_IsReady,
-    .EnableAutoRestart = XSbs_update_10_EnableAutoRestart,
-    .DisableAutoRestart = XSbs_update_10_DisableAutoRestart,
+    .Initialize = XSbs_accelerator_10_Initialize,
+    .Start = XSbs_accelerator_10_Start,
+    .IsDone = XSbs_accelerator_10_IsDone,
+    .IsIdle = XSbs_accelerator_10_IsIdle,
+    .IsReady = XSbs_accelerator_10_IsReady,
+    .EnableAutoRestart = XSbs_accelerator_10_EnableAutoRestart,
+    .DisableAutoRestart = XSbs_accelerator_10_DisableAutoRestart,
 
-    .Set_layerSize = NULL,
-    .Get_layerSize = NULL,
-    .Set_kernelSize = NULL,
-    .Get_kernelSize = NULL,
-    .Set_vectorSize = NULL,
-    .Get_vectorSize = NULL,
-    .Set_epsilon = XSbs_update_10_Set_epsilon,
-    .Get_epsilon = XSbs_update_10_Get_epsilon,
+    .Set_mode = XSbs_accelerator_10_Set_mode,
+    .Get_mode = XSbs_accelerator_10_Get_mode,
+    .Set_layerSize = XSbs_accelerator_10_Set_layerSize,
+    .Get_layerSize = XSbs_accelerator_10_Get_layerSize,
+    .Set_kernelSize = XSbs_accelerator_10_Set_kernelSize,
+    .Get_kernelSize = XSbs_accelerator_10_Get_kernelSize,
+    .Set_vectorSize = XSbs_accelerator_10_Set_vectorSize,
+    .Get_vectorSize = XSbs_accelerator_10_Get_vectorSize,
+    .Set_epsilon = XSbs_accelerator_10_Set_epsilon,
+    .Get_epsilon = XSbs_accelerator_10_Get_epsilon,
 
-    .InterruptGlobalEnable = XSbs_update_10_InterruptGlobalEnable,
-    .InterruptGlobalDisable = XSbs_update_10_InterruptGlobalDisable,
-    .InterruptEnable = XSbs_update_10_InterruptEnable,
-    .InterruptDisable = XSbs_update_10_InterruptDisable,
-    .InterruptClear = XSbs_update_10_InterruptClear,
-    .InterruptGetEnabled = XSbs_update_10_InterruptGetEnabled,
-    .InterruptGetStatus = XSbs_update_10_InterruptGetStatus
+    .InterruptGlobalEnable = XSbs_accelerator_10_InterruptGlobalEnable,
+    .InterruptGlobalDisable = XSbs_accelerator_10_InterruptGlobalDisable,
+    .InterruptEnable = XSbs_accelerator_10_InterruptEnable,
+    .InterruptDisable = XSbs_accelerator_10_InterruptDisable,
+    .InterruptClear = XSbs_accelerator_10_InterruptClear,
+    .InterruptGetEnabled = XSbs_accelerator_10_InterruptGetEnabled,
+    .InterruptGetStatus = XSbs_accelerator_10_InterruptGetStatus
   };
 
 
 void * Sbs_update_1024_new (void)
 {
-  return malloc (sizeof(XSbs_update_1024));
+  return malloc (sizeof(XSbs_accelerator_1024));
 }
 
 SbsHardwareDriver SbsHardwareDriver_update1024 = {
     .new = Sbs_update_1024_new,
     .delete = Sbs_driver_delete,
 
-    .Initialize = XSbs_update_1024_Initialize,
-    .Start = XSbs_update_1024_Start,
-    .IsDone = XSbs_update_1024_IsDone,
-    .IsIdle = XSbs_update_1024_IsIdle,
-    .IsReady = XSbs_update_1024_IsReady,
-    .EnableAutoRestart = XSbs_update_1024_EnableAutoRestart,
-    .DisableAutoRestart = XSbs_update_1024_DisableAutoRestart,
+    .Initialize = XSbs_accelerator_1024_Initialize,
+    .Start = XSbs_accelerator_1024_Start,
+    .IsDone = XSbs_accelerator_1024_IsDone,
+    .IsIdle = XSbs_accelerator_1024_IsIdle,
+    .IsReady = XSbs_accelerator_1024_IsReady,
+    .EnableAutoRestart = XSbs_accelerator_1024_EnableAutoRestart,
+    .DisableAutoRestart = XSbs_accelerator_1024_DisableAutoRestart,
 
-    .Set_layerSize = NULL,
-    .Get_layerSize = NULL,
-    .Set_kernelSize = XSbs_update_1024_Set_kernelSize,
-    .Get_kernelSize = XSbs_update_1024_Get_kernelSize,
-    .Set_vectorSize = XSbs_update_1024_Set_vectorSize,
-    .Get_vectorSize = XSbs_update_1024_Get_vectorSize,
-    .Set_epsilon = XSbs_update_1024_Set_epsilon,
-    .Get_epsilon = XSbs_update_1024_Get_epsilon,
+    .Set_mode = XSbs_accelerator_1024_Set_mode,
+    .Get_mode = XSbs_accelerator_1024_Get_mode,
+    .Set_layerSize = XSbs_accelerator_1024_Set_layerSize,
+    .Get_layerSize = XSbs_accelerator_1024_Get_layerSize,
+    .Set_kernelSize = XSbs_accelerator_1024_Set_kernelSize,
+    .Get_kernelSize = XSbs_accelerator_1024_Get_kernelSize,
+    .Set_vectorSize = XSbs_accelerator_1024_Set_vectorSize,
+    .Get_vectorSize = XSbs_accelerator_1024_Get_vectorSize,
+    .Set_epsilon = XSbs_accelerator_1024_Set_epsilon,
+    .Get_epsilon = XSbs_accelerator_1024_Get_epsilon,
 
-    .InterruptGlobalEnable = XSbs_update_1024_InterruptGlobalEnable,
-    .InterruptGlobalDisable = XSbs_update_1024_InterruptGlobalDisable,
-    .InterruptEnable = XSbs_update_1024_InterruptEnable,
-    .InterruptDisable = XSbs_update_1024_InterruptDisable,
-    .InterruptClear = XSbs_update_1024_InterruptClear,
-    .InterruptGetEnabled = XSbs_update_1024_InterruptGetEnabled,
-    .InterruptGetStatus = XSbs_update_1024_InterruptGetStatus
+    .InterruptGlobalEnable = XSbs_accelerator_1024_InterruptGlobalEnable,
+    .InterruptGlobalDisable = XSbs_accelerator_1024_InterruptGlobalDisable,
+    .InterruptEnable = XSbs_accelerator_1024_InterruptEnable,
+    .InterruptDisable = XSbs_accelerator_1024_InterruptDisable,
+    .InterruptClear = XSbs_accelerator_1024_InterruptClear,
+    .InterruptGetEnabled = XSbs_accelerator_1024_InterruptGetEnabled,
+    .InterruptGetStatus = XSbs_accelerator_1024_InterruptGetStatus
   };
 
 
 void * Sbs_update_32_new (void)
 {
-  return malloc (sizeof(XSbs_update_32));
+  return malloc (sizeof(XSbs_accelerator_32));
 }
 
 SbsHardwareDriver SbsHardwareDriver_update32 = {
     .new = Sbs_update_32_new,
     .delete = Sbs_driver_delete,
 
-    .Initialize = XSbs_update_32_Initialize,
-    .Start = XSbs_update_32_Start,
-    .IsDone = XSbs_update_32_IsDone,
-    .IsIdle = XSbs_update_32_IsIdle,
-    .IsReady = XSbs_update_32_IsReady,
-    .EnableAutoRestart = XSbs_update_32_EnableAutoRestart,
-    .DisableAutoRestart = XSbs_update_32_DisableAutoRestart,
+    .Initialize = XSbs_accelerator_32_Initialize,
+    .Start = XSbs_accelerator_32_Start,
+    .IsDone = XSbs_accelerator_32_IsDone,
+    .IsIdle = XSbs_accelerator_32_IsIdle,
+    .IsReady = XSbs_accelerator_32_IsReady,
+    .EnableAutoRestart = XSbs_accelerator_32_EnableAutoRestart,
+    .DisableAutoRestart = XSbs_accelerator_32_DisableAutoRestart,
 
-    .Set_layerSize = XSbs_update_32_Set_layerSize,
-    .Get_layerSize = XSbs_update_32_Get_layerSize,
-    .Set_kernelSize = XSbs_update_32_Set_kernelSize,
-    .Get_kernelSize = XSbs_update_32_Get_kernelSize,
-    .Set_vectorSize = XSbs_update_32_Set_vectorSize,
-    .Get_vectorSize = XSbs_update_32_Get_vectorSize,
-    .Set_epsilon = XSbs_update_32_Set_epsilon,
-    .Get_epsilon = XSbs_update_32_Get_epsilon,
+    .Set_mode = XSbs_accelerator_32_Set_mode,
+    .Get_mode = XSbs_accelerator_32_Get_mode,
+    .Set_layerSize = XSbs_accelerator_32_Set_layerSize,
+    .Get_layerSize = XSbs_accelerator_32_Get_layerSize,
+    .Set_kernelSize = XSbs_accelerator_32_Set_kernelSize,
+    .Get_kernelSize = XSbs_accelerator_32_Get_kernelSize,
+    .Set_vectorSize = XSbs_accelerator_32_Set_vectorSize,
+    .Get_vectorSize = XSbs_accelerator_32_Get_vectorSize,
+    .Set_epsilon = XSbs_accelerator_32_Set_epsilon,
+    .Get_epsilon = XSbs_accelerator_32_Get_epsilon,
 
-    .InterruptGlobalEnable = XSbs_update_32_InterruptGlobalEnable,
-    .InterruptGlobalDisable = XSbs_update_32_InterruptGlobalDisable,
-    .InterruptEnable = XSbs_update_32_InterruptEnable,
-    .InterruptDisable = XSbs_update_32_InterruptDisable,
-    .InterruptClear = XSbs_update_32_InterruptClear,
-    .InterruptGetEnabled = XSbs_update_32_InterruptGetEnabled,
-    .InterruptGetStatus = XSbs_update_32_InterruptGetStatus
+    .InterruptGlobalEnable = XSbs_accelerator_32_InterruptGlobalEnable,
+    .InterruptGlobalDisable = XSbs_accelerator_32_InterruptGlobalDisable,
+    .InterruptEnable = XSbs_accelerator_32_InterruptEnable,
+    .InterruptDisable = XSbs_accelerator_32_InterruptDisable,
+    .InterruptClear = XSbs_accelerator_32_InterruptClear,
+    .InterruptGetEnabled = XSbs_accelerator_32_InterruptGetEnabled,
+    .InterruptGetStatus = XSbs_accelerator_32_InterruptGetStatus
   };
 
 
 void * Sbs_update_64_new (void)
 {
-  return malloc (sizeof(XSbs_update_64));
+  return malloc (sizeof(XSbs_accelerator_64));
 }
 
 SbsHardwareDriver SbsHardwareDriver_update64 = {
     .new = Sbs_update_64_new,
     .delete = Sbs_driver_delete,
 
-    .Initialize = XSbs_update_64_Initialize,
-    .Start = XSbs_update_64_Start,
-    .IsDone = XSbs_update_64_IsDone,
-    .IsIdle = XSbs_update_64_IsIdle,
-    .IsReady = XSbs_update_64_IsReady,
-    .EnableAutoRestart = XSbs_update_64_EnableAutoRestart,
-    .DisableAutoRestart = XSbs_update_64_DisableAutoRestart,
+    .Initialize = XSbs_accelerator_64_Initialize,
+    .Start = XSbs_accelerator_64_Start,
+    .IsDone = XSbs_accelerator_64_IsDone,
+    .IsIdle = XSbs_accelerator_64_IsIdle,
+    .IsReady = XSbs_accelerator_64_IsReady,
+    .EnableAutoRestart = XSbs_accelerator_64_EnableAutoRestart,
+    .DisableAutoRestart = XSbs_accelerator_64_DisableAutoRestart,
 
-    .Set_layerSize = XSbs_update_64_Set_layerSize,
-    .Get_layerSize = XSbs_update_64_Get_layerSize,
-    .Set_kernelSize = XSbs_update_64_Set_kernelSize,
-    .Get_kernelSize = XSbs_update_64_Get_kernelSize,
-    .Set_vectorSize = XSbs_update_64_Set_vectorSize,
-    .Get_vectorSize = XSbs_update_64_Get_vectorSize,
-    .Set_epsilon = XSbs_update_64_Set_epsilon,
-    .Get_epsilon = XSbs_update_64_Get_epsilon,
+    .Set_mode = XSbs_accelerator_64_Set_mode,
+    .Get_mode = XSbs_accelerator_64_Get_mode,
+    .Set_layerSize = XSbs_accelerator_64_Set_layerSize,
+    .Get_layerSize = XSbs_accelerator_64_Get_layerSize,
+    .Set_kernelSize = XSbs_accelerator_64_Set_kernelSize,
+    .Get_kernelSize = XSbs_accelerator_64_Get_kernelSize,
+    .Set_vectorSize = XSbs_accelerator_64_Set_vectorSize,
+    .Get_vectorSize = XSbs_accelerator_64_Get_vectorSize,
+    .Set_epsilon = XSbs_accelerator_64_Set_epsilon,
+    .Get_epsilon = XSbs_accelerator_64_Get_epsilon,
 
-    .InterruptGlobalEnable = XSbs_update_64_InterruptGlobalEnable,
-    .InterruptGlobalDisable = XSbs_update_64_InterruptGlobalDisable,
-    .InterruptEnable = XSbs_update_64_InterruptEnable,
-    .InterruptDisable = XSbs_update_64_InterruptDisable,
-    .InterruptClear = XSbs_update_64_InterruptClear,
-    .InterruptGetEnabled = XSbs_update_64_InterruptGetEnabled,
-    .InterruptGetStatus = XSbs_update_64_InterruptGetStatus
+    .InterruptGlobalEnable = XSbs_accelerator_64_InterruptGlobalEnable,
+    .InterruptGlobalDisable = XSbs_accelerator_64_InterruptGlobalDisable,
+    .InterruptEnable = XSbs_accelerator_64_InterruptEnable,
+    .InterruptDisable = XSbs_accelerator_64_InterruptDisable,
+    .InterruptClear = XSbs_accelerator_64_InterruptClear,
+    .InterruptGetEnabled = XSbs_accelerator_64_InterruptGetEnabled,
+    .InterruptGetStatus = XSbs_accelerator_64_InterruptGetStatus
   };
+
+//void * Sbs_update_64_p_new (void)
+//{
+//  return malloc (sizeof(XSbs_accelerator_64_p));
+//}
+//
+//SbsHardwareDriver SbsHardwareDriver_update64p = {
+//    .new = Sbs_update_64_p_new,
+//    .delete = Sbs_driver_delete,
+//
+//    .Initialize = XSbs_accelerator_64_p_Initialize,
+//    .Start = XSbs_accelerator_64_p_Start,
+//    .IsDone = XSbs_accelerator_64_p_IsDone,
+//    .IsIdle = XSbs_accelerator_64_p_IsIdle,
+//    .IsReady = XSbs_accelerator_64_p_IsReady,
+//    .EnableAutoRestart = XSbs_accelerator_64_p_EnableAutoRestart,
+//    .DisableAutoRestart = XSbs_accelerator_64_p_DisableAutoRestart,
+//
+//    .Set_layerSize = XSbs_accelerator_64_p_Set_layerSize,
+//    .Get_layerSize = XSbs_accelerator_64_p_Get_layerSize,
+//    .Set_kernelSize = XSbs_accelerator_64_p_Set_kernelSize,
+//    .Get_kernelSize = XSbs_accelerator_64_p_Get_kernelSize,
+//    .Set_vectorSize = XSbs_accelerator_64_p_Set_vectorSize,
+//    .Get_vectorSize = XSbs_accelerator_64_p_Get_vectorSize,
+//    .Set_epsilon = XSbs_accelerator_64_p_Set_epsilon,
+//    .Get_epsilon = XSbs_accelerator_64_p_Get_epsilon,
+//
+//    .InterruptGlobalEnable = XSbs_accelerator_64_p_InterruptGlobalEnable,
+//    .InterruptGlobalDisable = XSbs_accelerator_64_p_InterruptGlobalDisable,
+//    .InterruptEnable = XSbs_accelerator_64_p_InterruptEnable,
+//    .InterruptDisable = XSbs_accelerator_64_p_InterruptDisable,
+//    .InterruptClear = XSbs_accelerator_64_p_InterruptClear,
+//    .InterruptGetEnabled = XSbs_accelerator_64_p_InterruptGetEnabled,
+//    .InterruptGetStatus = XSbs_accelerator_64_p_InterruptGetStatus
+//  };
 
 typedef struct
 {
@@ -301,6 +348,13 @@ typedef struct
   MemoryBlock         ddrMem;
 } SbSHardwareConfig;
 
+typedef enum
+{
+  SPIKE_MODE  = 0,
+  UPDATE_MODE = 1,
+  ACCELERATOR_MODES
+} AcceleratorMode;
+
 typedef struct
 {
   uint32_t      layerSize;
@@ -310,9 +364,9 @@ typedef struct
 
   size_t        vectorBufferSize;
 
-  size_t        txBufferSize;
-  uint32_t *    rxBuffer;
-  size_t        rxBufferSize;
+  size_t        txBufferSize[ACCELERATOR_MODES];
+  uint32_t *    rxBuffer[ACCELERATOR_MODES];
+  size_t        rxBufferSize[ACCELERATOR_MODES];
 } SbsAcceleratorProfie;
 
 typedef struct
@@ -728,9 +782,9 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardwareDriver_update32,
     .layerType     = CONVOLUTION_LAYER_32N,
     .vectorSize    = 32,
-    .hwDeviceID    = XPAR_XSBS_UPDATE_32_0_DEVICE_ID,
+    .hwDeviceID    = XPAR_XSBS_ACCELERATOR_32_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_1_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_32_0_VEC_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_32_0_VEC_ID,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_1_VEC_ID,
     .ddrMem =
@@ -742,9 +796,9 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardwareDriver_update32,
     .layerType     = POOLING_LAYER_32N,
     .vectorSize    = 32,
-    .hwDeviceID    = XPAR_XSBS_UPDATE_32_1_DEVICE_ID,
+    .hwDeviceID    = XPAR_XSBS_ACCELERATOR_32_1_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_2_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_32_1_VEC_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_32_1_VEC_ID,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_2_VEC_ID,
     .ddrMem =
@@ -756,9 +810,9 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardwareDriver_update64,
     .layerType     = CONVOLUTION_LAYER_64N,
     .vectorSize    = 64,
-    .hwDeviceID    = XPAR_XSBS_UPDATE_64_0_DEVICE_ID,
+    .hwDeviceID    = XPAR_SBS_ACCELERATOR_64_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_3_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_64_0_VEC_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_64_0_VEC_ID,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_3_VEC_ID,
     .ddrMem =
@@ -770,9 +824,9 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardwareDriver_update64,
     .layerType     = POOLING_LAYER_64N,
     .vectorSize    = 64,
-    .hwDeviceID    = XPAR_XSBS_UPDATE_64_1_DEVICE_ID,
+    .hwDeviceID    = XPAR_SBS_ACCELERATOR_64_1_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_4_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_64_1_VEC_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_64_1_VEC_ID,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_4_VEC_ID,
     .ddrMem =
@@ -784,9 +838,9 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardwareDriver_update1024,
     .layerType     = FULLY_CONNECTED_LAYER_1024N,
     .vectorSize    = 1024,
-    .hwDeviceID    = XPAR_XSBS_UPDATE_1024_0_DEVICE_ID,
+    .hwDeviceID    = XPAR_SBS_ACCELERATOR_1024_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_5_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_1024_0_VEC_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_1024_0_VEC_ID,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_5_VEC_ID,
     .ddrMem =
@@ -798,9 +852,9 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardwareDriver_update10,
     .layerType     = OUTPUT_LAYER_10N,
     .vectorSize    = 10,
-    .hwDeviceID    = XPAR_XSBS_UPDATE_10_0_DEVICE_ID,
+    .hwDeviceID    = XPAR_SBS_ACCELERATOR_10_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_6_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_10_0_VEC_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_10_0_VEC_ID,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_6_VEC_ID,
     .ddrMem =
@@ -1139,7 +1193,8 @@ void Accelerator_delete (SbSUpdateAccelerator ** accelerator)
 }
 
 static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
-                              SbsAcceleratorProfie * profile)
+                              SbsAcceleratorProfie * profile,
+                              AcceleratorMode mode)
 {
   ASSERT (accelerator != NULL);
   ASSERT (profile != NULL);
@@ -1147,7 +1202,7 @@ static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
   ASSERT (accelerator->hardwareConfig != NULL);
   ASSERT (accelerator->hardwareConfig->hwDriver != NULL);
 
-  if (accelerator->profile != profile)
+  //if (accelerator->profile != profile)
   {
     accelerator->profile = profile;
 
@@ -1166,15 +1221,18 @@ static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
     if (accelerator->hardwareConfig->hwDriver->Set_epsilon)
       accelerator->hardwareConfig->hwDriver->Set_epsilon (
           accelerator->updateHardware, *(uint32_t*) &profile->epsilon);
-
-    /************************** Tx Setup **************************/
-    ASSERT(accelerator->txBuffer != NULL);
-    accelerator->txBufferSize = profile->txBufferSize;
-
-    /************************** Rx Setup **************************/
-    accelerator->rxBuffer = profile->rxBuffer;
-    accelerator->rxBufferSize = profile->rxBufferSize;
   }
+
+  ASSERT(accelerator->txBuffer != NULL);
+
+  /************************** Rx Setup **************************/
+
+  accelerator->rxBuffer = profile->rxBuffer[mode];
+  accelerator->rxBufferSize = profile->rxBufferSize[mode];
+
+  /************************** Tx Setup **************************/
+
+  accelerator->txBufferSize = profile->txBufferSize[mode];
 
   accelerator->txBufferIndex = 0;
 
@@ -1707,12 +1765,8 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
 
     if (layerType == INPUT_LAYER_50N)
     {
+      profile->kernelSize = 0;
       profile->epsilon = 0;
-      profile->txBufferSize = profile->layerSize
-          * (sizeof(Random32) + profile->vectorSize * state_matrix->data_type_size);
-
-      profile->rxBuffer = spike_matrix->data;
-      profile->rxBufferSize = Multivector_dataSize(spike_matrix);
     }
     else
     {
@@ -1721,14 +1775,17 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
 
       profile->kernelSize = kernel_size * kernel_size;
       profile->epsilon = epsilon;
-      profile->txBufferSize = profile->layerSize
-      * (sizeof(Random32) + (profile->kernelSize + 1) * profile->vectorSize * state_matrix->data_type_size);
-
-      profile->rxBuffer = state_matrix->data;
-      profile->rxBufferSize = Multivector_dataSize(state_matrix) + Multivector_dataSize(spike_matrix);
-
-      ASSERT(state_matrix->data + Multivector_dataSize(state_matrix) == spike_matrix->data);
     }
+
+    profile->rxBuffer[SPIKE_MODE] = spike_matrix->data;
+    profile->rxBufferSize[SPIKE_MODE] = Multivector_dataSize(spike_matrix);
+    profile->txBufferSize[SPIKE_MODE] = profile->layerSize
+        * (sizeof(Random32) + profile->vectorSize * state_matrix->data_type_size);
+
+    profile->rxBuffer[UPDATE_MODE] = state_matrix->data;
+    profile->rxBufferSize[UPDATE_MODE] = Multivector_dataSize(state_matrix);
+    profile->txBufferSize[UPDATE_MODE] = profile->layerSize
+    * (sizeof(Random32) + (1 + profile->kernelSize) * profile->vectorSize * state_matrix->data_type_size);
 
     profile->vectorBufferSize = profile->vectorSize * state_matrix->data_type_size;
   }
@@ -2303,7 +2360,7 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
       partition = layer->partition_array[i];
       partition_state_matrix = partition->state_matrix;
 
-      Accelerator_setup(partition->accelerator, &partition->profile);
+      Accelerator_setup(partition->accelerator, &partition->profile, SPIKE_MODE);
 
       for (row = partition->y_pos, partition_row = 0;
           partition_row < partition_state_matrix->dimension_size[0];
@@ -2376,7 +2433,8 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
       update_partition_state_matrix = update_partition->state_matrix;
 
       Accelerator_setup (update_partition_accelerator,
-                         &update_partition->profile);
+                         &update_partition->profile,
+                         UPDATE_MODE);
 
       /* Update begins */
       for (update_partition_row = 0;
@@ -2388,6 +2446,7 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
             layer_column < layer_columns;
              kernel_column_pos += kernel_stride, layer_column ++)
         {
+          while (!spike_layer->partition_array[0]->accelerator->rxDone);
           state_vector = Multivector_2DAccess(update_partition_state_matrix, update_partition_row, layer_column);
 
           Accelerator_giveStateVector (update_partition_accelerator, state_vector);
@@ -2534,15 +2593,22 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
     /************************ Begins Update cycle **************************/
     while (cycles--)
     {
+//      for (i = 0; i <= network->size - 1; i ++)
+//      {
+//        if (i == 0)
+//          SbsBaseLayer_generateSpikes (network->layer_array[i]);
+//
+//        layer_wait = i;
+//        if (0 < i) SbsBaseLayer_update (network->layer_array[i],
+//                                        network->layer_array[i - 1]);
+//      }
+
       for (i = 0; i <= network->size - 1; i ++)
-      {
-        if (i == 0)
           SbsBaseLayer_generateSpikes (network->layer_array[i]);
 
-        layer_wait = i;
-        if (0 < i) SbsBaseLayer_update (network->layer_array[i],
-                                        network->layer_array[i - 1]);
-      }
+      for (i = 1; i <= network->size - 1; i++)
+        SbsBaseLayer_update (network->layer_array[i],
+                             network->layer_array[i - 1]);
 
       if (cycles % 100 == 0)
         printf ("%d %f S\n", cycles, Timer_getCurrentTime (timer));

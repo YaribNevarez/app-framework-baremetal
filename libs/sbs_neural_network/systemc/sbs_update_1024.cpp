@@ -32,7 +32,7 @@ void sbs_update_1024 (hls::stream<StreamChannel> &stream_in,
   static int i;
   static int batch;
   static StreamChannel channel;
-  static int spike_matrix[MAX_SPIKE_MATRIX_SIZE];
+  static int spikeID;
   static int spike_index;
   static float state_vector[MAX_VECTOR_SIZE];
   static float temp_data[MAX_VECTOR_SIZE];
@@ -41,29 +41,37 @@ void sbs_update_1024 (hls::stream<StreamChannel> &stream_in,
 
   static FloatToInt float_to_int;
 
-  float reverse_epsilon = 1.0f / (1.0f + epsilon);
+  static float reverse_epsilon;
   static float sum;
+  static bool gen_spike_flag;
 
 #pragma HLS pipeline
   channel = stream_in.read ();
   float_to_int.u32 = channel.data;
   random_value = float_to_int.f32;
 
+  gen_spike_flag = true;
   sum = 0.0f;
   for (i = 0; i < vectorSize; i++)
   {
 #pragma HLS pipeline
     float_to_int.u32 = stream_in.read ().data;
     state_vector[i] = float_to_int.f32;
-    if (sum < random_value)
+    if (gen_spike_flag)
     {
       sum += state_vector[i];
       if (random_value <= sum || (i == vectorSize - 1))
       {
-        spike_matrix[0] = i;
+        spikeID = i;
+        gen_spike_flag = false;
+        channel.data = i;
+        channel.last = 1;
+        stream_out.write (channel);
       }
     }
   }
+
+  reverse_epsilon = 1.0f / (1.0f + epsilon);
 
   for (batch = 0; batch < kernelSize; batch++)
   {
@@ -96,8 +104,4 @@ void sbs_update_1024 (hls::stream<StreamChannel> &stream_in,
     channel.data = float_to_int.u32;
     stream_out.write (channel);
   }
-
-  channel.data = spike_matrix[0];
-  channel.last = 1;
-  stream_out.write (channel);
 }
