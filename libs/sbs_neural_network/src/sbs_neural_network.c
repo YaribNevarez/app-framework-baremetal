@@ -37,7 +37,7 @@
 #include "xsbs_update_32.h"
 #include "xsbs_update_64.h"
 
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 
@@ -976,7 +976,6 @@ static void Accelerator_rxInterruptHandler (void * data)
   {
     ((SbSUpdateAccelerator *) data)->txDone = 1;
     ((SbSUpdateAccelerator *) data)->rxDone = 1;
-    printf("[%dR%c]\n", ((SbSUpdateAccelerator *) data)->hardwareConfig->layerType,((SbSUpdateAccelerator *) data)->mode?'U':'S');
   }
 }
 
@@ -994,7 +993,6 @@ static void Accelerator_hardwareInterruptHandler (void * data)
   status = accelerator->hardwareConfig->hwDriver->InterruptGetStatus(accelerator->updateHardware);
   accelerator->hardwareConfig->hwDriver->InterruptClear(accelerator->updateHardware, status);
   accelerator->acceleratorReady = status & 1;
-  printf("[%dA%c]\n", ((SbSUpdateAccelerator *) data)->hardwareConfig->layerType,((SbSUpdateAccelerator *) data)->mode?'U':'S');
 }
 
 static int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
@@ -1146,8 +1144,8 @@ static int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
   }
 
 
-//  hardware_config->hwDriver->InterruptGlobalEnable (accelerator->updateHardware);
-//  hardware_config->hwDriver->InterruptEnable (accelerator->updateHardware, 1);
+  hardware_config->hwDriver->InterruptGlobalEnable (accelerator->updateHardware);
+  hardware_config->hwDriver->InterruptEnable (accelerator->updateHardware, 1);
   accelerator->acceleratorReady = 1;
   accelerator->rxDone = 1;
   accelerator->txDone = 1;
@@ -1794,9 +1792,8 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
     profile->txBuffer[SPIKE_MODE] = MemoryBlock_alloc(state_matrix->memory_def_parent, profile->txBufferSize[SPIKE_MODE]);
     ASSERT (profile->txBuffer[SPIKE_MODE] != NULL);
 
-
     profile->rxBuffer[UPDATE_MODE] = state_matrix->data;
-    profile->rxBufferSize[UPDATE_MODE] = Multivector_dataSize(state_matrix);
+    profile->rxBufferSize[UPDATE_MODE] = Multivector_dataSize(state_matrix)+ Multivector_dataSize(spike_matrix);
     profile->txBufferSize[UPDATE_MODE] = profile->layerSize
     * (sizeof(Random32) + (1 + profile->kernelSize) * profile->vectorSize * state_matrix->data_type_size);
     profile->txBuffer[UPDATE_MODE] = MemoryBlock_alloc(state_matrix->memory_def_parent, profile->txBufferSize[UPDATE_MODE]);
@@ -2376,7 +2373,7 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
       partition = layer->partition_array[i];
       partition_state_matrix = partition->state_matrix;
 
-      //Accelerator_setup(partition->accelerator, &partition->profile, SPIKE_MODE);
+      Accelerator_setup(partition->accelerator, &partition->profile, SPIKE_MODE);
 
       for (row = partition->y_pos, partition_row = 0;
           partition_row < partition_state_matrix->dimension_size[0];
@@ -2387,15 +2384,15 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
           state_vector = Multivector_2DAccess (partition_state_matrix,
                                                partition_row,
                                                column);
-          *((SpikeID*)Multivector_2DAccess (layer->partition_array[i]->spike_matrix,
-                                                         partition_row,
-                                                         column)) =
-          SbsStateVector_generateSpike(state_vector, layer->vector_size);
-          //Accelerator_giveStateVector (partition->accelerator, state_vector);
+//          *((SpikeID*)Multivector_2DAccess (layer->partition_array[i]->spike_matrix,
+//                                                         partition_row,
+//                                                         column)) =
+//          SbsStateVector_generateSpike(state_vector, layer->vector_size);
+          Accelerator_giveStateVector (partition->accelerator, state_vector);
         }
       }
 
-      //Accelerator_start (partition->accelerator);
+      Accelerator_start (partition->accelerator);
     }
   }
 }
@@ -2618,17 +2615,16 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
 //        if (0 < i) SbsBaseLayer_update (network->layer_array[i],
 //                                        network->layer_array[i - 1]);
 //      }
-      for (i = 0; i <= network->size - 1; i++)
-      {
-        layer_wait = i;
-        printf ("[%ds]\n",i);
-        SbsBaseLayer_generateSpikes (network->layer_array[i]);
-      }
+//      for (i = 0; i <= network->size - 1; i++)
+//      {
+//        layer_wait = i;
+//        SbsBaseLayer_generateSpikes (network->layer_array[i]);
+//      }
+      SbsBaseLayer_generateSpikes (network->layer_array[0]);
 
       for (i = 1; i <= network->size - 1; i++)
       {
         layer_wait = i;
-        printf ("[%du]\n",i);
         SbsBaseLayer_update (network->layer_array[i],
                              network->layer_array[i - 1]);
       }
