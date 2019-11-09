@@ -39,7 +39,6 @@ void sbs_update_10 (hls::stream<StreamChannel> &stream_in,
   float reverse_epsilon = 1.0f / (1.0f + epsilon);
   static float sum;
 
-#pragma HLS pipeline
   channel = stream_in.read ();
   float_to_int.u32 = channel.data;
   random_value = float_to_int.f32;
@@ -47,7 +46,6 @@ void sbs_update_10 (hls::stream<StreamChannel> &stream_in,
   sum = 0.0f;
   for (i = 0; i < VECTOR_SIZE; i++)
   {
-#pragma HLS pipeline
     float_to_int.u32 = stream_in.read ().data;
     state_vector[i] = float_to_int.f32;
     if (sum < random_value)
@@ -64,7 +62,6 @@ void sbs_update_10 (hls::stream<StreamChannel> &stream_in,
   sum = 0.0f;
   for (i = 0; i < VECTOR_SIZE; i++)
   {
-#pragma HLS pipeline
     float_to_int.u32 = stream_in.read ().data;
     temp_data[i] = state_vector[i] * float_to_int.f32;
     sum += temp_data[i];
@@ -75,7 +72,6 @@ void sbs_update_10 (hls::stream<StreamChannel> &stream_in,
     epsion_over_sum = epsilon / sum;
     for (i = 0; i < VECTOR_SIZE; i++)
     {
-#pragma HLS pipeline
       state_vector[i] = reverse_epsilon
           * (state_vector[i] + temp_data[i] * epsion_over_sum);
     }
@@ -83,7 +79,6 @@ void sbs_update_10 (hls::stream<StreamChannel> &stream_in,
 
   for (i = 0; i < VECTOR_SIZE; i++)
   {
-#pragma HLS pipeline
     float_to_int.f32 = state_vector[i];
     channel.data = float_to_int.u32;
     stream_out.write (channel);

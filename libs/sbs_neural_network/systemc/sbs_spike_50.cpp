@@ -29,7 +29,6 @@ void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
   static FloatToInt float_to_int;
 
   static float sum;
-  static bool gen_spike_flag;
 
   for (ip_index = 0; ip_index < layerSize; ip_index++)
   {
@@ -46,12 +45,11 @@ void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
     random_value = float_to_int.f32;
 
     sum = 0.0f;
-    gen_spike_flag = true;
     for (spikeID = 0; spikeID < vectorSize; spikeID++)
     {
 #pragma HLS pipeline
       float_to_int.u32 = stream_in.read ().data;
-      if (gen_spike_flag)
+      if (sum < random_value)
       {
         sum += float_to_int.f32;
         if (random_value <= sum || (spikeID == vectorSize - 1))
@@ -59,7 +57,6 @@ void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
           channel.last = (ip_index == layerSize - 1);
           channel.data = spikeID;
           stream_out.write(channel);
-          gen_spike_flag = false;
         }
       }
     }
