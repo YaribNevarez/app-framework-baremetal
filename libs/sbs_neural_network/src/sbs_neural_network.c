@@ -464,7 +464,9 @@ typedef enum
   M32BIT_12_12_ID,
   M32BIT_2_2_32_32_ID,
   M32BIT_8_8_64_ID,
+  M32BIT_4_8_64_ID,
   M32BIT_8_8_ID,
+  M32BIT_4_8_ID,
   M32BIT_5_5_32_64_ID,
   M32BIT_2_4_64_ID,
   M32BIT_4_4_64_ID,
@@ -488,7 +490,9 @@ typedef uint32_t M32Bit_12_12_32[6][12][32];
 typedef uint32_t M32Bit_12_12[12][12];
 typedef uint32_t M32Bit_2_2_32_32[2][2][32][32];
 typedef uint32_t M32Bit_8_8_64[8][8][64];
+typedef uint32_t M32Bit_4_8_64[4][8][64];
 typedef uint32_t M32Bit_8_8[8][8];
+typedef uint32_t M32Bit_4_8[8][8];
 typedef uint32_t M32Bit_5_5_32_64[5][5][32][64];
 typedef uint32_t M32Bit_2_4_64[2][4][64];
 typedef uint32_t M32Bit_4_4_64[4][4][64];
@@ -571,10 +575,22 @@ M32BitFormat M32BitFormat_list[] =
         .dimension_size = {8, 8, 64, 0}
     },
     {
+        .type_id = M32BIT_4_8_64_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 3,
+        .dimension_size = {4, 8, 64, 0}
+    },
+    {
         .type_id = M32BIT_8_8_ID,
         .data_type_size = sizeof(uint32_t),
         .dimensionality = 2,
         .dimension_size = {8, 8, 0, 0}
+    },
+    {
+        .type_id = M32BIT_4_8_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 2,
+        .dimension_size = {4, 8, 0, 0}
     },
     {
         .type_id = M32BIT_5_5_32_64_ID,
@@ -693,6 +709,7 @@ typedef struct
   uint16_t              kernel_stride;
   WeightShift           weight_shift;
   float                 epsilon;
+  Multivector *         spike_matrix;
 } SbsBaseLayer;
 
 typedef struct
@@ -872,6 +889,22 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
       .blockIndex  = 0
     }
   },
+  ////////////
+  { .hwDriver      = &SbsHardwareDriver_update64_p,
+    .layerType     = CONVOLUTION_LAYER_64N,
+    .vectorSize    = 64,
+    .hwDeviceID    = XPAR_SBS_UPDATE_64_P_1_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXIDMA_7_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_64_P_1_VEC_ID,
+    .dmaTxIntVecID = 0,
+    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_7_VEC_ID,
+    .ddrMem =
+    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x20000000,
+      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x23FFFFFF,
+      .blockIndex  = 0
+    }
+  },
+  ////////////
   { .hwDriver      = &SbsHardwareDriver_update64,
     .layerType     = POOLING_LAYER_64N,
     .vectorSize    = 64,
@@ -920,20 +953,27 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
 
 static SbSUpdateAccelerator *  SbSUpdateAccelerator_list[NUM_ACCELERATOR_INSTANCES] = {NULL};
 
-static SbSUpdateAccelerator * SbSUpdateAccelerator_getFromList (SbsLayerType layerType)
+static int SbSUpdateAccelerator_getGroupFromList (SbsLayerType layerType, SbSUpdateAccelerator ** sub_list, int sub_list_size)
 {
-  SbSUpdateAccelerator * accelerator = NULL;
+  int sub_list_count = 0;
   int i;
-  ASSERT (SbSUpdateAccelerator_list != NULL);
-  for (i = 0; accelerator == NULL && i < NUM_ACCELERATOR_INSTANCES; i++)
+
+  ASSERT (sub_list != NULL);
+  ASSERT (0 < sub_list_size);
+
+  ASSERT(SbSUpdateAccelerator_list != NULL);
+  for (i = 0; sub_list_count < sub_list_size && i < NUM_ACCELERATOR_INSTANCES;
+      i++)
   {
     ASSERT(SbSUpdateAccelerator_list[i] != NULL);
     ASSERT(SbSUpdateAccelerator_list[i]->hardwareConfig != NULL);
     if (SbSUpdateAccelerator_list[i] != NULL
         && SbSUpdateAccelerator_list[i]->hardwareConfig->layerType == layerType)
-      accelerator = SbSUpdateAccelerator_list[i];
+    {
+      sub_list[sub_list_count ++] = SbSUpdateAccelerator_list[i];
+    }
   }
-  return accelerator;
+  return sub_list_count;
 }
 
 
@@ -1253,26 +1293,48 @@ static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
   ASSERT (accelerator->hardwareConfig != NULL);
   ASSERT (accelerator->hardwareConfig->hwDriver != NULL);
 
-  accelerator->profile = profile;
+  if (accelerator->profile != profile)
+  {
+    accelerator->profile = profile;
+
+    if (accelerator->hardwareConfig->hwDriver->Set_layerSize)
+      accelerator->hardwareConfig->hwDriver->Set_layerSize (
+          accelerator->updateHardware, accelerator->profile->layerSize);
+
+    if (accelerator->hardwareConfig->hwDriver->Set_kernelSize)
+      accelerator->hardwareConfig->hwDriver->Set_kernelSize (
+          accelerator->updateHardware, accelerator->profile->kernelSize);
+
+    if (accelerator->hardwareConfig->hwDriver->Set_vectorSize)
+      accelerator->hardwareConfig->hwDriver->Set_vectorSize (
+          accelerator->updateHardware, accelerator->profile->vectorSize);
+
+    if (accelerator->hardwareConfig->hwDriver->Set_epsilon)
+      accelerator->hardwareConfig->hwDriver->Set_epsilon (
+          accelerator->updateHardware,
+          *(uint32_t*) &accelerator->profile->epsilon);
+  }
+
+  accelerator->mode = mode;
+  if (accelerator->hardwareConfig->hwDriver->Set_mode)
+    accelerator->hardwareConfig->hwDriver->Set_mode (
+        accelerator->updateHardware, accelerator->mode);
 
   /************************** Rx Setup **************************/
-
   accelerator->rxBuffer = profile->rxBuffer[mode];
   accelerator->rxBufferSize = profile->rxBufferSize[mode];
-
-  ASSERT (accelerator->hardwareConfig->ddrMem.baseAddress <= accelerator->rxBuffer);
-  ASSERT (accelerator->rxBuffer + accelerator->rxBufferSize <= accelerator->hardwareConfig->ddrMem.highAddress);
 
   /************************** Tx Setup **************************/
   accelerator->txBuffer = profile->txBuffer[mode];
   accelerator->txBufferSize = profile->txBufferSize[mode];
 
+  ASSERT (accelerator->hardwareConfig->ddrMem.baseAddress <= accelerator->rxBuffer);
+  ASSERT (accelerator->rxBuffer + accelerator->rxBufferSize <= accelerator->hardwareConfig->ddrMem.highAddress);
+
   ASSERT (accelerator->hardwareConfig->ddrMem.baseAddress <= accelerator->txBuffer);
   ASSERT (accelerator->txBuffer + accelerator->txBufferSize <= accelerator->hardwareConfig->ddrMem.highAddress);
 
   accelerator->txBufferIndex = 0;
-
-  accelerator->mode = mode;
 
 #ifdef DEBUG
   accelerator->txStateCounter = 0;
@@ -1358,23 +1420,6 @@ static void Accelerator_start(SbSUpdateAccelerator * accelerator)
   while (accelerator->txDone == 0) tx_wait[layer_wait][accelerator->hardwareConfig->dmaDeviceID] ++;
   while (accelerator->rxDone == 0) rx_wait[layer_wait][accelerator->hardwareConfig->dmaDeviceID] ++;
   while (accelerator->acceleratorReady == 0) accelerator_wait[layer_wait][accelerator->hardwareConfig->dmaDeviceID] ++;
-
-  if (accelerator->hardwareConfig->hwDriver->Set_layerSize) accelerator->hardwareConfig->hwDriver->Set_layerSize (
-      accelerator->updateHardware, accelerator->profile->layerSize);
-
-  if (accelerator->hardwareConfig->hwDriver->Set_kernelSize) accelerator->hardwareConfig->hwDriver->Set_kernelSize (
-      accelerator->updateHardware, accelerator->profile->kernelSize);
-
-  if (accelerator->hardwareConfig->hwDriver->Set_vectorSize) accelerator->hardwareConfig->hwDriver->Set_vectorSize (
-      accelerator->updateHardware, accelerator->profile->vectorSize);
-
-  if (accelerator->hardwareConfig->hwDriver->Set_epsilon) accelerator->hardwareConfig->hwDriver->Set_epsilon (
-      accelerator->updateHardware, *(uint32_t*) &accelerator->profile->epsilon);
-
-  if (accelerator->hardwareConfig->hwDriver->Set_mode) accelerator->hardwareConfig->hwDriver->Set_mode (
-      accelerator->updateHardware, accelerator->mode);
-
-  //while (XAxiDma_Busy(&accelerator->dmaHardware,XAXIDMA_DMA_TO_DEVICE));
 
   accelerator->hardwareConfig->hwDriver->Start (accelerator->updateHardware);
   accelerator->acceleratorReady = 0;
@@ -1631,6 +1676,8 @@ void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uin
       return &(*(M32Bit_2_2_32_32*) multivector->data)[row][column];
     case M32BIT_8_8_64_ID:
       return &(*(M32Bit_8_8_64*) multivector->data)[row][column];
+    case M32BIT_4_8_64_ID:
+      return &(*(M32Bit_4_8_64*) multivector->data)[row][column];
     case M32BIT_8_8_ID:
       return &(*(M32Bit_8_8*) multivector->data)[row][column];
     case M32BIT_5_5_32_64_ID:
@@ -2036,11 +2083,10 @@ static SbsLayer * SbsBaseLayer_new(SbsLayerType layer_type,
     layer->vtbl = _SbsLayer;
 
     layer->layer_type = layer_type;
-    layer->num_partitions = 1;
+    layer->num_partitions = SbSUpdateAccelerator_getGroupFromList (
+        layer_type, accelerator_group, NUM_ACCELERATOR_INSTANCES);
 
-    accelerator_group[0] = SbSUpdateAccelerator_getFromList(layer_type);
-
-    ASSERT (accelerator_group[0] != NULL);
+    ASSERT (0 < layer->num_partitions);
 
     layer->partition_array = (SbsLayerPartition **)
         malloc (layer->num_partitions * sizeof(SbsLayerPartition *));
@@ -2083,6 +2129,21 @@ static SbsLayer * SbsBaseLayer_new(SbsLayerType layer_type,
       }
     }
 
+    if (1 < layer->num_partitions)
+    { /* Instantiate spike_matrix */
+      Multivector * spike_matrix = Multivector_new (NULL, sizeof(SpikeID), 2, rows, columns);
+
+      ASSERT(spike_matrix != NULL);
+      ASSERT(spike_matrix->dimensionality == 2);
+      ASSERT(spike_matrix->data != NULL);
+      ASSERT(spike_matrix->dimension_size[0] == rows);
+      ASSERT(spike_matrix->dimension_size[1] == columns);
+
+      layer->spike_matrix = spike_matrix;
+    }
+    else
+      layer->spike_matrix = layer->partition_array[0]->spike_matrix;
+
     /* Assign parameters */
     layer->rows    = rows;
     layer->columns = columns;
@@ -2102,6 +2163,9 @@ static void SbsBaseLayer_delete(SbsLayer ** layer_ptr)
   if ((layer_ptr != NULL) && (*layer_ptr != NULL))
   {
     SbsBaseLayer ** layer = (SbsBaseLayer **) layer_ptr;
+
+    if ((*layer)->spike_matrix->memory_def_parent == NULL)
+      Multivector_delete(&((*layer)->spike_matrix));
 
     if ((*layer)->partition_array != NULL)
       while ((*layer)->num_partitions)
@@ -2447,7 +2511,7 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
     uint16_t             update_partition_row;
 
     SpikeID   spikeID       = 0;
-    Multivector * spike_layer_spike_matrix = spike_layer->partition_array[0]->spike_matrix;
+    Multivector * spike_layer_spike_matrix = spike_layer->spike_matrix;
 
 
     Weight * weight_vector  = NULL;
@@ -2473,6 +2537,16 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
 
     WeightShift layer_weight_shift = layer->weight_shift;
 
+    //while (!spike_layer->partition_array[0]->accelerator->rxDone || !spike_layer->partition_array[0]->accelerator->acceleratorReady);
+
+    if (spike_layer->num_partitions == 2)
+    {
+//      while (!spike_layer->partition_array[0]->accelerator->rxDone);
+//      while (!spike_layer->partition_array[1]->accelerator->rxDone);
+      memmove(spike_layer->spike_matrix->data, spike_layer->partition_array[0]->spike_matrix->data, 128);
+      memmove(spike_layer->spike_matrix->data + 128, spike_layer->partition_array[1]->spike_matrix->data, 128);
+    }
+
     kernel_row_pos = 0, layer_row = 0;
     for (i = 0; i < layer->num_partitions; i ++)
     {
@@ -2497,7 +2571,6 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
             layer_column < layer_columns;
              kernel_column_pos += kernel_stride, layer_column ++)
         {
-          //while (!spike_layer->partition_array[0]->accelerator->rxDone || !spike_layer->partition_array[0]->accelerator->acceleratorReady);
           state_vector = Multivector_2DAccess(update_partition_state_matrix, update_partition_row, layer_column);
 
           Accelerator_giveStateVector (update_partition_accelerator, state_vector);
@@ -2754,12 +2827,14 @@ static size_t SbsBaseNetwork_getMemorySize (SbsNetwork * network)
   for (int l = 0; l < ((SbsBaseNetwork *) network)->size; l++)
     for (int a = 0; a < 4; a++)
     {
-      if (accelerator_wait[l][a]) printf ("accelerator_wait[%d][%d] = %d\n", l, a,
-                                          accelerator_wait[l][a]);
+      if (accelerator_wait[l][a])
+        printf ("accelerator_wait[%d][%d] = %d\n", l, a, accelerator_wait[l][a]);
 
-      if (tx_wait[l][a]) printf ("tx_wait[%d][%d] = %d\n", l, a, tx_wait[l][a]);
+      if (tx_wait[l][a])
+        printf ("tx_wait[%d][%d] = %d\n", l, a, tx_wait[l][a]);
 
-      if (rx_wait[l][a]) printf ("rx_wait[%d][%d] = %d\n", l, a, rx_wait[l][a]);
+      if (rx_wait[l][a])
+        printf ("rx_wait[%d][%d] = %d\n", l, a, rx_wait[l][a]);
     }
 
   //MultivectorArray_print ();

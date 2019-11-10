@@ -92,7 +92,7 @@ void sbs_update_64_p (hls::stream<StreamChannel> &stream_in,
       if (NEGLECTING_CONSTANT < sum)
       {
         epsion_over_sum = epsilon / sum;
-        for (i = 0; i < MAX_VECTOR_SIZE; i++)
+        for (i = 0; i < vectorSize; i++)
         {
 #pragma HLS pipeline
           state_vector[i] = reverse_epsilon
