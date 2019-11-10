@@ -36,6 +36,7 @@
 #include "xsbs_update_1024.h"
 #include "xsbs_update_32.h"
 #include "xsbs_update_64.h"
+#include "xsbs_update_64_p.h"
 
 //#define DEBUG
 
@@ -305,6 +306,43 @@ SbsHardwareDriver SbsHardwareDriver_update64 = {
     .InterruptClear = XSbs_update_64_InterruptClear,
     .InterruptGetEnabled = XSbs_update_64_InterruptGetEnabled,
     .InterruptGetStatus = XSbs_update_64_InterruptGetStatus
+  };
+
+void * Sbs_update_64_p_new (void)
+{
+  return malloc (sizeof(XSbs_update_64_p));
+}
+
+SbsHardwareDriver SbsHardwareDriver_update64_p = {
+    .new = Sbs_update_64_new,
+    .delete = Sbs_driver_delete,
+
+    .Initialize = XSbs_update_64_p_Initialize,
+    .Start = XSbs_update_64_p_Start,
+    .IsDone = XSbs_update_64_p_IsDone,
+    .IsIdle = XSbs_update_64_p_IsIdle,
+    .IsReady = XSbs_update_64_p_IsReady,
+    .EnableAutoRestart = XSbs_update_64_p_EnableAutoRestart,
+    .DisableAutoRestart = XSbs_update_64_p_DisableAutoRestart,
+
+    .Set_mode = NULL,
+    .Get_mode = NULL,
+    .Set_layerSize = XSbs_update_64_p_Set_layerSize,
+    .Get_layerSize = XSbs_update_64_p_Get_layerSize,
+    .Set_kernelSize = XSbs_update_64_p_Set_kernelSize,
+    .Get_kernelSize = XSbs_update_64_p_Get_kernelSize,
+    .Set_vectorSize = XSbs_update_64_p_Set_vectorSize,
+    .Get_vectorSize = XSbs_update_64_p_Get_vectorSize,
+    .Set_epsilon = XSbs_update_64_p_Set_epsilon,
+    .Get_epsilon = XSbs_update_64_p_Get_epsilon,
+
+    .InterruptGlobalEnable = XSbs_update_64_p_InterruptGlobalEnable,
+    .InterruptGlobalDisable = XSbs_update_64_p_InterruptGlobalDisable,
+    .InterruptEnable = XSbs_update_64_p_InterruptEnable,
+    .InterruptDisable = XSbs_update_64_p_InterruptDisable,
+    .InterruptClear = XSbs_update_64_p_InterruptClear,
+    .InterruptGetEnabled = XSbs_update_64_p_InterruptGetEnabled,
+    .InterruptGetStatus = XSbs_update_64_p_InterruptGetStatus
   };
 
 //void * Sbs_accelerator_new (void)
@@ -820,12 +858,12 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
       .blockIndex  = 0
     }
   },
-  { .hwDriver      = &SbsHardwareDriver_update64,
+  { .hwDriver      = &SbsHardwareDriver_update64_p,
     .layerType     = CONVOLUTION_LAYER_64N,
     .vectorSize    = 64,
-    .hwDeviceID    = XPAR_XSBS_UPDATE_64_0_DEVICE_ID,
+    .hwDeviceID    = XPAR_SBS_UPDATE_64_P_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_3_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_64_0_VEC_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_64_P_0_VEC_ID,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_3_VEC_ID,
     .ddrMem =
@@ -837,9 +875,9 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardwareDriver_update64,
     .layerType     = POOLING_LAYER_64N,
     .vectorSize    = 64,
-    .hwDeviceID    = XPAR_XSBS_UPDATE_64_1_DEVICE_ID,
+    .hwDeviceID    = XPAR_XSBS_UPDATE_64_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_4_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_64_1_VEC_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_64_0_VEC_ID,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_4_VEC_ID,
     .ddrMem =

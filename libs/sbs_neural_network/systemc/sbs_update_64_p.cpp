@@ -10,8 +10,6 @@ typedef union
 
 #define MAX_VECTOR_SIZE       (64)
 #define MAX_SPIKE_MATRIX_SIZE (8*8)
-#define KERNEL_SIZE           (5*5)
-
 
 #define NEGLECTING_CONSTANT   ((float)1e-20)
 
@@ -32,8 +30,6 @@ void sbs_update_64_p (hls::stream<StreamChannel> &stream_in,
 #pragma HLS INTERFACE s_axilite port=vectorSize  bundle=CRTL_BUS
 #pragma HLS INTERFACE s_axilite port=epsilon     bundle=CRTL_BUS
 #pragma HLS INTERFACE s_axilite port=return      bundle=CRTL_BUS
-
-#pragma HLS pipeline
 
   static int ip_index;
   static int i;
@@ -56,13 +52,11 @@ void sbs_update_64_p (hls::stream<StreamChannel> &stream_in,
 #pragma HLS pipeline
     if (ip_index == 0)
     {
-#pragma HLS pipeline
       channel = stream_in.read ();
       float_to_int.u32 = channel.data;
     }
     else
     {
-#pragma HLS pipeline
       float_to_int.u32 = stream_in.read ().data;
     }
     random_value = float_to_int.f32;
@@ -75,11 +69,9 @@ void sbs_update_64_p (hls::stream<StreamChannel> &stream_in,
       state_vector[i] = float_to_int.f32;
       if (sum < random_value)
       {
-#pragma HLS pipeline
         sum += state_vector[i];
         if (random_value <= sum || (i == vectorSize - 1))
         {
-#pragma HLS pipeline
           spike_matrix[ip_index] = i;
         }
       }
@@ -99,7 +91,6 @@ void sbs_update_64_p (hls::stream<StreamChannel> &stream_in,
 
       if (NEGLECTING_CONSTANT < sum)
       {
-#pragma HLS pipeline
         epsion_over_sum = epsilon / sum;
         for (i = 0; i < MAX_VECTOR_SIZE; i++)
         {
