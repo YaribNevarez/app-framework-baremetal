@@ -2726,7 +2726,9 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
   if ((network != NULL) && (3 <= network->size)
       && (network->layer_array != NULL) && (cycles != 0))
   {
-    int i;
+    int i;               // 0  1  2  3  4  5  6
+    int spike_schedule[] = {0, 4, 5, 2, 1, 3};
+    int update_schedule[] =   {3, 1, 2, 4, 5, 6};
     SbsBaseLayer_cacheFlush(network->layer_array[0]);
     /* Initialize all layers except the input-layer */
     for (i = 0; i < network->size; i++)
@@ -2750,17 +2752,30 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
 //                                        network->layer_array[i - 1]);
 //      }
 
-      for (i = 0; i <= network->size - 1; i++)
+//      for (i = 0; i <= network->size - 1; i++)
+//      {
+//        layer_wait = i;
+//        SbsBaseLayer_generateSpikes (network->layer_array[i]);
+//      }
+//
+//      for (i = 1; i <= network->size - 1; i++)
+//      {
+//        layer_wait = i;
+//        SbsBaseLayer_update (network->layer_array[i],
+//                             network->layer_array[i - 1]);
+//      }
+
+      for (i = 0; i < sizeof(update_schedule) / sizeof(int); i++)
       {
-        layer_wait = i;
-        SbsBaseLayer_generateSpikes (network->layer_array[i]);
+        layer_wait = spike_schedule[i];
+        SbsBaseLayer_generateSpikes (network->layer_array[spike_schedule[i]]);
       }
 
-      for (i = 1; i <= network->size - 1; i++)
+      for (i = 0; i < sizeof(update_schedule) / sizeof(int); i++)
       {
-        layer_wait = i;
-        SbsBaseLayer_update (network->layer_array[i],
-                             network->layer_array[i - 1]);
+        layer_wait = update_schedule[i];
+        SbsBaseLayer_update (network->layer_array[update_schedule[i]],
+                             network->layer_array[update_schedule[i] - 1]);
       }
 
       if (cycles % 100 == 0)
