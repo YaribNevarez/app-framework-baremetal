@@ -38,7 +38,7 @@
 #include "xsbs_update_64.h"
 #include "xsbs_update_64_p.h"
 
-//#define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 
@@ -473,6 +473,7 @@ typedef uint32_t  SpikeID;
 typedef enum
 {
   M32BIT_TYPE_BEGIN = 0,
+  M_DOUBLE_1024_10_ID,
   M32BIT_24_24_ID,
   M32BIT_24_24_50_ID,
   M32BIT_24_24_32_ID,
@@ -497,8 +498,9 @@ typedef enum
   M32BIT_1_1_10_ID,
   M32BIT_1_1_1024_10_ID,
   M32BIT_TYPE_END = (unsigned)-1
-} M32BitTypeID;
+} MatrixTypeID;
 
+typedef double   MDouble_1024_10[1024][10];
 typedef uint32_t M32Bit_24_24[24][24];
 typedef uint32_t M32Bit_24_24_50[24][24][50];
 typedef uint32_t M32Bit_12_24_32[12][24][32];
@@ -525,7 +527,7 @@ typedef uint32_t M32Bit_1_1_1024_10[1][1][1024][10];
 
 typedef struct
 {
-  M32BitTypeID type_id;
+  MatrixTypeID type_id;
   uint8_t data_type_size;
   uint8_t dimensionality;
   uint16_t dimension_size[4];
@@ -533,6 +535,12 @@ typedef struct
 
 M32BitFormat M32BitFormat_list[] =
 {
+    {
+        .type_id = M_DOUBLE_1024_10_ID,
+        .data_type_size = sizeof(double),
+        .dimensionality = 2,
+        .dimension_size = {1024, 10, 0, 0}
+    },
     {
         .type_id = M32BIT_24_24_ID,
         .data_type_size = sizeof(uint32_t),
@@ -675,10 +683,10 @@ M32BitFormat M32BitFormat_list[] =
 
 const unsigned M32BitFormat_list_length = (sizeof(M32BitFormat_list) / sizeof (M32BitFormat));
 
-M32BitTypeID M32BitFormat_getTypeID(uint8_t data_type_size, uint8_t dimensionality, uint16_t * dimension_size)
+MatrixTypeID M32BitFormat_getTypeID(uint8_t data_type_size, uint8_t dimensionality, uint16_t * dimension_size)
 {
   int i;
-  M32BitTypeID type_ID = M32BIT_TYPE_END;
+  MatrixTypeID type_ID = M32BIT_TYPE_END;
 
   for (i = 0; i < M32BitFormat_list_length; i++)
     if (M32BitFormat_list[i].data_type_size == data_type_size
@@ -698,7 +706,7 @@ typedef struct
   MemoryBlock * memory_def_parent;
 
   void *   data;
-  M32BitTypeID type_id;
+  MatrixTypeID type_id;
   uint8_t  data_type_size;
   uint8_t  dimensionality;
   uint16_t dimension_size[1]; /*[0] = rows, [1] = columns, [2] = neurons... [n] = N*/
@@ -717,6 +725,22 @@ typedef struct
 
 typedef struct
 {
+  SbsLearningRule learning_rule;
+
+  Multivector *   omega_matrix;
+  Multivector *   a_matrix;
+  Multivector *   b_matrix;
+  float *         reco_vector;
+  float *         delat_vector;
+  double *        b_vector;
+
+  unsigned int    number_of_patterns;
+  unsigned int    current_pattern;
+  double          gama;
+} SbsLearningData;
+
+typedef struct
+{
   SbsLayer              vtbl;
   SbsLayerType          layer_type;
   SbsLayerPartition **  partition_array;
@@ -729,6 +753,7 @@ typedef struct
   WeightShift           weight_shift;
   float                 epsilon;
   Multivector *         spike_matrix;
+  SbsLearningData       learning_data;
 } SbsBaseLayer;
 
 typedef struct
@@ -913,10 +938,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .layerType     = CONVOLUTION_LAYER_64N,
     .vectorSize    = 64,
     .hwDeviceID    = XPAR_SBS_UPDATE_64_P_1_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_7_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXIDMA_4_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_64_P_1_VEC_ID,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_7_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_4_VEC_ID,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x20000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x23FFFFFF,
@@ -928,10 +953,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .layerType     = POOLING_LAYER_64N,
     .vectorSize    = 64,
     .hwDeviceID    = XPAR_XSBS_UPDATE_64_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_4_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXIDMA_5_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_64_0_VEC_ID,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_4_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_5_VEC_ID,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x34000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x37FFFFFF,
@@ -942,10 +967,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .layerType     = FULLY_CONNECTED_LAYER_1024N,
     .vectorSize    = 1024,
     .hwDeviceID    = XPAR_XSBS_UPDATE_1024_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_5_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXIDMA_6_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_1024_0_VEC_ID,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_5_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_6_VEC_ID,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x38000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3BFFFFFF,
@@ -956,10 +981,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .layerType     = OUTPUT_LAYER_10N,
     .vectorSize    = 10,
     .hwDeviceID    = XPAR_XSBS_UPDATE_10_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_6_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXIDMA_7_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_10_0_VEC_ID,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_6_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_7_VEC_ID,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3C000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3FFFFFFF,
@@ -1170,24 +1195,26 @@ static int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
     return XST_FAILURE;
   }
 
-  if (hardware_config->dmaTxIntVecID)
-  {
-    XScuGic_SetPriorityTriggerType (&ScuGic,
-                                    hardware_config->dmaTxIntVecID,
-                                    0xA0, 0x3);
-    status = XScuGic_Connect (&ScuGic, hardware_config->dmaTxIntVecID,
-                              (Xil_InterruptHandler) Accelerator_txInterruptHandler,
-                              accelerator);
-    ASSERT (status == XST_SUCCESS);
-    if (status != XST_SUCCESS)
-    {
-      return status;
-    }
-    XScuGic_Enable (&ScuGic, hardware_config->dmaTxIntVecID);
-  }
-
   if (hardware_config->dmaRxIntVecID)
   {
+    /***************************************************************************/
+    /*
+     * set timer0 interrupt target cpu
+     */
+
+    int intr_target_reg = XScuGic_DistReadReg(
+        &ScuGic,
+        XSCUGIC_SPI_TARGET_OFFSET_CALC(hardware_config->dmaRxIntVecID));
+
+    intr_target_reg &= ~(0x000000FF << ((hardware_config->dmaRxIntVecID % 4) * 8));
+    intr_target_reg |=  (0x00000001 << ((hardware_config->dmaRxIntVecID % 4) * 8)); //CPU0 ack Timer0
+  //intr_target_reg |=  (0x00000002 << ((XPAR_FABRIC_AXI_TIMER_0_INTERRUPT_INTR%4)*8));//CPU1 ack Timer0
+
+    XScuGic_DistWriteReg(
+        &ScuGic,
+        XSCUGIC_SPI_TARGET_OFFSET_CALC(hardware_config->dmaRxIntVecID),
+        intr_target_reg);
+    /***************************************************************************/
     XScuGic_SetPriorityTriggerType (&ScuGic,
                                     hardware_config->dmaRxIntVecID,
                                     0xA0, 0x3);
@@ -1203,8 +1230,64 @@ static int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
     XScuGic_Enable (&ScuGic, hardware_config->dmaRxIntVecID);
   }
 
+  if (hardware_config->dmaTxIntVecID)
+  {
+    /***************************************************************************/
+    /*
+     * set timer0 interrupt target cpu
+     */
+
+    int intr_target_reg = XScuGic_DistReadReg(
+        &ScuGic,
+        XSCUGIC_SPI_TARGET_OFFSET_CALC(hardware_config->dmaTxIntVecID));
+
+    intr_target_reg &= ~(0x000000FF
+        << ((hardware_config->dmaTxIntVecID % 4) * 8));
+    intr_target_reg |= (0x00000001
+        << ((hardware_config->dmaTxIntVecID % 4) * 8)); //CPU0 ack Timer0
+  //intr_target_reg |=  (0x00000002 << ((XPAR_FABRIC_AXI_TIMER_0_INTERRUPT_INTR%4)*8));//CPU1 ack Timer0
+
+    XScuGic_DistWriteReg(
+        &ScuGic,
+        XSCUGIC_SPI_TARGET_OFFSET_CALC(hardware_config->dmaTxIntVecID),
+        intr_target_reg);
+    /***************************************************************************/
+    XScuGic_SetPriorityTriggerType (&ScuGic,
+                                    hardware_config->dmaTxIntVecID,
+                                    0xA0, 0x3);
+    status = XScuGic_Connect (&ScuGic, hardware_config->dmaTxIntVecID,
+                              (Xil_InterruptHandler) Accelerator_txInterruptHandler,
+                              accelerator);
+    ASSERT (status == XST_SUCCESS);
+    if (status != XST_SUCCESS)
+    {
+      return status;
+    }
+    XScuGic_Enable (&ScuGic, hardware_config->dmaTxIntVecID);
+  }
+
   if (hardware_config->hwIntVecID)
   {
+    /***************************************************************************/
+    /*
+     * set timer0 interrupt target cpu
+     */
+
+    int intr_target_reg = XScuGic_DistReadReg(
+        &ScuGic,
+        XSCUGIC_SPI_TARGET_OFFSET_CALC(hardware_config->hwIntVecID));
+
+    intr_target_reg &= ~(0x000000FF
+        << ((hardware_config->hwIntVecID % 4) * 8));
+    intr_target_reg |= (0x00000001
+        << ((hardware_config->hwIntVecID % 4) * 8)); //CPU0 ack Timer0
+  //intr_target_reg |=  (0x00000002 << ((XPAR_FABRIC_AXI_TIMER_0_INTERRUPT_INTR%4)*8));//CPU1 ack Timer0
+
+    XScuGic_DistWriteReg(
+        &ScuGic,
+        XSCUGIC_SPI_TARGET_OFFSET_CALC(hardware_config->hwIntVecID),
+        intr_target_reg);
+    /***************************************************************************/
     XScuGic_SetPriorityTriggerType (&ScuGic,
                                     hardware_config->hwIntVecID,
                                     0xA0, 0x3);
@@ -1686,6 +1769,8 @@ void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uin
 
   switch (multivector->type_id)
   {
+    case M_DOUBLE_1024_10_ID:
+      return &(*(MDouble_1024_10*) multivector->data)[row][column];
     case M32BIT_24_24_ID:
       return &(*(M32Bit_24_24*) multivector->data)[row][column];
     case M32BIT_24_24_50_ID:
@@ -2288,6 +2373,84 @@ static void SbsBaseLayer_setEpsilon(SbsLayer * layer, float epsilon)
     ((SbsBaseLayer *)layer)->epsilon = epsilon;
 }
 
+static void SbsBaseLayer_setLearningRule (SbsLayer * layer_ptr, SbsLearningRule rule, double gama, int number_of_patterns)
+{
+  ASSERT (layer_ptr != NULL);
+  ASSERT (0 < number_of_patterns);
+  if ((layer_ptr != NULL) && (0 < number_of_patterns))
+  {
+    SbsBaseLayer * layer = (SbsBaseLayer *) layer_ptr;
+    layer->learning_data.learning_rule = rule;
+    layer->learning_data.number_of_patterns = number_of_patterns;
+    layer->learning_data.current_pattern = 0;
+    int w_spikes = layer->partition_array[0]->weight_matrix->dimension_size[2];
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    if (layer->learning_data.omega_matrix != NULL)
+      Multivector_delete(&layer->learning_data.omega_matrix);
+
+    layer->learning_data.omega_matrix = Multivector_new(NULL, sizeof(double), 2, w_spikes, layer->vector_size);
+
+    ASSERT (layer->learning_data.omega_matrix != NULL);
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    if (layer->learning_data.a_matrix != NULL)
+      Multivector_delete(&layer->learning_data.a_matrix);
+
+    layer->learning_data.a_matrix = Multivector_new(NULL, sizeof(double), 2, w_spikes, layer->vector_size);
+
+    ASSERT (layer->learning_data.a_matrix != NULL);
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    if (layer->learning_data.b_matrix != NULL)
+      Multivector_delete(&layer->learning_data.b_matrix);
+
+    layer->learning_data.b_matrix = Multivector_new(NULL, sizeof(double), 2, w_spikes, layer->vector_size);
+
+    ASSERT (layer->learning_data.b_matrix != NULL);
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    if (layer->learning_data.reco_vector != NULL)
+      free(layer->learning_data.reco_vector);
+
+    layer->learning_data.reco_vector = malloc(sizeof(float) * w_spikes);
+
+    ASSERT (layer->learning_data.reco_vector != NULL);
+
+    memset (layer->learning_data.reco_vector, 0, sizeof(float) * w_spikes);
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    if (layer->learning_data.delat_vector != NULL)
+      free(layer->learning_data.delat_vector);
+
+    layer->learning_data.delat_vector = malloc(sizeof(float) * w_spikes);
+
+    ASSERT (layer->learning_data.delat_vector != NULL);
+
+    memset (layer->learning_data.delat_vector, 0, sizeof(float) * w_spikes);
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    if (layer->learning_data.b_vector != NULL)
+      free(layer->learning_data.b_vector);
+
+    layer->learning_data.b_vector = malloc(sizeof(double) * layer->vector_size);
+
+    ASSERT (layer->learning_data.b_vector != NULL);
+
+    memset (layer->learning_data.b_vector, 0, sizeof(double) * layer->vector_size);
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    layer->learning_data.gama = gama;
+  }
+}
+
 inline static SpikeID SbsStateVector_generateSpike (NeuronState * state_vector, uint16_t size) __attribute__((always_inline));
 
 inline static SpikeID SbsStateVector_generateSpike (NeuronState * state_vector, uint16_t size)
@@ -2752,11 +2915,166 @@ static void SbsBaseNetwork_loadInput(SbsNetwork * network_ptr, char * file_name)
   }
 }
 
+#define SBS_LEARNING_THRESHOLD 0.00001
+
+static void SbsBaseLayer_learningDeltaMSE(SbsBaseLayer * layer, SbsBaseLayer * prev_layer)
+{
+  ASSERT (layer != NULL);
+  ASSERT (layer->partition_array != NULL);
+  ASSERT (layer->partition_array[0] != NULL);
+  ASSERT (layer->partition_array[0]->state_matrix != NULL);
+  ASSERT (layer->partition_array[0]->state_matrix->dimensionality == 3);
+  ASSERT (layer->partition_array[0]->weight_matrix != NULL);
+  ASSERT (layer->partition_array[0]->weight_matrix->dimensionality == 4);
+
+
+  ASSERT (prev_layer != NULL);
+  ASSERT (prev_layer->partition_array != NULL);
+  ASSERT (prev_layer->partition_array[0] != NULL);
+  ASSERT (prev_layer->partition_array[0]->state_matrix != NULL);
+  ASSERT (prev_layer->partition_array[0]->state_matrix->dimensionality == 3);
+
+  if (layer != NULL && prev_layer != NULL)
+  {
+    Multivector * h_matrix = layer->partition_array[0]->state_matrix;
+    int h_neurons = h_matrix->dimension_size[2];
+
+    Multivector * w_matrix = layer->partition_array[0]->weight_matrix;
+    int w_rows = w_matrix->dimension_size[0];
+    int w_cols = w_matrix->dimension_size[1];
+    int w_spikes = w_matrix->dimension_size[2];
+    int w_neurons = w_matrix->dimension_size[3];
+
+    Multivector * prev_layer_h_matrix = prev_layer->partition_array[0]->state_matrix;
+
+    int row;
+    int col;
+    int spike;
+    int i;
+
+    Weight w;
+    NeuronState h;
+
+    float * reco_vector = layer->learning_data.reco_vector;
+    float * delat_vector = layer->learning_data.delat_vector;
+
+    ASSERT (reco_vector != NULL);
+    ASSERT (delat_vector != NULL);
+
+    ASSERT (w_neurons == h_neurons);
+
+    // 1)
+    for (row = 0; row < w_rows; row++)
+    {
+      for (col = 0; col < w_cols; col++)
+      {
+        for (spike = 0; spike < w_spikes; spike++)
+        {
+          reco_vector[spike] = 0;
+          for (i = 0; i < w_neurons; i++)
+          {
+            w = ((Weight *) Multivector_3DAccess (w_matrix, row, col, spike))[i];
+            h = *((NeuronState *) Multivector_3DAccess (h_matrix, 0, 0, i));
+
+            reco_vector[spike] += w * h;
+          }
+        }
+      }
+    }
+
+    // 2)
+    for (spike = 0; spike < w_spikes; spike++)
+    {
+      delat_vector[spike] = *(NeuronState*) Multivector_3DAccess (prev_layer_h_matrix, 0, 0, spike) - reco_vector[spike];
+    }
+
+    // 3)
+    for (spike = 0; spike < w_spikes; spike++)
+    {
+      for (i = 0; i < h_neurons; i++)
+      {
+        h = *((NeuronState *) Multivector_3DAccess (h_matrix, 0, 0, i));
+
+        *((double*) Multivector_2DAccess (layer->learning_data.omega_matrix, spike, i)) += ((double)delat_vector[spike]) * ((double)h);
+      }
+    }
+
+    layer->learning_data.current_pattern ++;
+
+    if (layer->learning_data.current_pattern == layer->learning_data.number_of_patterns)
+    {
+      double * b_vector = layer->learning_data.b_vector;
+      double temp;
+      ASSERT (b_vector != NULL);
+
+      layer->learning_data.current_pattern = 0;
+
+      temp = layer->learning_data.gama / layer->learning_data.number_of_patterns;
+
+      for (spike = 0; spike < w_spikes; spike++)
+      {
+        for (i = 0; i < h_neurons; i++)
+        {
+          *((double *) Multivector_2DAccess (layer->learning_data.b_matrix, spike, i)) =
+              ((Weight*) Multivector_3DAccess (w_matrix, 0, 0, spike))[i] +
+              temp * (*((double*) Multivector_2DAccess (layer->learning_data.omega_matrix, spike, i)));
+
+          if (*((double *) Multivector_2DAccess (layer->learning_data.b_matrix, spike, i)) < 0.0)
+          {
+            *((double *) Multivector_2DAccess (layer->learning_data.b_matrix, spike, i)) = SBS_LEARNING_THRESHOLD;
+          }
+        }
+      }
+
+      memset (b_vector, 0, sizeof(double) * w_neurons);
+      for (i = 0; i < w_neurons; i++)
+      {
+        for (spike = 0; spike < w_spikes; spike++)
+        {
+          b_vector[i] += *((double *) Multivector_2DAccess (layer->learning_data.b_matrix, spike, i));
+        }
+      }
+
+      for (i = 0; i < w_neurons; i++)
+      {
+        temp = 1.0 / b_vector[i];
+        for (spike = 0; spike < w_spikes; spike++)
+        {
+          ((Weight *) Multivector_3DAccess (w_matrix, 0, 0, spike))[i] =
+              temp * (*((double *) Multivector_2DAccess (layer->learning_data.b_matrix, spike, i)));
+
+          ASSERT(0.0 <= ((Weight * ) Multivector_3DAccess (w_matrix, 0, 0, spike))[i]
+                  && ((Weight * ) Multivector_3DAccess (w_matrix, 0, 0, spike))[i] <= 1.0);
+        }
+      }
+    }
+  }
+}
+
+static void SbsBaseLayer_learning(SbsBaseLayer * layer, SbsBaseLayer * prev_layer)
+{
+  ASSERT(layer != NULL);
+  if (layer != NULL)
+    switch (layer->learning_data.learning_rule)
+    {
+      case SBS_LEARNING_NONE:
+        break;
+      case SBS_LEARNING_DELTA_MSE:
+        SbsBaseLayer_learningDeltaMSE(layer, prev_layer);
+        break;
+      case SBS_LEARNING_RELATIVE_ENTROPY:
+        break;
+      default:
+        ASSERT (NULL);
+    }
+}
+
 static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles)
 {
   SbsBaseNetwork * network = (SbsBaseNetwork *) network_ptr;
   SbsBaseLayer * input_layer = NULL;
-  Timer * timer = Timer_new (1);
+  Timer * timer_update   = Timer_new (1);
+  Timer * timer_learning = Timer_new (1);
 
   ASSERT(network != NULL);
   ASSERT(3 <= network->size);
@@ -2778,9 +3096,10 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
 
     input_layer = network->layer_array[0];
 
-    printf ("Update cycles: %d \n", cycles);
-    Timer_start(timer);
-    /************************ Begins Update cycle **************************/
+    printf (" Update cycles: %d \n", cycles);
+
+    Timer_start(timer_update);
+    /************************ Begins Update cycle ****************************/
     while (cycles--)
     {
       SbsBaseLayer_generateSpikes (input_layer);
@@ -2792,8 +3111,23 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
                              network->layer_array[i - 1]);
       }
     }
+    /************************ Ends Update cycle ******************************/
+    Timer_takeSample(timer_update, 0, NULL);
+
+
+    Timer_start(timer_learning);
+    /************************ Begins Learning cycle **************************/
+    for (i = 1; i <= network->size - 1; i++)
+    {
+      SbsBaseLayer_learning (network->layer_array[i],
+                             network->layer_array[i - 1]);
+    }
+    /************************ Ends Learning cycle ****************************/
+    Timer_takeSample(timer_learning, 0, NULL);
+
+
     /************************ Ends Update cycle ****************************/
-    printf ("Time: %f S\n", Timer_getCurrentTime (timer));
+    printf ("\n Time:\n Update %f S\n Learning %f\n", Timer_getSample(timer_update, 0), Timer_getSample(timer_learning, 0));
 
     /************************ Get inferred output **************************/
     {
@@ -2872,7 +3206,7 @@ static void SbsBaseNetwork_getOutputVector(SbsNetwork * network_ptr,
   }
 }
 
-static size_t SbsBaseNetwork_getMemorySize (SbsNetwork * network)
+static void SbsBaseNetwork_printStatistics (SbsNetwork * network)
 {
   for (int l = 0; l < ((SbsBaseNetwork *) network)->size; l++)
     for (int a = 0; a < 4; a++)
@@ -2886,9 +3220,6 @@ static size_t SbsBaseNetwork_getMemorySize (SbsNetwork * network)
       if (rx_wait[l][a])
         printf ("rx_wait[%d][%d] = %d\n", l, a, rx_wait[l][a]);
     }
-
-  //MultivectorArray_print ();
-  return 0;
 }
 /*****************************************************************************/
 
@@ -2994,11 +3325,12 @@ SbsNetwork _SbsNetwork = {SbsBaseNetwork_new,
                           SbsBaseNetwork_getInferredOutput,
                           SbsBaseNetwork_getInputLabel,
                           SbsBaseNetwork_getOutputVector,
-                          SbsBaseNetwork_getMemorySize};
+                          SbsBaseNetwork_printStatistics};
 
 SbsLayer _SbsLayer = {SbsBaseLayer_new,
                       SbsBaseLayer_delete,
                       SbsBaseLayer_setEpsilon,
+                      SbsBaseLayer_setLearningRule,
                       SbsBaseLayer_giveWeights};
 
 SbsNew sbs_new = {SbsBaseNetwork_new,

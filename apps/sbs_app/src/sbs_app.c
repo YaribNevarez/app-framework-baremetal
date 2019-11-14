@@ -65,6 +65,8 @@ Result SnnApp_initialize(void)
 
 Result SnnApp_run (void)
 {
+  int pattern_index;
+  char input_pattern_file_name[128];
   NeuronState * output_vector;
   uint16_t output_vector_size;
   Result rc;
@@ -144,34 +146,45 @@ Result SnnApp_run (void)
   HY->giveWeights (HY, P_H5_HY);
   network->giveLayer (network, HY);
 
-  // Perform Network load pattern and update cycle
-  network->loadInput (network, SBS_INPUT_PATTERN_FILE);
+  HY->setLearningRule(HY, SBS_LEARNING_DELTA_MSE, 0.05, SBS_INPUT_PATTERN_LAST);
 
-  //for (;;)
+  for (int loop = 0;; loop ++)
   {
-    printf ("\n==========  Update Cycle ======================\n");
-
-    network->updateCycle (network, 1000);
-
-    printf ("\n==========  Results ===========================\n");
-
-    printf ("\n Output value: %d \n", network->getInferredOutput (network));
-    printf ("\n Label value: %d \n", network->getInputLabel (network));
-
-    network->getOutputVector (network, &output_vector, &output_vector_size);
-
-    printf ("\n==========  Output layer values ===============\n");
-
-    while (output_vector_size--)
+    for (pattern_index = SBS_INPUT_PATTERN_FIRST;
+         pattern_index <= SBS_INPUT_PATTERN_LAST;
+         pattern_index++)
     {
-      NeuronState h = output_vector[output_vector_size]; /* Ensure data alignment */
-      printf (" [ %d ] = %.6f\n", output_vector_size, h);
+      sprintf (input_pattern_file_name,
+               SBS_INPUT_PATTERN_FORMAT_NAME,
+               pattern_index);
+
+      printf ("\nInput pattern: %s\n", input_pattern_file_name);
+      network->loadInput (network, input_pattern_file_name);
+
+      printf ("\n==========  Update Cycle ======================\n");
+      printf ("\n Loop: %d\n", loop);
+
+      network->updateCycle (network, 1000);
+
+      printf ("\n==========  Results ===========================\n");
+
+      printf ("\n Output value: %d \n", network->getInferredOutput (network));
+      printf ("\n Label value: %d \n", network->getInputLabel (network));
+
+      network->getOutputVector (network, &output_vector, &output_vector_size);
+
+      printf ("\n==========  Output layer values ===============\n");
+
+      while (output_vector_size--)
+      {
+        NeuronState h = output_vector[output_vector_size]; /* Ensure data alignment */
+        printf (" [ %d ] = %.6f\n", output_vector_size, h);
+      }
+
+      printf ("\n===============================================\n");
+
+      network->printStatistics (network);
     }
-
-    printf ("\n===============================================\n");
-
-    printf ("\n Pool size: %d \n", network->getMemorySize (network));
-
   }
   network->delete (&network);
 

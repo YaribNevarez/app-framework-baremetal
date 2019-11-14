@@ -21,6 +21,13 @@ extern "C" {
 
 typedef enum
 {
+  SBS_LEARNING_NONE,
+  SBS_LEARNING_DELTA_MSE,
+  SBS_LEARNING_RELATIVE_ENTROPY
+} SbsLearningRule;
+
+typedef enum
+{
   ROW_SHIFT,
   COLUMN_SHIFT
 } WeightShift;
@@ -50,6 +57,7 @@ struct SbsLayer_VTable
                             WeightShift weight_shift);
   void       (*delete)     (SbsLayer ** layer);
   void       (*setEpsilon) (SbsLayer * layer, float epsilon);
+  void       (*setLearningRule) (SbsLayer * layer, SbsLearningRule rule, double gama, int number_of_patterns);
   void       (*giveWeights)(SbsLayer * layer, SbsWeightMatrix weight_matrix);
 };
 extern struct SbsLayer_VTable _SbsLayer;
@@ -67,7 +75,7 @@ struct SbsNetwork_VTable
   uint8_t      (*getInputLabel)     (SbsNetwork * network);
   /* Note: 'NeuronState ** output_vector' must use intermediate variables to support unaligned accesses in ARM architectures */
   void         (*getOutputVector)   (SbsNetwork * network, NeuronState ** output_vector, uint16_t * output_vector_size);
-  size_t       (*getMemorySize)     (SbsNetwork * network);
+  void         (*printStatistics)   (SbsNetwork * network);
 };
 extern struct SbsNetwork_VTable _SbsNetwork;
 
