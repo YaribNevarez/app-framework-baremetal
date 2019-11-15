@@ -863,7 +863,7 @@ static void * MemoryBlock_alloc(MemoryBlock * memory_def, size_t size)
   if (memory_def != NULL
       && ((memory_def->baseAddress + memory_def->blockIndex) + size <= memory_def->highAddress))
   {
-    ptr = (void *) memory_def->baseAddress + memory_def->blockIndex;
+    ptr = (void *) (memory_def->baseAddress + memory_def->blockIndex);
     memory_def->blockIndex += size;
   }
 
@@ -1435,11 +1435,11 @@ static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
   accelerator->txBuffer = profile->txBuffer[mode];
   accelerator->txBufferSize = profile->txBufferSize[mode];
 
-  ASSERT (accelerator->hardwareConfig->ddrMem.baseAddress <= accelerator->rxBuffer);
-  ASSERT (accelerator->rxBuffer + accelerator->rxBufferSize <= accelerator->hardwareConfig->ddrMem.highAddress);
+  ASSERT ((uint32_t)accelerator->hardwareConfig->ddrMem.baseAddress <= (uint32_t)accelerator->rxBuffer);
+  ASSERT ((uint32_t)accelerator->rxBuffer + (uint32_t)accelerator->rxBufferSize <= (uint32_t)accelerator->hardwareConfig->ddrMem.highAddress);
 
-  ASSERT (accelerator->hardwareConfig->ddrMem.baseAddress <= accelerator->txBuffer);
-  ASSERT (accelerator->txBuffer + accelerator->txBufferSize <= accelerator->hardwareConfig->ddrMem.highAddress);
+  ASSERT ((uint32_t)accelerator->hardwareConfig->ddrMem.baseAddress <= (uint32_t)accelerator->txBuffer);
+  ASSERT ((uint32_t)accelerator->txBuffer + (uint32_t)accelerator->txBufferSize <= (uint32_t)accelerator->hardwareConfig->ddrMem.highAddress);
 
   accelerator->txBufferCurrentPtr = accelerator->txBuffer;
 
@@ -1985,25 +1985,36 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
     profile->kernelSize = kernel_size * kernel_size;
     profile->epsilon = epsilon;
 
+    profile->vectorBufferSize = profile->vectorSize * state_matrix->data_type_size;
 
+    profile->memory_cmd[UPDATE_MODE] = memory_cmd;
+
+    /**************************** SPIKE_MODE *********************************/
     profile->rxBuffer[SPIKE_MODE] = spike_matrix->data;
     profile->rxBufferSize[SPIKE_MODE] = Multivector_dataSize(spike_matrix);
     profile->txBufferSize[SPIKE_MODE] = profile->layerSize
         * (sizeof(Random32) + profile->vectorSize * state_matrix->data_type_size);
+
+    ASSERT (profile->txBuffer[SPIKE_MODE] == NULL);
     profile->txBuffer[SPIKE_MODE] = MemoryBlock_alloc(state_matrix->memory_def_parent, profile->txBufferSize[SPIKE_MODE]);
     ASSERT (profile->txBuffer[SPIKE_MODE] != NULL);
 
+    /**************************** UPDATE_MODE ********************************/
     profile->rxBuffer[UPDATE_MODE] = state_matrix->data;
     profile->rxBufferSize[UPDATE_MODE] = Multivector_dataSize(state_matrix)+ Multivector_dataSize(spike_matrix);
     profile->txBufferSize[UPDATE_MODE] = profile->layerSize
     * (sizeof(Random32) + (1 + profile->kernelSize) * profile->vectorSize * state_matrix->data_type_size);
+
+    ASSERT (profile->txBuffer[UPDATE_MODE] == NULL);
     profile->txBuffer[UPDATE_MODE] = MemoryBlock_alloc(state_matrix->memory_def_parent, profile->txBufferSize[UPDATE_MODE]);
     ASSERT (profile->txBuffer[UPDATE_MODE] != NULL);
-
-    profile->vectorBufferSize = profile->vectorSize * state_matrix->data_type_size;
-
-    profile->memory_cmd[UPDATE_MODE] = memory_cmd;
   }
+}
+
+static uint8_t SbsAcceleratorProfie_isInitialized(SbsAcceleratorProfie * profile)
+{
+  return (profile->txBuffer[SPIKE_MODE] != NULL)
+      && (profile->txBuffer[UPDATE_MODE] != NULL);
 }
 
 /*****************************************************************************/
@@ -2116,31 +2127,23 @@ static void SbsLayerPartition_initialize (SbsLayerPartition * partition,
     uint16_t rows = state_matrix->dimension_size[0];
     uint16_t columns = state_matrix->dimension_size[1];
     uint16_t neurons = state_matrix->dimension_size[2];
-    NeuronState * state_matrix_data = state_matrix->data;
 
     uint16_t row;
     uint16_t column;
-    size_t current_row_index;
 
     if (layerType != INPUT_LAYER_50N)
       for (row = 0; row < rows; row++)
-      {
-        current_row_index = row * columns * neurons;
         for (column = 0; column < columns; column++)
-        {
-          SbsLayerPartition_initializeIP (
-              &state_matrix_data[current_row_index + column * neurons],
-              neurons);
-        }
-      }
+          SbsLayerPartition_initializeIP (Multivector_2DAccess(state_matrix, row, column), neurons);
 
-    SbsAcceleratorProfie_initialize (&partition->profile,
-                                     layerType,
-                                     state_matrix,
-                                     partition->spike_matrix,
-                                     kernel_size,
-                                     epsilon,
-                                     accelerator_memory_cmd);
+    if (!SbsAcceleratorProfie_isInitialized (&partition->profile))
+      SbsAcceleratorProfie_initialize (&partition->profile,
+                                       layerType,
+                                       state_matrix,
+                                       partition->spike_matrix,
+                                       kernel_size,
+                                       epsilon,
+                                       accelerator_memory_cmd);
   }
 }
 

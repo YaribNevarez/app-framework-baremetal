@@ -146,14 +146,18 @@ Result SnnApp_run (void)
   HY->giveWeights (HY, P_H5_HY);
   network->giveLayer (network, HY);
 
-  HY->setLearningRule(HY, SBS_LEARNING_DELTA_MSE, 0.05, SBS_INPUT_PATTERN_LAST);
+  HY->setLearningRule(HY, SBS_LEARNING_DELTA_MSE, 0.05, SBS_INPUT_PATTERN_LAST - SBS_INPUT_PATTERN_FIRST + 1);
 
   for (int loop = 0;; loop ++)
   {
+    printf ("\n===============================================\n");
+    printf ("\n Start loop: %d\n", loop);
+    printf ("\n===============================================\n");
     for (pattern_index = SBS_INPUT_PATTERN_FIRST;
          pattern_index <= SBS_INPUT_PATTERN_LAST;
          pattern_index++)
     {
+      printf ("\n===============================================\n");
       sprintf (input_pattern_file_name,
                SBS_INPUT_PATTERN_FORMAT_NAME,
                pattern_index);
@@ -161,19 +165,14 @@ Result SnnApp_run (void)
       printf ("\nInput pattern: %s\n", input_pattern_file_name);
       network->loadInput (network, input_pattern_file_name);
 
-      printf ("\n==========  Update Cycle ======================\n");
       printf ("\n Loop: %d\n", loop);
 
       network->updateCycle (network, 1000);
-
-      printf ("\n==========  Results ===========================\n");
 
       printf ("\n Output value: %d \n", network->getInferredOutput (network));
       printf ("\n Label value: %d \n", network->getInputLabel (network));
 
       network->getOutputVector (network, &output_vector, &output_vector_size);
-
-      printf ("\n==========  Output layer values ===============\n");
 
       while (output_vector_size--)
       {
@@ -181,10 +180,12 @@ Result SnnApp_run (void)
         printf (" [ %d ] = %.6f\n", output_vector_size, h);
       }
 
-      printf ("\n===============================================\n");
-
       network->printStatistics (network);
+      printf ("\n===============================================\n");
     }
+    printf ("\n===============================================\n");
+    printf ("\n End loop: %d\n", loop);
+    printf ("\n===============================================\n");
   }
   network->delete (&network);
 
