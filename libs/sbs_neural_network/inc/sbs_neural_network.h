@@ -57,7 +57,11 @@ struct SbsLayer_VTable
                             WeightShift weight_shift);
   void       (*delete)     (SbsLayer ** layer);
   void       (*setEpsilon) (SbsLayer * layer, float epsilon);
-  void       (*setLearningRule) (SbsLayer * layer, SbsLearningRule rule, double gama, int number_of_patterns);
+  void       (*setLearningRule) (SbsLayer * layer,
+                                 SbsLearningRule rule,
+                                 double gama,
+                                 int number_of_patterns,
+                                 char * save_file_name);
   void       (*giveWeights)(SbsLayer * layer, SbsWeightMatrix weight_matrix);
 };
 extern struct SbsLayer_VTable _SbsLayer;

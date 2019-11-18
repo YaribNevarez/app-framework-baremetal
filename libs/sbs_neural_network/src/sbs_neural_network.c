@@ -314,7 +314,7 @@ void * Sbs_update_64_p_new (void)
 }
 
 SbsHardwareDriver SbsHardwareDriver_update64_p = {
-    .new = Sbs_update_64_new,
+    .new = Sbs_update_64_p_new,
     .delete = Sbs_driver_delete,
 
     .Initialize = XSbs_update_64_p_Initialize,
@@ -734,6 +734,9 @@ typedef struct
   float *         delat_vector;
   double *        b_vector;
 
+  int             learning_label;
+  char *          save_file_name;
+
   unsigned int    number_of_patterns;
   unsigned int    current_pattern;
   double          gama;
@@ -834,7 +837,9 @@ void Timer_takeSample (Timer * timer, uint8_t index, double * sample)
   ASSERT(index < timer->num_samples);
   if ((timer != NULL) && (index < timer->num_samples))
   {
-    XTime_GetTime (&timer->sample_array[index]);
+    XTime time;
+    XTime_GetTime (&time);
+    timer->sample_array[index] = time;
     if (sample != NULL)
       *sample = ((double) (timer->sample_array[index] - timer->start_time))
           / ((double) COUNTS_PER_SECOND);
@@ -881,10 +886,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .layerType     = INPUT_LAYER_50N,
     .vectorSize    = 50,
     .hwDeviceID    = XPAR_XSBS_SPIKE_50_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_0_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_SPIKE_50_0_VEC_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_0_INPUT_LAYER_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_INPUT_LAYER_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_0_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_0_INPUT_LAYER_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x24000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x27FFFFFF,
@@ -895,10 +900,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .layerType     = CONVOLUTION_LAYER_32N,
     .vectorSize    = 32,
     .hwDeviceID    = XPAR_XSBS_UPDATE_32_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_1_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_32_0_VEC_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_1_H1_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_H1_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_1_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_1_H1_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x28000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2BFFFFFF,
@@ -909,10 +914,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .layerType     = POOLING_LAYER_32N,
     .vectorSize    = 32,
     .hwDeviceID    = XPAR_XSBS_UPDATE_32_1_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_2_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_32_1_VEC_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_2_H2_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_H2_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_2_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_2_H2_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2C000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2FFFFFFF,
@@ -923,10 +928,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .layerType     = CONVOLUTION_LAYER_64N,
     .vectorSize    = 64,
     .hwDeviceID    = XPAR_SBS_UPDATE_64_P_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_3_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_64_P_0_VEC_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_P0_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_64_P_0_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_3_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_P0_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x30000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x33FFFFFF,
@@ -938,10 +943,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .layerType     = CONVOLUTION_LAYER_64N,
     .vectorSize    = 64,
     .hwDeviceID    = XPAR_SBS_UPDATE_64_P_1_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_4_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_64_P_1_VEC_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_P1_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_64_P_1_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_4_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_P1_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x20000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x23FFFFFF,
@@ -953,10 +958,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .layerType     = POOLING_LAYER_64N,
     .vectorSize    = 64,
     .hwDeviceID    = XPAR_XSBS_UPDATE_64_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_5_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_64_0_VEC_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_H4_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_H4_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_5_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_H4_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x34000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x37FFFFFF,
@@ -967,10 +972,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .layerType     = FULLY_CONNECTED_LAYER_1024N,
     .vectorSize    = 1024,
     .hwDeviceID    = XPAR_XSBS_UPDATE_1024_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_6_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_1024_0_VEC_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_H5_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_H5_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_6_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_H5_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x38000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3BFFFFFF,
@@ -981,10 +986,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .layerType     = OUTPUT_LAYER_10N,
     .vectorSize    = 10,
     .hwDeviceID    = XPAR_XSBS_UPDATE_10_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_7_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_10_0_VEC_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_HY_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_10_0_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_7_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_HY_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3C000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3FFFFFFF,
@@ -1668,13 +1673,13 @@ static Multivector * Multivector_new(MemoryBlock * memory_def, uint8_t data_type
 //  }
 //}
 //
-//int str_len (char * str)
-//{
-//  int i = 0;
-//  while (str[i] != 0)
-//    i++;
-//  return i;
-//}
+int str_len (char * str)
+{
+  int i = 0;
+  while (str[i] != 0)
+    i++;
+  return i;
+}
 //
 //void MultivectorArray_print()
 //{
@@ -1692,72 +1697,77 @@ static Multivector * Multivector_new(MemoryBlock * memory_def, uint8_t data_type
 //  printf ("Multivector catalog:\n%s\n",text);
 //}
 
-//void * Multivector_2DAccess(Multivector * multivector, uint16_t row, uint16_t column)
-//{
-//  void * data = NULL;
-//  ASSERT (multivector != NULL);
-//  ASSERT (multivector->data != NULL);
-//  ASSERT (2 <= multivector->dimensionality);
-//  ASSERT (row <= multivector->dimension_size[0]);
-//  ASSERT (column <= multivector->dimension_size[1]);
-//
-//  MultivectorArray_add(multivector);
-//
-//  if ((multivector != NULL)
-//      && (multivector->data != NULL)
-//      && (2 <= multivector->dimensionality)
-//      && (row <= multivector->dimension_size[0])
-//      && (column <= multivector->dimension_size[1]))
-//  {
-//    uint16_t dimensionality = multivector->dimensionality;
-//    size_t data_size = multivector->data_type_size;
-//
-//    while (dimensionality-- > 2)
-//    {
-//      data_size *= multivector->dimension_size[dimensionality];
-//    }
-//
-//    data = multivector->data
-//        + (row * multivector->dimension_size[1] + column) * data_size;
-//  }
-//
-//  return data;
-//}
-//
-//void * Multivector_3DAccess (Multivector * multivector, uint16_t row, uint16_t column, uint16_t position)
-//{
-//  void * data = NULL;
-//  ASSERT (multivector != NULL);
-//  ASSERT (multivector->data != NULL);
-//  ASSERT (3 <= multivector->dimensionality);
-//  ASSERT (row <= multivector->dimension_size[0]);
-//  ASSERT (column <= multivector->dimension_size[1]);
-//  ASSERT (position <= multivector->dimension_size[2]);
-//
-//  MultivectorArray_add(multivector);
-//
-//  if ((multivector != NULL)
-//      && (multivector->data != NULL)
-//      && (3 <= multivector->dimensionality)
-//      && (row <= multivector->dimension_size[0])
-//      && (column <= multivector->dimension_size[1])
-//      && (position <= multivector->dimension_size[2]))
-//  {
-//    uint16_t dimensionality = multivector->dimensionality;
-//    size_t data_size = multivector->data_type_size;
-//
-//    while (dimensionality-- > 3)
-//    {
-//      data_size *= multivector->dimension_size[dimensionality];
-//    }
-//
-//    data = multivector->data
-//        + ((row * multivector->dimension_size[1] + column)
-//            * multivector->dimension_size[2] + position) * data_size;
-//  }
-//
-//  return data;
-//}
+#ifdef MULTIVECTOR_POINTER_ARITHMETICS_ACCESS
+
+void * Multivector_2DAccess(Multivector * multivector, uint16_t row, uint16_t column)
+{
+  void * data = NULL;
+  ASSERT (multivector != NULL);
+  ASSERT (multivector->data != NULL);
+  ASSERT (2 <= multivector->dimensionality);
+  ASSERT (row <= multivector->dimension_size[0]);
+  ASSERT (column <= multivector->dimension_size[1]);
+
+  MultivectorArray_add(multivector);
+
+  if ((multivector != NULL)
+      && (multivector->data != NULL)
+      && (2 <= multivector->dimensionality)
+      && (row <= multivector->dimension_size[0])
+      && (column <= multivector->dimension_size[1]))
+  {
+    uint16_t dimensionality = multivector->dimensionality;
+    size_t data_size = multivector->data_type_size;
+
+    while (dimensionality-- > 2)
+    {
+      data_size *= multivector->dimension_size[dimensionality];
+    }
+
+    data = multivector->data
+        + (row * multivector->dimension_size[1] + column) * data_size;
+  }
+
+  return data;
+}
+
+void * Multivector_3DAccess (Multivector * multivector, uint16_t row, uint16_t column, uint16_t position)
+{
+  void * data = NULL;
+  ASSERT (multivector != NULL);
+  ASSERT (multivector->data != NULL);
+  ASSERT (3 <= multivector->dimensionality);
+  ASSERT (row <= multivector->dimension_size[0]);
+  ASSERT (column <= multivector->dimension_size[1]);
+  ASSERT (position <= multivector->dimension_size[2]);
+
+  MultivectorArray_add(multivector);
+
+  if ((multivector != NULL)
+      && (multivector->data != NULL)
+      && (3 <= multivector->dimensionality)
+      && (row <= multivector->dimension_size[0])
+      && (column <= multivector->dimension_size[1])
+      && (position <= multivector->dimension_size[2]))
+  {
+    uint16_t dimensionality = multivector->dimensionality;
+    size_t data_size = multivector->data_type_size;
+
+    while (dimensionality-- > 3)
+    {
+      data_size *= multivector->dimension_size[dimensionality];
+    }
+
+    data = multivector->data
+        + ((row * multivector->dimension_size[1] + column)
+            * multivector->dimension_size[2] + position) * data_size;
+  }
+
+  return data;
+}
+
+#else
+
 void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uint16_t column) __attribute__((always_inline));
 void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uint16_t column)
 {
@@ -1866,6 +1876,8 @@ void inline * Multivector_3DAccess (Multivector * multivector, uint16_t row, uin
   return NULL;
 }
 
+#endif
+
 static Multivector * Multivector_duplicate(MemoryBlock * memory_def,
                                            Multivector * original)
 {
@@ -1960,6 +1972,116 @@ static void Multivector_delete(Multivector ** multivector)
 }
 
 /*****************************************************************************/
+
+static SbsWeightMatrix SbsWeightMatrix_new (uint16_t rows,
+                                            uint16_t columns,
+                                            uint16_t depth,
+                                            uint16_t neurons,
+                                            char * file_name)
+{
+  Multivector * weight_watrix = NULL;
+
+  ASSERT(file_name != NULL);
+
+  if (file_name != NULL)
+  {
+    weight_watrix = Multivector_new(NULL, sizeof(Weight), 4, rows, columns, depth, neurons);
+
+    ASSERT(weight_watrix != NULL);
+    ASSERT(weight_watrix->dimensionality == 4);
+    ASSERT(weight_watrix->data != NULL);
+    ASSERT(weight_watrix->dimension_size[0] == rows);
+    ASSERT(weight_watrix->dimension_size[1] == columns);
+    ASSERT(weight_watrix->dimension_size[2] == depth);
+    ASSERT(weight_watrix->dimension_size[3] == neurons);
+
+    if ((weight_watrix != NULL)
+        && (weight_watrix->dimensionality == 4)
+        && (weight_watrix->data != NULL)
+        && (weight_watrix->dimension_size[0] == rows)
+        && (weight_watrix->dimension_size[1] == columns)
+        && (weight_watrix->dimension_size[2] == depth)
+        && (weight_watrix->dimension_size[3] == neurons))
+    {
+      FIL fil; /* File object */
+      FRESULT rc;
+      rc = f_open (&fil, file_name, FA_READ);
+      ASSERT(rc == FR_OK);
+
+      if (rc == FR_OK)
+      {
+        size_t read_size;
+        size_t data_size = rows * columns * depth * neurons * sizeof(Weight);
+        rc = f_read (&fil, weight_watrix->data, data_size, &read_size);
+        ASSERT((rc == FR_OK) && (read_size == data_size));
+        f_close (&fil);
+      }
+      else Multivector_delete (&weight_watrix);
+    }
+  }
+
+  return weight_watrix;
+}
+
+static Result SbsWeightMatrix_save (Multivector * weight_watrix, char * file_name)
+{
+  Result rc = ERROR;
+  ASSERT(weight_watrix != NULL);
+  ASSERT(weight_watrix->dimensionality == 4);
+  ASSERT(weight_watrix->data != NULL);
+  ASSERT(file_name != NULL);
+
+  if ((weight_watrix != NULL)
+      && (weight_watrix->data != NULL)
+      && (weight_watrix->dimensionality == 4)
+      && (file_name != NULL))
+  {
+    uint16_t rows = weight_watrix->dimension_size[0];
+    uint16_t columns = weight_watrix->dimension_size[1];
+    uint16_t depth = weight_watrix->dimension_size[2];
+    uint16_t neurons = weight_watrix->dimension_size[3];
+
+    FIL fil; /* File object */
+    FRESULT f_rc;
+    f_rc = f_open (&fil, file_name, FA_OPEN_ALWAYS | FA_WRITE);
+    ASSERT(f_rc == FR_OK);
+
+    if (f_rc == FR_OK)
+    {
+      size_t write_size;
+      size_t total_data_size = rows * columns * depth * neurons * sizeof(Weight);
+      size_t data_size;
+
+
+      data_size = 32;
+      for (void * data = weight_watrix->data;
+          data < weight_watrix->data + total_data_size;
+          data += data_size)
+      {
+        if (data + data_size > weight_watrix->data + total_data_size)
+        {
+          data_size = weight_watrix->data - data;
+        }
+
+        f_rc = f_write (&fil, data, data_size, &write_size);
+        usleep(1000000);
+        ASSERT((f_rc == FR_OK) && (write_size == data_size));
+        f_rc = f_sync (&fil);
+        ASSERT(f_rc == FR_OK);
+      }
+
+      f_rc = f_close (&fil);
+      ASSERT(f_rc == FR_OK);
+
+      rc = (f_rc == FR_OK) ? OK : ERESOURCE;
+    }
+  }
+
+  return rc;
+}
+
+/*****************************************************************************/
+
 void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
                                      SbsLayerType layerType,
                                      Multivector * state_matrix,
@@ -2376,7 +2498,11 @@ static void SbsBaseLayer_setEpsilon(SbsLayer * layer, float epsilon)
     ((SbsBaseLayer *)layer)->epsilon = epsilon;
 }
 
-static void SbsBaseLayer_setLearningRule (SbsLayer * layer_ptr, SbsLearningRule rule, double gama, int number_of_patterns)
+static void SbsBaseLayer_setLearningRule (SbsLayer * layer_ptr,
+                                          SbsLearningRule rule,
+                                          double gama,
+                                          int number_of_patterns,
+                                          char * save_file_name)
 {
   ASSERT (layer_ptr != NULL);
   ASSERT (0 < number_of_patterns);
@@ -2449,8 +2575,35 @@ static void SbsBaseLayer_setLearningRule (SbsLayer * layer_ptr, SbsLearningRule 
     memset (layer->learning_data.b_vector, 0, sizeof(double) * layer->vector_size);
 
     ///////////////////////////////////////////////////////////////////////////
+    if (save_file_name != NULL)
+    {
+      if (layer->learning_data.save_file_name != NULL)
+        free (layer->learning_data.save_file_name);
+
+      layer->learning_data.save_file_name =
+          malloc (str_len (save_file_name) * sizeof(char));
+
+      ASSERT (layer->learning_data.save_file_name != NULL);
+
+      if (layer->learning_data.save_file_name != NULL)
+        memcpy (layer->learning_data.save_file_name,
+                save_file_name,
+                (str_len (save_file_name) + 1) * sizeof(char));
+    }
+    ///////////////////////////////////////////////////////////////////////////
 
     layer->learning_data.gama = gama;
+  }
+}
+
+static void SbsBaseLayer_setLearningLabel (SbsBaseLayer * layer, int learning_label)
+{
+  ASSERT (layer != NULL);
+
+  if (layer != NULL)
+  {
+    ASSERT (learning_label <= layer->vector_size);
+    layer->learning_data.learning_label = learning_label;
   }
 }
 
@@ -2915,6 +3068,14 @@ static void SbsBaseNetwork_loadInput(SbsNetwork * network_ptr, char * file_name)
   {
     SbsBaseLayer_loadInput (network->layer_array[0], file_name,
                             &network->input_label);
+
+    ASSERT (0 < network->size);
+    ASSERT (network->layer_array != NULL);
+
+    ASSERT (network->layer_array[network->size - 1]->layer_type == OUTPUT_LAYER_10N);
+
+    SbsBaseLayer_setLearningLabel (network->layer_array[network->size - 1],
+                                   network->input_label);
   }
 }
 
@@ -3050,6 +3211,9 @@ static void SbsBaseLayer_learningDeltaMSE(SbsBaseLayer * layer, SbsBaseLayer * p
                   && ((Weight * ) Multivector_3DAccess (w_matrix, 0, 0, spike))[i] <= 1.0);
         }
       }
+
+      if (layer->learning_data.save_file_name)
+        SbsWeightMatrix_save (w_matrix, layer->learning_data.save_file_name);
     }
   }
 }
@@ -3058,6 +3222,7 @@ static void SbsBaseLayer_learning(SbsBaseLayer * layer, SbsBaseLayer * prev_laye
 {
   ASSERT(layer != NULL);
   if (layer != NULL)
+  {
     switch (layer->learning_data.learning_rule)
     {
       case SBS_LEARNING_NONE:
@@ -3070,6 +3235,7 @@ static void SbsBaseLayer_learning(SbsBaseLayer * layer, SbsBaseLayer * prev_laye
       default:
         ASSERT (NULL);
     }
+  }
 }
 
 static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles)
@@ -3265,57 +3431,6 @@ static SbsLayer * SbsOutputLayer_new(SbsLayerType layer_type,
 {
   return (SbsLayer *) SbsBaseLayer_new (layer_type, 1, 1, 1, 1,
                                         weight_shift);
-}
-/*****************************************************************************/
-
-static SbsWeightMatrix SbsWeightMatrix_new (uint16_t rows,
-                                            uint16_t columns,
-                                            uint16_t depth,
-                                            uint16_t neurons,
-                                            char * file_name)
-{
-  Multivector * weight_watrix = NULL;
-
-  ASSERT(file_name != NULL);
-
-  if (file_name != NULL)
-  {
-    weight_watrix = Multivector_new(NULL, sizeof(Weight), 4, rows, columns, depth, neurons);
-
-    ASSERT(weight_watrix != NULL);
-    ASSERT(weight_watrix->dimensionality == 4);
-    ASSERT(weight_watrix->data != NULL);
-    ASSERT(weight_watrix->dimension_size[0] == rows);
-    ASSERT(weight_watrix->dimension_size[1] == columns);
-    ASSERT(weight_watrix->dimension_size[2] == depth);
-    ASSERT(weight_watrix->dimension_size[3] == neurons);
-
-    if ((weight_watrix != NULL)
-        && (weight_watrix->dimensionality == 4)
-        && (weight_watrix->data != NULL)
-        && (weight_watrix->dimension_size[0] == rows)
-        && (weight_watrix->dimension_size[1] == columns)
-        && (weight_watrix->dimension_size[2] == depth)
-        && (weight_watrix->dimension_size[3] == neurons))
-    {
-      FIL fil; /* File object */
-      FRESULT rc;
-      rc = f_open (&fil, file_name, FA_READ);
-      ASSERT(rc == FR_OK);
-
-      if (rc == FR_OK)
-      {
-        size_t read_size;
-        size_t data_size = rows * columns * depth * neurons * sizeof(Weight);
-        rc = f_read (&fil, weight_watrix->data, data_size, &read_size);
-        ASSERT((rc == FR_OK) && (read_size == data_size));
-        f_close (&fil);
-      }
-      else Multivector_delete (&weight_watrix);
-    }
-  }
-
-  return weight_watrix;
 }
 
 /*****************************************************************************/

@@ -146,7 +146,11 @@ Result SnnApp_run (void)
   HY->giveWeights (HY, P_H5_HY);
   network->giveLayer (network, HY);
 
-  HY->setLearningRule(HY, SBS_LEARNING_DELTA_MSE, 0.05, SBS_INPUT_PATTERN_LAST - SBS_INPUT_PATTERN_FIRST + 1);
+  HY->setLearningRule(HY,
+                      SBS_LEARNING_DELTA_MSE,
+                      0.05,
+                      SBS_INPUT_PATTERN_LAST - SBS_INPUT_PATTERN_FIRST + 1,
+                      SBS_P_H5_HY_WEIGHTS_FILE);
 
   for (int loop = 0;; loop ++)
   {
