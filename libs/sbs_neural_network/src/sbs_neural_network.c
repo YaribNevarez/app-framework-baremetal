@@ -994,7 +994,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
 SbSHardwareConfig SbSHardwareConfig_list[] =
 {
   { .hwDriver      = &SbsHardwareDriver_spike,
-    .layerAssign   = INPUT_LAYER_50N,
+    .layerAssign   = HX_INPUT_LAYER,
     .hwDeviceID    = XPAR_XSBS_SPIKE_50_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_0_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_SPIKE_50_0_VEC_ID,
@@ -1007,7 +1007,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     }
   },
   { .hwDriver      = &SbsHardwareDriver_accelerator,
-    .layerAssign   = CONVOLUTION_LAYER_32N | POOLING_LAYER_32N,
+    .layerAssign   = H1_CONVOLUTION_LAYER | HY_OUTPUT_LAYER,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_1_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_0_VEC_ID,
@@ -1020,7 +1020,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     }
   },
   { .hwDriver      = &SbsHardwareDriver_accelerator,
-    .layerAssign   = CONVOLUTION_LAYER_64N | POOLING_LAYER_64N,
+    .layerAssign   = H2_POOLING_LAYER | H4_POOLING_LAYER,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_1_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_2_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_1_VEC_ID,
@@ -1033,7 +1033,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     }
   },
   { .hwDriver      = &SbsHardwareDriver_accelerator,
-    .layerAssign   = FULLY_CONNECTED_LAYER_1024N | OUTPUT_LAYER_10N,
+    .layerAssign   = H3_CONVOLUTION_LAYER,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_2_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_3_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_2_VEC_ID,
@@ -1045,60 +1045,60 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
       .blockIndex  = 0
     }
   },
-//  ////////////
-//  { .hwDriver      = &SbsHardwareDriver_accelerator,
-//    .layerAssign   = CONVOLUTION_LAYER_64N,
-//    .hwDeviceID    = XPAR_SBS_ACCELERATOR_3_DEVICE_ID,
-//    .dmaDeviceID   = XPAR_AXIDMA_4_DEVICE_ID,
-//    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_3_VEC_ID,
-//    .dmaTxIntVecID = 0,
-//    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_4_VEC_ID,
-//    .ddrMem =
-//    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x20000000,
-//      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x23FFFFFF,
-//      .blockIndex  = 0
-//    }
-//  },
-//  ////////////
-//  { .hwDriver      = &SbsHardwareDriver_accelerator,
-//    .layerAssign   = POOLING_LAYER_64N,
-//    .hwDeviceID    = XPAR_SBS_ACCELERATOR_4_DEVICE_ID,
-//    .dmaDeviceID   = XPAR_AXIDMA_5_DEVICE_ID,
-//    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_4_VEC_ID,
-//    .dmaTxIntVecID = 0,
-//    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_5_VEC_ID,
-//    .ddrMem =
-//    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x34000000,
-//      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x37FFFFFF,
-//      .blockIndex  = 0
-//    }
-//  },
-//  { .hwDriver      = &SbsHardwareDriver_accelerator,
-//    .layerAssign   = FULLY_CONNECTED_LAYER_1024N,
-//    .hwDeviceID    = XPAR_SBS_ACCELERATOR_5_DEVICE_ID,
-//    .dmaDeviceID   = XPAR_AXIDMA_6_DEVICE_ID,
-//    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_5_VEC_ID,
-//    .dmaTxIntVecID = 0,
-//    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_6_VEC_ID,
-//    .ddrMem =
-//    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x38000000,
-//      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3BFFFFFF,
-//      .blockIndex  = 0
-//    }
-//  },
-//  { .hwDriver      = &SbsHardwareDriver_accelerator,
-//    .layerAssign   = OUTPUT_LAYER_10N,
-//    .hwDeviceID    = XPAR_SBS_ACCELERATOR_6_DEVICE_ID,
-//    .dmaDeviceID   = XPAR_AXIDMA_7_DEVICE_ID,
-//    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_6_VEC_ID,
-//    .dmaTxIntVecID = 0,
-//    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_7_VEC_ID,
-//    .ddrMem =
-//    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3C000000,
-//      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3FFFFFFF,
-//      .blockIndex  = 0
-//    }
-//  }
+  ////////////
+  { .hwDriver      = &SbsHardwareDriver_accelerator,
+    .layerAssign   = H3_CONVOLUTION_LAYER,
+    .hwDeviceID    = XPAR_SBS_ACCELERATOR_3_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXIDMA_4_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_3_VEC_ID,
+    .dmaTxIntVecID = 0,
+    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_4_VEC_ID,
+    .ddrMem =
+    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x20000000,
+      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x23FFFFFF,
+      .blockIndex  = 0
+    }
+  },
+  //////////
+  { .hwDriver      = &SbsHardwareDriver_accelerator,
+    .layerAssign   = H5_FULLY_CONNECTED_LAYER,
+    .hwDeviceID    = XPAR_SBS_ACCELERATOR_4_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXIDMA_5_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_4_VEC_ID,
+    .dmaTxIntVecID = 0,
+    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_5_VEC_ID,
+    .ddrMem =
+    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x34000000,
+      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x37FFFFFF,
+      .blockIndex  = 0
+    }
+  },
+  { .hwDriver      = &SbsHardwareDriver_accelerator,
+    .layerAssign   = NONE_LAYER,
+    .hwDeviceID    = XPAR_SBS_ACCELERATOR_5_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXIDMA_6_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_5_VEC_ID,
+    .dmaTxIntVecID = 0,
+    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_6_VEC_ID,
+    .ddrMem =
+    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x38000000,
+      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3BFFFFFF,
+      .blockIndex  = 0
+    }
+  },
+  { .hwDriver      = &SbsHardwareDriver_accelerator,
+    .layerAssign   = NONE_LAYER,
+    .hwDeviceID    = XPAR_SBS_ACCELERATOR_6_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXIDMA_7_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_6_VEC_ID,
+    .dmaTxIntVecID = 0,
+    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_7_VEC_ID,
+    .ddrMem =
+    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3C000000,
+      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3FFFFFFF,
+      .blockIndex  = 0
+    }
+  }
 };
 #endif
 
@@ -1633,9 +1633,9 @@ inline static void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelera
 #endif
 }
 
-int accelerator_wait [7][NUM_ACCELERATOR_INSTANCES] = {0};
-int tx_wait [7][NUM_ACCELERATOR_INSTANCES] = {0};
-int rx_wait [7][NUM_ACCELERATOR_INSTANCES] = {0};
+int accelerator_wait [7][10] = {0};
+int tx_wait [7][10] = {0};
+int rx_wait [7][10] = {0};
 int layer_wait = 0;
 
 static void Accelerator_start(SbSUpdateAccelerator * accelerator)
@@ -2261,7 +2261,7 @@ static void SbsLayerPartition_initialize (SbsLayerPartition * partition,
     uint16_t row;
     uint16_t column;
 
-    if (layerType != INPUT_LAYER_50N)
+    if (layerType != HX_INPUT_LAYER)
       for (row = 0; row < rows; row++)
         for (column = 0; column < columns; column++)
           SbsLayerPartition_initializeIP (Multivector_2DAccess(state_matrix, row, column), neurons);
@@ -2685,14 +2685,14 @@ static void SbsBaseLayer_getOutputVector(SbsBaseLayer * layer,
 {
   ASSERT(layer != NULL);
   ASSERT(0 < layer->num_partitions);
-  ASSERT(layer->layer_type == OUTPUT_LAYER_10N);
+  ASSERT(layer->layer_type == HY_OUTPUT_LAYER);
   ASSERT(layer->partition_array[layer->num_partitions - 1] != NULL);
 
   ASSERT(output_vector != NULL);
   ASSERT(output_vector_size != NULL);
 
   if ((layer != NULL) && (0 < layer->num_partitions)
-      && (layer->layer_type == OUTPUT_LAYER_10N)
+      && (layer->layer_type == HY_OUTPUT_LAYER)
       && (layer->partition_array[layer->num_partitions - 1] != NULL)
       && (output_vector != NULL) && (output_vector_size != NULL))
   {
@@ -3343,7 +3343,7 @@ static void SbsBaseNetwork_getOutputVector(SbsNetwork * network_ptr,
 static void SbsBaseNetwork_printStatistics (SbsNetwork * network)
 {
   for (int l = 0; l < ((SbsBaseNetwork *) network)->size; l++)
-    for (int a = 0; a < 4; a++)
+    for (int a = 0; a < 10; a++)
     {
       if (accelerator_wait[l][a])
         printf ("accelerator_wait[%d][%d] = %d\n", l, a, accelerator_wait[l][a]);

@@ -41,8 +41,50 @@
 #define SBS_P_H4_H5_WEIGHTS_FILE "/MNIST/W_H4_H5.bin"
 #define SBS_P_H5_HY_WEIGHTS_FILE "/MNIST/W_H5_HY.bin"
 
-// EUNUMERATIONS ---------------------------------------------------------------
+// Update cycles ______________________________________________________________
+#define SBS_NETWORK_UPDATE_CYCLES               1000
 
-// DECLARATIONS ----------------------------------------------------------------
+// INPUT LAYER ________________________________________________________________
+#define SBS_INPUT_LAYER_ROWS                    24
+#define SBS_INPUT_LAYER_COLUMNS                 SBS_INPUT_LAYER_ROWS
+#define SBS_INPUT_LAYER_NEURONS                 50
+
+// H1 CONVOLUTION LAYER _______________________________________________________
+#define SBS_H1_CONVOLUTION_LAYER_ROWS           24
+#define SBS_H1_CONVOLUTION_LAYER_COLUMNS        SBS_H1_CONVOLUTION_LAYER_ROWS
+#define SBS_H1_CONVOLUTION_LAYER_NEURONS        32
+#define SBS_H1_CONVOLUTION_LAYER_KERNEL         1
+#define SBS_H1_CONVOLUTION_LAYER_EPSION         0.1
+
+// H2 POOLING LAYER ___________________________________________________________
+#define SBS_H2_POOLING_LAYER_ROWS               12
+#define SBS_H2_POOLING_LAYER_COLUMNS            SBS_H2_POOLING_LAYER_ROWS
+#define SBS_H2_POOLING_LAYER_NEURONS            32
+#define SBS_H2_POOLING_LAYER_KERNEL             2
+#define SBS_H2_POOLING_LAYER_EPSION             (0.1 / 4.0)
+
+// H3 CONVOLUTION LAYER _______________________________________________________
+#define SBS_H3_CONVOLUTION_LAYER_ROWS           8
+#define SBS_H3_CONVOLUTION_LAYER_COLUMNS        SBS_H3_CONVOLUTION_LAYER_ROWS
+#define SBS_H3_CONVOLUTION_LAYER_NEURONS        64
+#define SBS_H3_CONVOLUTION_LAYER_KERNEL         5
+#define SBS_H3_CONVOLUTION_LAYER_EPSION         (0.1 / 25.0)
+
+// H4 POOLING LAYER ___________________________________________________________
+#define SBS_H4_POOLING_LAYER_ROWS               4
+#define SBS_H4_POOLING_LAYER_COLUMNS            SBS_H4_POOLING_LAYER_ROWS
+#define SBS_H4_POOLING_LAYER_NEURONS            64
+#define SBS_H4_POOLING_LAYER_KERNEL             2
+#define SBS_H4_POOLING_LAYER_EPSION             (0.1 / 4.0)
+
+// FULLY CONNECTED LAYER ______________________________________________________
+#define SBS_FULLY_CONNECTED_LAYER_NEURONS       1024
+#define SBS_FULLY_CONNECTED_LAYER_EPSION        (0.1 / 16.0)
+
+// OUTPUT LAYER _______________________________________________________________
+#define SBS_OUTPUT_LAYER_NEURONS                10
+#define SBS_OUTPUT_LAYER_KERNEL                 1
+#define SBS_OUTPUT_LAYER_EPSION                 0.1
+
 
 #endif /* SBS_APP_CONFIG_H_ */

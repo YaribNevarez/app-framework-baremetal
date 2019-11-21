@@ -34,13 +34,14 @@ typedef enum
 
 typedef enum
 {
-  INPUT_LAYER_50N             = 1<<0,
-  CONVOLUTION_LAYER_32N       = 1<<1,
-  POOLING_LAYER_32N           = 1<<2,
-  CONVOLUTION_LAYER_64N       = 1<<3,
-  POOLING_LAYER_64N           = 1<<4,
-  FULLY_CONNECTED_LAYER_1024N = 1<<5,
-  OUTPUT_LAYER_10N            = 1<<6
+  NONE_LAYER               = 0,
+  HX_INPUT_LAYER           = 1<<0,
+  H1_CONVOLUTION_LAYER     = 1<<1,
+  H2_POOLING_LAYER         = 1<<2,
+  H3_CONVOLUTION_LAYER     = 1<<3,
+  H4_POOLING_LAYER         = 1<<4,
+  H5_FULLY_CONNECTED_LAYER = 1<<5,
+  HY_OUTPUT_LAYER          = 1<<6
 } SbsLayerType;
 
 typedef float  NeuronState;

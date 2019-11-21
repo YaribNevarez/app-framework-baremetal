@@ -86,69 +86,127 @@ Result SnnApp_run (void)
     return rc;
   }
 
+  /*_________________________________________________________________________*/
+
   SbsNetwork * network = sbs_new.Network ();
 
-  // Instantiate SBS Network objects
+  /*_________________________________________________________________________*/
 
-  /** Layer = 24x24x50, Spike = 24x24, Weight = 0 **/
-  SbsLayer * input_layer = sbs_new.InputLayer (INPUT_LAYER_50N, 24, 24, 50);
+  SbsLayer * input_layer = sbs_new.InputLayer (HX_INPUT_LAYER,
+                                               SBS_INPUT_LAYER_ROWS,
+                                               SBS_INPUT_LAYER_COLUMNS,
+                                               SBS_INPUT_LAYER_NEURONS);
   network->giveLayer (network, input_layer);
 
-  SbsWeightMatrix P_IN_H1 = sbs_new.WeightMatrix (1, 1, 50, 32,
-                                                  SBS_P_IN_H1_WEIGHTS_FILE);
+  /*_________________________________________________________________________*/
 
-  /** Layer = 24x24x32, Spike = 24x24, Weight = 50x32 **/
-  SbsLayer * H1 = sbs_new.ConvolutionLayer (CONVOLUTION_LAYER_32N, 24, 24, 32, 1, ROW_SHIFT);
-  H1->setEpsilon (H1, 0.1);
-  H1->giveWeights (H1, P_IN_H1);
+  SbsLayer * H1 = sbs_new.ConvolutionLayer (H1_CONVOLUTION_LAYER,
+                                            SBS_H1_CONVOLUTION_LAYER_ROWS,
+                                            SBS_H1_CONVOLUTION_LAYER_COLUMNS,
+                                            SBS_H1_CONVOLUTION_LAYER_NEURONS,
+                                            SBS_H1_CONVOLUTION_LAYER_KERNEL,
+                                            ROW_SHIFT);
+  H1->setEpsilon (H1, SBS_H1_CONVOLUTION_LAYER_EPSION);
   network->giveLayer (network, H1);
 
-  SbsWeightMatrix P_H1_H2 = sbs_new.WeightMatrix (2, 2, 32, 32,
-                                                  SBS_P_H1_H2_WEIGHTS_FILE);
+  SbsWeightMatrix P_IN_H1 = sbs_new.WeightMatrix (SBS_H1_CONVOLUTION_LAYER_KERNEL,
+                                                  SBS_H1_CONVOLUTION_LAYER_KERNEL,
+                                                  SBS_INPUT_LAYER_NEURONS,
+                                                  SBS_H1_CONVOLUTION_LAYER_NEURONS,
+                                                  SBS_P_IN_H1_WEIGHTS_FILE);
+  H1->giveWeights (H1, P_IN_H1);
 
-  /** Layer = 12x12x32, Spike = 12x12, Weight = 128x32 **/
-  SbsLayer * H2 = sbs_new.PoolingLayer (POOLING_LAYER_32N, 12, 12, 32, 2, COLUMN_SHIFT);
-  H2->setEpsilon (H2, 0.1 / 4.0);
-  H2->giveWeights (H2, P_H1_H2);
+  /*_________________________________________________________________________*/
+
+  SbsLayer * H2 = sbs_new.PoolingLayer (H2_POOLING_LAYER,
+                                        SBS_H2_POOLING_LAYER_ROWS,
+                                        SBS_H2_POOLING_LAYER_COLUMNS,
+                                        SBS_H2_POOLING_LAYER_NEURONS,
+                                        SBS_H2_POOLING_LAYER_KERNEL,
+                                        COLUMN_SHIFT);
+  H2->setEpsilon (H2, SBS_H2_POOLING_LAYER_EPSION);
   network->giveLayer (network, H2);
 
-  SbsWeightMatrix P_H2_H3 = sbs_new.WeightMatrix (5, 5, 32, 64,
-                                                  SBS_P_H2_H3_WEIGHTS_FILE);
+  SbsWeightMatrix P_H1_H2 = sbs_new.WeightMatrix (SBS_H2_POOLING_LAYER_KERNEL,
+                                                  SBS_H2_POOLING_LAYER_KERNEL,
+                                                  SBS_H1_CONVOLUTION_LAYER_NEURONS,
+                                                  SBS_H2_POOLING_LAYER_NEURONS,
+                                                  SBS_P_H1_H2_WEIGHTS_FILE);
+  H2->giveWeights (H2, P_H1_H2);
 
-  /** Layer = 8x8x64, Spike = 8x8, Weight = 800x64 **/
-  SbsLayer * H3 = sbs_new.ConvolutionLayer (CONVOLUTION_LAYER_64N, 8, 8, 64, 5, COLUMN_SHIFT);
-  H3->setEpsilon (H3, 0.1 / 25.0);
-  H3->giveWeights (H3, P_H2_H3);
+  /*_________________________________________________________________________*/
+
+  SbsLayer * H3 = sbs_new.ConvolutionLayer (H3_CONVOLUTION_LAYER,
+                                            SBS_H3_CONVOLUTION_LAYER_ROWS,
+                                            SBS_H3_CONVOLUTION_LAYER_COLUMNS,
+                                            SBS_H3_CONVOLUTION_LAYER_NEURONS,
+                                            SBS_H3_CONVOLUTION_LAYER_KERNEL,
+                                            COLUMN_SHIFT);
+  H3->setEpsilon (H3, SBS_H3_CONVOLUTION_LAYER_EPSION);
   network->giveLayer (network, H3);
 
-  SbsWeightMatrix P_H3_H4 = sbs_new.WeightMatrix (2, 2, 64, 64,
-                                                  SBS_P_H3_H4_WEIGHTS_FILE);
+  SbsWeightMatrix P_H2_H3 = sbs_new.WeightMatrix (SBS_H3_CONVOLUTION_LAYER_KERNEL,
+                                                  SBS_H3_CONVOLUTION_LAYER_KERNEL,
+                                                  SBS_H2_POOLING_LAYER_NEURONS,
+                                                  SBS_H3_CONVOLUTION_LAYER_NEURONS,
+                                                  SBS_P_H2_H3_WEIGHTS_FILE);
+  H3->giveWeights (H3, P_H2_H3);
 
-  /** Layer = 4x4x64, Spike = 4x4, Weight = 256x64 **/
-  SbsLayer * H4 = sbs_new.PoolingLayer (POOLING_LAYER_64N, 4, 4, 64, 2, COLUMN_SHIFT);
-  H4->setEpsilon (H4, 0.1 / 4.0);
-  H4->giveWeights (H4, P_H3_H4);
+  /*_________________________________________________________________________*/
+
+  SbsLayer * H4 = sbs_new.PoolingLayer (H4_POOLING_LAYER,
+                                        SBS_H4_POOLING_LAYER_ROWS,
+                                        SBS_H4_POOLING_LAYER_COLUMNS,
+                                        SBS_H4_POOLING_LAYER_NEURONS,
+                                        SBS_H4_POOLING_LAYER_KERNEL,
+                                        COLUMN_SHIFT);
+  H4->setEpsilon (H4, SBS_H4_POOLING_LAYER_EPSION);
   network->giveLayer (network, H4);
 
-  SbsWeightMatrix P_H4_H5 = sbs_new.WeightMatrix (4, 4, 64, 1024,
-                                                  SBS_P_H4_H5_WEIGHTS_FILE);
+  SbsWeightMatrix P_H3_H4 = sbs_new.WeightMatrix (SBS_H4_POOLING_LAYER_KERNEL,
+                                                  SBS_H4_POOLING_LAYER_KERNEL,
+                                                  SBS_H3_CONVOLUTION_LAYER_NEURONS,
+                                                  SBS_H4_POOLING_LAYER_NEURONS,
+                                                  SBS_P_H3_H4_WEIGHTS_FILE);
+  H4->giveWeights (H4, P_H3_H4);
 
-  /** Layer = 1x1x1024, Spike = 1x1, Weight = 1024x1024 **/
-  SbsLayer * H5 = sbs_new.FullyConnectedLayer (FULLY_CONNECTED_LAYER_1024N, 1024, 4, ROW_SHIFT);
-  H5->setEpsilon (H5, 0.1 / 16.0);
-  H5->giveWeights (H5, P_H4_H5);
+  /*_________________________________________________________________________*/
+
+  SbsLayer * H5 = sbs_new.FullyConnectedLayer (H5_FULLY_CONNECTED_LAYER,
+                                               SBS_FULLY_CONNECTED_LAYER_NEURONS,
+                                               SBS_H4_POOLING_LAYER_ROWS,
+                                               ROW_SHIFT);
+  H5->setEpsilon (H5, SBS_FULLY_CONNECTED_LAYER_EPSION);
   network->giveLayer (network, H5);
 
-  SbsWeightMatrix P_H5_HY = sbs_new.WeightMatrix (1, 1, 1024, 10,
-                                                  SBS_P_H5_HY_WEIGHTS_FILE);
+  SbsWeightMatrix P_H4_H5 = sbs_new.WeightMatrix (SBS_H4_POOLING_LAYER_ROWS,
+                                                  SBS_H4_POOLING_LAYER_COLUMNS,
+                                                  SBS_H4_POOLING_LAYER_NEURONS,
+                                                  SBS_FULLY_CONNECTED_LAYER_NEURONS,
+                                                  SBS_P_H4_H5_WEIGHTS_FILE);
+  H5->giveWeights (H5, P_H4_H5);
 
-  /** Layer = 1x1x10, Spike = 1x1, Weight = 1024x10 **/
-  SbsLayer * HY = sbs_new.OutputLayer (OUTPUT_LAYER_10N, 10, ROW_SHIFT);
-  HY->setEpsilon (HY, 0.1);
-  HY->giveWeights (HY, P_H5_HY);
+
+  /*_________________________________________________________________________*/
+
+  SbsLayer * HY = sbs_new.OutputLayer (HY_OUTPUT_LAYER,
+                                       SBS_OUTPUT_LAYER_NEURONS,
+                                       ROW_SHIFT);
+  HY->setEpsilon (HY, SBS_OUTPUT_LAYER_EPSION);
   network->giveLayer (network, HY);
 
+  SbsWeightMatrix P_H5_HY = sbs_new.WeightMatrix (1,
+                                                  1,
+                                                  SBS_FULLY_CONNECTED_LAYER_NEURONS,
+                                                  SBS_OUTPUT_LAYER_NEURONS,
+                                                  SBS_P_H5_HY_WEIGHTS_FILE);
+  HY->giveWeights (HY, P_H5_HY);
+
+  /*_________________________________________________________________________*/
+
   HY->setLearningRule(HY, SBS_LEARNING_DELTA_MSE, 0.05, SBS_INPUT_PATTERN_LAST - SBS_INPUT_PATTERN_FIRST + 1);
+
+  /*_________________________________________________________________________*/
 
   for (int loop = 0;; loop ++)
   {
@@ -169,7 +227,7 @@ Result SnnApp_run (void)
 
       printf ("\n Loop: %d\n", loop);
 
-      network->updateCycle (network, 1000);
+      network->updateCycle (network, SBS_NETWORK_UPDATE_CYCLES);
 
       printf ("\n Output value: %d \n", network->getInferredOutput (network));
       printf ("\n Label value: %d \n", network->getInputLabel (network));
