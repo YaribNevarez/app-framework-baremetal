@@ -6,6 +6,10 @@
  */
 
 
+#define MULTIVECTOR_USE_POINTER_ARITHMETICS
+#define DEBUG
+
+
 #include "stdlib.h"
 #include "stdio.h"
 #include "string.h"
@@ -34,8 +38,6 @@
 #else
 #include "xsbs_accelerator.h"
 #endif
-
-//#define DEBUG
 
 #ifdef DEBUG
 
@@ -1762,9 +1764,11 @@ static Multivector * Multivector_new(MemoryBlock * memory_def, uint8_t data_type
 
       multivector->dimensionality = dimensionality;
       multivector->data_type_size = data_type_size;
+#ifndef MULTIVECTOR_USE_POINTER_ARITHMETICS
       multivector->type_id = M32BitFormat_getTypeID(data_type_size,
                                                     dimensionality,
                                                     multivector->dimension_size);
+#endif
     }
   }
 
@@ -1822,73 +1826,86 @@ static Multivector * Multivector_new(MemoryBlock * memory_def, uint8_t data_type
 //  printf ("Multivector catalog:\n%s\n",text);
 //}
 
-//void * Multivector_2DAccess(Multivector * multivector, uint16_t row, uint16_t column)
-//{
-//  void * data = NULL;
-//  ASSERT (multivector != NULL);
-//  ASSERT (multivector->data != NULL);
-//  ASSERT (2 <= multivector->dimensionality);
-//  ASSERT (row <= multivector->dimension_size[0]);
-//  ASSERT (column <= multivector->dimension_size[1]);
-//
-//  MultivectorArray_add(multivector);
-//
-//  if ((multivector != NULL)
-//      && (multivector->data != NULL)
-//      && (2 <= multivector->dimensionality)
-//      && (row <= multivector->dimension_size[0])
-//      && (column <= multivector->dimension_size[1]))
-//  {
-//    uint16_t dimensionality = multivector->dimensionality;
-//    size_t data_size = multivector->data_type_size;
-//
-//    while (dimensionality-- > 2)
-//    {
-//      data_size *= multivector->dimension_size[dimensionality];
-//    }
-//
-//    data = multivector->data
-//        + (row * multivector->dimension_size[1] + column) * data_size;
-//  }
-//
-//  return data;
-//}
-//
-//void * Multivector_3DAccess (Multivector * multivector, uint16_t row, uint16_t column, uint16_t position)
-//{
-//  void * data = NULL;
-//  ASSERT (multivector != NULL);
-//  ASSERT (multivector->data != NULL);
-//  ASSERT (3 <= multivector->dimensionality);
-//  ASSERT (row <= multivector->dimension_size[0]);
-//  ASSERT (column <= multivector->dimension_size[1]);
-//  ASSERT (position <= multivector->dimension_size[2]);
-//
-//  MultivectorArray_add(multivector);
-//
-//  if ((multivector != NULL)
-//      && (multivector->data != NULL)
-//      && (3 <= multivector->dimensionality)
-//      && (row <= multivector->dimension_size[0])
-//      && (column <= multivector->dimension_size[1])
-//      && (position <= multivector->dimension_size[2]))
-//  {
-//    uint16_t dimensionality = multivector->dimensionality;
-//    size_t data_size = multivector->data_type_size;
-//
-//    while (dimensionality-- > 3)
-//    {
-//      data_size *= multivector->dimension_size[dimensionality];
-//    }
-//
-//    data = multivector->data
-//        + ((row * multivector->dimension_size[1] + column)
-//            * multivector->dimension_size[2] + position) * data_size;
-//  }
-//
-//  return data;
-//}
-void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uint16_t column) __attribute__((always_inline));
+void inline * Multivector_2DAccess (Multivector * multivector,
+                                    uint16_t row,
+                                    uint16_t column) __attribute__((always_inline));
+
+void inline * Multivector_3DAccess (Multivector * multivector,
+                                    uint16_t row,
+                                    uint16_t column,
+                                    uint16_t position) __attribute__((always_inline));
+
+#ifdef MULTIVECTOR_USE_POINTER_ARITHMETICS
+
+void inline * Multivector_2DAccess(Multivector * multivector, uint16_t row, uint16_t column)
+{
+  void * data = NULL;
+  ASSERT (multivector != NULL);
+  ASSERT (multivector->data != NULL);
+  ASSERT (2 <= multivector->dimensionality);
+  ASSERT (row <= multivector->dimension_size[0]);
+  ASSERT (column <= multivector->dimension_size[1]);
+
+  //MultivectorArray_add(multivector);
+
+  if ((multivector != NULL)
+      && (multivector->data != NULL)
+      && (2 <= multivector->dimensionality)
+      && (row <= multivector->dimension_size[0])
+      && (column <= multivector->dimension_size[1]))
+  {
+    uint16_t dimensionality = multivector->dimensionality;
+    size_t data_size = multivector->data_type_size;
+
+    while (dimensionality-- > 2)
+    {
+      data_size *= multivector->dimension_size[dimensionality];
+    }
+
+    data = multivector->data
+        + (row * multivector->dimension_size[1] + column) * data_size;
+  }
+
+  return data;
+}
+
+void inline * Multivector_3DAccess (Multivector * multivector, uint16_t row, uint16_t column, uint16_t position)
+{
+  void * data = NULL;
+  ASSERT (multivector != NULL);
+  ASSERT (multivector->data != NULL);
+  ASSERT (3 <= multivector->dimensionality);
+  ASSERT (row <= multivector->dimension_size[0]);
+  ASSERT (column <= multivector->dimension_size[1]);
+  ASSERT (position <= multivector->dimension_size[2]);
+
+  //MultivectorArray_add(multivector);
+
+  if ((multivector != NULL)
+      && (multivector->data != NULL)
+      && (3 <= multivector->dimensionality)
+      && (row <= multivector->dimension_size[0])
+      && (column <= multivector->dimension_size[1])
+      && (position <= multivector->dimension_size[2]))
+  {
+    uint16_t dimensionality = multivector->dimensionality;
+    size_t data_size = multivector->data_type_size;
+
+    while (dimensionality-- > 3)
+    {
+      data_size *= multivector->dimension_size[dimensionality];
+    }
+
+    data = multivector->data
+        + ((row * multivector->dimension_size[1] + column)
+            * multivector->dimension_size[2] + position) * data_size;
+  }
+
+  return data;
+}
+
+#else
+
 void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uint16_t column)
 {
   ASSERT (multivector != NULL);
@@ -1951,7 +1968,6 @@ void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uin
   return NULL;
 }
 
-void inline * Multivector_3DAccess (Multivector * multivector, uint16_t row, uint16_t column, uint16_t position) __attribute__((always_inline));
 void inline * Multivector_3DAccess (Multivector * multivector, uint16_t row, uint16_t column, uint16_t position)
 {
   ASSERT(multivector != NULL);
@@ -1995,6 +2011,7 @@ void inline * Multivector_3DAccess (Multivector * multivector, uint16_t row, uin
   }
   return NULL;
 }
+#endif
 
 static Multivector * Multivector_duplicate(MemoryBlock * memory_def,
                                            Multivector * original)
@@ -2670,7 +2687,7 @@ static void SbsBaseLayer_loadInput (SbsBaseLayer * layer, char * file_name,
   ASSERT(layer != NULL);
   ASSERT(file_name != NULL);
   ASSERT(input_label != NULL);
-  ASSERT(layer->layer_type == INPUT_LAYER_50N);
+  ASSERT(layer->layer_type == HX_INPUT_LAYER);
   ASSERT(layer->num_partitions == 1);
   if ((layer != NULL) && (file_name != NULL) && (input_label != NULL))
   {
@@ -2799,7 +2816,7 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
   ASSERT(layer != NULL);
   ASSERT(layer->partition_array != NULL);
   ASSERT(1 == layer->num_partitions);
-  ASSERT(layer->layer_type == INPUT_LAYER_50N);
+  ASSERT(layer->layer_type == HX_INPUT_LAYER);
 
   if ((layer != NULL)
       && (layer->partition_array != NULL)
