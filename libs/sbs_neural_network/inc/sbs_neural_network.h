@@ -44,6 +44,18 @@ typedef enum
   HY_OUTPUT_LAYER          = 1<<6
 } SbsLayerType;
 
+/*___________________________________________________________________________*/
+/* TODO: Implement nicely                                                    */
+static const uint32_t ACCELERATOR_0 = HX_INPUT_LAYER;
+static const uint32_t ACCELERATOR_1 = H1_CONVOLUTION_LAYER;
+static const uint32_t ACCELERATOR_2 = H2_POOLING_LAYER;
+static const uint32_t ACCELERATOR_3 = H3_CONVOLUTION_LAYER;
+static const uint32_t ACCELERATOR_4 = H4_POOLING_LAYER;
+static const uint32_t ACCELERATOR_5 = H5_FULLY_CONNECTED_LAYER;
+static const uint32_t ACCELERATOR_6 = HY_OUTPUT_LAYER;
+static const uint32_t ACCELERATOR_7 = NONE_LAYER;
+/*___________________________________________________________________________*/
+
 typedef float  NeuronState;
 typedef void * SbsWeightMatrix;
 

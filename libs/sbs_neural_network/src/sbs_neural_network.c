@@ -7,7 +7,7 @@
 
 
 #define MULTIVECTOR_USE_POINTER_ARITHMETICS
-#define DEBUG
+//#define DEBUG
 
 
 #include "stdlib.h"
@@ -996,7 +996,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
 SbSHardwareConfig SbSHardwareConfig_list[] =
 {
   { .hwDriver      = &SbsHardwareDriver_spike,
-    .layerAssign   = HX_INPUT_LAYER,
+    .layerAssign   = ACCELERATOR_0,
     .hwDeviceID    = XPAR_XSBS_SPIKE_50_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_0_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_SPIKE_50_0_VEC_ID,
@@ -1009,7 +1009,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     }
   },
   { .hwDriver      = &SbsHardwareDriver_accelerator,
-    .layerAssign   = H1_CONVOLUTION_LAYER | HY_OUTPUT_LAYER,
+    .layerAssign   = ACCELERATOR_1,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_1_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_0_VEC_ID,
@@ -1022,7 +1022,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     }
   },
   { .hwDriver      = &SbsHardwareDriver_accelerator,
-    .layerAssign   = H2_POOLING_LAYER | H4_POOLING_LAYER,
+    .layerAssign   = ACCELERATOR_2,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_1_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_2_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_1_VEC_ID,
@@ -1035,7 +1035,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     }
   },
   { .hwDriver      = &SbsHardwareDriver_accelerator,
-    .layerAssign   = H3_CONVOLUTION_LAYER,
+    .layerAssign   = ACCELERATOR_3,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_2_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_3_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_2_VEC_ID,
@@ -1049,7 +1049,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   },
   ////////////
   { .hwDriver      = &SbsHardwareDriver_accelerator,
-    .layerAssign   = H3_CONVOLUTION_LAYER,
+    .layerAssign   = ACCELERATOR_4,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_3_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_4_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_3_VEC_ID,
@@ -1063,7 +1063,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   },
   //////////
   { .hwDriver      = &SbsHardwareDriver_accelerator,
-    .layerAssign   = H5_FULLY_CONNECTED_LAYER,
+    .layerAssign   = ACCELERATOR_5,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_4_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_5_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_4_VEC_ID,
@@ -1076,7 +1076,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     }
   },
   { .hwDriver      = &SbsHardwareDriver_accelerator,
-    .layerAssign   = NONE_LAYER,
+    .layerAssign   = ACCELERATOR_6,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_5_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_6_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_5_VEC_ID,
@@ -1089,7 +1089,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     }
   },
   { .hwDriver      = &SbsHardwareDriver_accelerator,
-    .layerAssign   = NONE_LAYER,
+    .layerAssign   = ACCELERATOR_7,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_6_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_7_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_6_VEC_ID,
