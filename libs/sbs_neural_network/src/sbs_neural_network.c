@@ -438,6 +438,13 @@ typedef struct
 
 typedef struct
 {
+  XTime   start_time;
+  uint8_t num_samples;
+  XTime   sample_array[1];
+} Timer;
+
+typedef struct
+{
   SbSHardwareConfig *     hardwareConfig;
   void *                  updateHardware;
   XAxiDma                 dmaHardware;
@@ -463,6 +470,8 @@ typedef struct
   uint8_t           rxDone;
   uint8_t           acceleratorReady;
   MemoryCmd         memory_cmd;
+
+  Timer *           timer;
 } SbSUpdateAccelerator;
 
 
@@ -754,6 +763,7 @@ typedef struct
   float                 epsilon;
   Multivector *         spike_matrix;
   SbsLearningData       learning_data;
+  Timer *               timer;
 } SbsBaseLayer;
 
 typedef struct
@@ -763,14 +773,8 @@ typedef struct
   SbsBaseLayer **   layer_array;
   uint8_t           input_label;
   uint8_t           inferred_output;
+  Timer *           timer;
 } SbsBaseNetwork;
-
-typedef struct
-{
-  XTime   start_time;
-  uint8_t num_samples;
-  XTime   sample_array[1];
-} Timer;
 
 #pragma pack(pop)   /* restore original alignment from stack */
 
@@ -1249,6 +1253,8 @@ static void Accelerator_hardwareInterruptHandler (void * data)
   ASSERT (accelerator->hardwareConfig->hwDriver->InterruptGetStatus != NULL);
   ASSERT (accelerator->hardwareConfig->hwDriver->InterruptClear != NULL);
 
+  Timer_takeSample(accelerator->timer, 0, NULL);
+
   status = accelerator->hardwareConfig->hwDriver->InterruptGetStatus(accelerator->updateHardware);
   accelerator->hardwareConfig->hwDriver->InterruptClear(accelerator->updateHardware, status);
   accelerator->acceleratorReady = status & 1;
@@ -1467,6 +1473,8 @@ static int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
   accelerator->rxDone = 1;
   accelerator->txDone = 1;
 
+  accelerator->timer = Timer_new(1);
+
   return XST_SUCCESS;
 }
 
@@ -1517,6 +1525,7 @@ void Accelerator_delete (SbSUpdateAccelerator ** accelerator)
   {
     Accelerator_shutdown (*accelerator);
     (*accelerator)->hardwareConfig->hwDriver->delete(&(*accelerator)->updateHardware);
+    Timer_delete((&(*accelerator)->timer));
     free (*accelerator);
     *accelerator = NULL;
   }
@@ -1681,6 +1690,8 @@ static void Accelerator_start(SbSUpdateAccelerator * accelerator)
                                    (UINTPTR) accelerator->rxBuffer,
                                    accelerator->rxBufferSize,
                                    XAXIDMA_DEVICE_TO_DMA);
+
+  Timer_start (accelerator->timer);
   ASSERT(status == XST_SUCCESS);
 }
 
@@ -2415,6 +2426,8 @@ static SbsLayer * SbsBaseLayer_new(SbsLayerType layer_type,
     else
       layer->spike_matrix = layer->partition_array[0]->spike_matrix;
 
+    layer->timer = Timer_new(1);
+
     /* Assign parameters */
     layer->rows          = rows;
     layer->columns       = columns;
@@ -2441,6 +2454,8 @@ static void SbsBaseLayer_delete(SbsLayer ** layer_ptr)
     if ((*layer)->partition_array != NULL)
       while ((*layer)->num_partitions)
         SbsLayerPartition_delete (&((*layer)->partition_array[--(*layer)->num_partitions]));
+
+    Timer_delete(&(*layer)->timer);
 
     free (*layer);
     *layer = NULL;
@@ -2835,6 +2850,8 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
     ASSERT (rows == state_matrix->dimension_size[0]);
     ASSERT (columns == state_matrix->dimension_size[1]);
 
+    Timer_start(layer->timer);
+
     Accelerator_setup (partition->accelerator, &partition->profile, SPIKE_MODE);
 
     for (row = 0; row < rows; row++)
@@ -2844,6 +2861,7 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
 
     Accelerator_start (partition->accelerator);
 
+    Timer_takeSample(layer->timer, 0, NULL);
   }
 }
 
@@ -2887,6 +2905,7 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
     WeightShift layer_weight_shift = layer->weight_shift;
 
     kernel_row_pos = 0, layer_row = 0;
+    Timer_start(layer->timer);
     for (i = 0; i < layer->num_partitions; i ++)
     {
       update_partition = layer->partition_array[i];
@@ -2975,6 +2994,7 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
       /* Update ends */
       Accelerator_start (update_partition_accelerator);
     }
+    Timer_takeSample(layer->timer, 0, NULL);
   }
 }
 
@@ -2995,6 +3015,8 @@ static SbsNetwork * SbsBaseNetwork_new(void)
     network->input_label = (uint8_t) -1;
     network->inferred_output = (uint8_t) -1;
 
+    network->timer = Timer_new(10);
+
     sgenrand (666); /*TODO: Create MT19937 object wrapper */
   }
 
@@ -3014,6 +3036,8 @@ static void SbsBaseNetwork_delete(SbsNetwork ** network_ptr)
     SbsBaseNetwork ** network = (SbsBaseNetwork **) network_ptr;
     while (0 < (*network)->size)
       SbsBaseLayer_delete((SbsLayer **)&(*network)->layer_array[--((*network)->size)]);
+
+    Timer_delete(&(*network)->timer);
 
     free(*network);
     *network = NULL;
@@ -3220,6 +3244,27 @@ static void SbsBaseLayer_learning(SbsBaseLayer * layer, SbsBaseLayer * prev_laye
     }
 }
 
+static void SbsBaseNetwork_printTime (SbsBaseNetwork * network)
+{
+  ASSERT (network != NULL);
+  if (network != NULL)
+  {
+    int i;
+    double start;
+    double layer;
+    double hw;
+
+    printf ("\nNetwork time schedule\n");
+    for (i = 0; i < network->size; i++)
+    {
+      start = Timer_getSample(network->timer, i);
+      layer = Timer_getSample(network->layer_array[i]->timer, 0);
+      hw = Timer_getSample(SbSUpdateAccelerator_list[i]->timer, 0);
+      printf ("\nLayer[%d]: Start = %lf, Layer_SW = %lf, Layer_HW = %lf\n", i, start, layer, hw);
+    }
+  }
+}
+
 static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles)
 {
   SbsBaseNetwork * network = (SbsBaseNetwork *) network_ptr;
@@ -3253,14 +3298,19 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
     /************************ Begins Update cycle ****************************/
     while (cycles--)
     {
+      Timer_start(network->timer);
+      Timer_takeSample(network->timer, 0, NULL);
       SbsBaseLayer_generateSpikes (input_layer);
 
       for (i = 1; i <= network->size - 1; i++)
       {
         layer_wait = i;
+        Timer_takeSample(network->timer, i, NULL);
         SbsBaseLayer_update (network->layer_array[i],
                              network->layer_array[i - 1]);
       }
+      sleep (1);
+      SbsBaseNetwork_printTime (network);
     }
     /************************ Ends Update cycle ******************************/
     Timer_takeSample(timer_update, 0, NULL);
