@@ -445,6 +445,20 @@ typedef struct
 
 typedef struct
 {
+  double value;
+  double time;
+} Point;
+
+typedef struct
+{
+  Timer *   timer;
+  int       index;
+  int       size;
+  Point     point_array[1];
+} SbsLogger;
+
+typedef struct
+{
   SbSHardwareConfig *     hardwareConfig;
   void *                  updateHardware;
   XAxiDma                 dmaHardware;
@@ -471,7 +485,7 @@ typedef struct
   uint8_t           acceleratorReady;
   MemoryCmd         memory_cmd;
 
-  Timer *           timer;
+  SbsLogger *       logger;
 } SbSUpdateAccelerator;
 
 
@@ -763,7 +777,8 @@ typedef struct
   float                 epsilon;
   Multivector *         spike_matrix;
   SbsLearningData       learning_data;
-  Timer *               timer;
+
+  SbsLogger *           logger;
 } SbsBaseLayer;
 
 typedef struct
@@ -773,7 +788,8 @@ typedef struct
   SbsBaseLayer **   layer_array;
   uint8_t           input_label;
   uint8_t           inferred_output;
-  Timer *           timer;
+
+  SbsLogger *       logger;
 } SbsBaseNetwork;
 
 #pragma pack(pop)   /* restore original alignment from stack */
@@ -838,7 +854,9 @@ void Timer_takeSample (Timer * timer, uint8_t index, double * sample)
   ASSERT(index < timer->num_samples);
   if ((timer != NULL) && (index < timer->num_samples))
   {
-    XTime_GetTime (&timer->sample_array[index]);
+    XTime time;
+    XTime_GetTime (&time);
+    timer->sample_array[index] = time;
     if (sample != NULL)
       *sample = ((double) (timer->sample_array[index] - timer->start_time))
           / ((double) COUNTS_PER_SECOND);
@@ -857,8 +875,66 @@ double Timer_getSample(Timer * timer, uint8_t index)
 }
 
 /*****************************************************************************/
-/************************ Memory manager *************************************/
 
+/************************ Event logger ***************************************/
+
+Timer * SbsLogger_timer = NULL;
+
+static SbsLogger * SbsLogger_new (int num_logs)
+{
+  SbsLogger * logger = NULL;
+
+  if (SbsLogger_timer == NULL)
+    SbsLogger_timer = Timer_new (1);
+
+  ASSERT (timer != NULL);
+
+  logger = malloc (sizeof(SbsLogger) + (num_logs - 1) * sizeof(Point));
+
+  ASSERT (logger != NULL);
+
+  memset (logger, 0, sizeof(SbsLogger) + (num_logs - 1) * sizeof(Point));
+
+  logger->size = num_logs;
+  logger->timer = SbsLogger_timer;
+
+  return logger;
+}
+
+static void SbsLogger_delete (SbsLogger ** logger)
+{
+  ASSERT (logger != NULL);
+  ASSERT (*logger != NULL);
+
+  if ((logger != NULL) && (*logger != NULL))
+  {
+    free (*logger);
+    *logger = NULL;
+  }
+}
+
+inline static void SbsLogger_timeReset (void) __attribute__((always_inline));
+inline static void SbsLogger_timeReset (void)
+{
+  if (SbsLogger_timer == NULL)
+    SbsLogger_timer = Timer_new(1);
+
+  Timer_start(SbsLogger_timer);
+}
+
+inline static void SbsLogger_logPoint(SbsLogger * logger, double p) __attribute__((always_inline));
+inline static void SbsLogger_logPoint(SbsLogger * logger, double p)
+{
+  ASSERT(logger != NULL);
+  logger->point_array[logger->index].time = Timer_getCurrentTime(logger->timer);
+  logger->point_array[logger->index].value = p;
+  if (logger->size <= ++ logger->index)
+    logger->index = 0;
+}
+
+/*****************************************************************************/
+
+/************************ Memory manager *************************************/
 
 static void * MemoryBlock_alloc(MemoryBlock * memory_def, size_t size)
 {
@@ -882,8 +958,7 @@ static void * MemoryBlock_alloc(MemoryBlock * memory_def, size_t size)
 SbSHardwareConfig SbSHardwareConfig_list[] =
 {
   { .hwDriver      = &SbsHardwareDriver_spike,
-    .layerType     = INPUT_LAYER_50N,
-    .vectorSize    = 50,
+    .layerAssign   = ACCELERATOR_0,
     .hwDeviceID    = XPAR_XSBS_SPIKE_50_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_0_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_SPIKE_50_0_VEC_ID,
@@ -896,8 +971,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     }
   },
   { .hwDriver      = &SbsHardwareDriver_update32,
-    .layerType     = CONVOLUTION_LAYER_32N,
-    .vectorSize    = 32,
+    .layerAssign   = ACCELERATOR_1,
     .hwDeviceID    = XPAR_XSBS_UPDATE_32_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_1_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_32_0_VEC_ID,
@@ -910,8 +984,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     }
   },
   { .hwDriver      = &SbsHardwareDriver_update32,
-    .layerType     = POOLING_LAYER_32N,
-    .vectorSize    = 32,
+    .layerAssign   = ACCELERATOR_2,
     .hwDeviceID    = XPAR_XSBS_UPDATE_32_1_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_2_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_32_1_VEC_ID,
@@ -924,8 +997,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     }
   },
   { .hwDriver      = &SbsHardwareDriver_update64_p,
-    .layerType     = CONVOLUTION_LAYER_64N,
-    .vectorSize    = 64,
+    .layerAssign   = ACCELERATOR_3,
     .hwDeviceID    = XPAR_SBS_UPDATE_64_P_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_3_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_64_P_0_VEC_ID,
@@ -939,8 +1011,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   },
   ////////////
   { .hwDriver      = &SbsHardwareDriver_update64_p,
-    .layerType     = CONVOLUTION_LAYER_64N,
-    .vectorSize    = 64,
+    .layerAssign   = ACCELERATOR_4,
     .hwDeviceID    = XPAR_SBS_UPDATE_64_P_1_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_4_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_64_P_1_VEC_ID,
@@ -954,8 +1025,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   },
   ////////////
   { .hwDriver      = &SbsHardwareDriver_update64,
-    .layerType     = POOLING_LAYER_64N,
-    .vectorSize    = 64,
+    .layerAssign   = ACCELERATOR_5,
     .hwDeviceID    = XPAR_XSBS_UPDATE_64_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_5_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_64_0_VEC_ID,
@@ -968,8 +1038,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     }
   },
   { .hwDriver      = &SbsHardwareDriver_update1024,
-    .layerType     = FULLY_CONNECTED_LAYER_1024N,
-    .vectorSize    = 1024,
+    .layerAssign   = ACCELERATOR_6,
     .hwDeviceID    = XPAR_XSBS_UPDATE_1024_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_6_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_1024_0_VEC_ID,
@@ -982,8 +1051,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     }
   },
   { .hwDriver      = &SbsHardwareDriver_update10,
-    .layerType     = OUTPUT_LAYER_10N,
-    .vectorSize    = 10,
+    .layerAssign   = ACCELERATOR_7,
     .hwDeviceID    = XPAR_XSBS_UPDATE_10_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXIDMA_7_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_UPDATE_10_0_VEC_ID,
@@ -1041,10 +1109,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardwareDriver_accelerator,
     .layerAssign   = ACCELERATOR_3,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_2_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_3_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_P0_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_2_VEC_ID,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_3_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_P0_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x30000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x33FFFFFF,
@@ -1055,10 +1123,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardwareDriver_accelerator,
     .layerAssign   = ACCELERATOR_4,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_3_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_4_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_P1_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_3_VEC_ID,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_4_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_P1_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x20000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x23FFFFFF,
@@ -1069,10 +1137,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardwareDriver_accelerator,
     .layerAssign   = ACCELERATOR_5,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_4_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_5_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_H4_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_4_VEC_ID,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_5_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_H4_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x34000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x37FFFFFF,
@@ -1082,10 +1150,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardwareDriver_accelerator,
     .layerAssign   = ACCELERATOR_6,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_5_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_6_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_H5_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_5_VEC_ID,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_6_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_H5_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x38000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3BFFFFFF,
@@ -1095,10 +1163,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardwareDriver_accelerator,
     .layerAssign   = ACCELERATOR_7,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_6_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_7_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_HY_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_6_VEC_ID,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_7_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_HY_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3C000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3FFFFFFF,
@@ -1157,8 +1225,6 @@ static int SbSUpdateAccelerator_getGroupFromList (SbsLayerType layerType, SbSUpd
 }
 
 
-
-
 static XScuGic                 ScuGic = {0};
 
 #define ACCELERATOR_DMA_RESET_TIMEOUT 10000
@@ -1199,7 +1265,8 @@ static void Accelerator_txInterruptHandler(void * data)
 
 static void Accelerator_rxInterruptHandler (void * data)
 {
-  XAxiDma *AxiDmaInst = &((SbSUpdateAccelerator *) data)->dmaHardware;
+  SbSUpdateAccelerator * accelerator = (SbSUpdateAccelerator *) data;
+  XAxiDma *AxiDmaInst = &accelerator->dmaHardware;
   uint32_t IrqStatus = XAxiDma_IntrGetIrq(AxiDmaInst, XAXIDMA_DEVICE_TO_DMA);
 
   XAxiDma_IntrAckIrq(AxiDmaInst, IrqStatus, XAXIDMA_DEVICE_TO_DMA);
@@ -1232,13 +1299,16 @@ static void Accelerator_rxInterruptHandler (void * data)
 
   if ((IrqStatus &  XAXIDMA_IRQ_IOC_MASK))
   {
-    ((SbSUpdateAccelerator *) data)->txDone = 1;
-    ((SbSUpdateAccelerator *) data)->rxDone = 1;
+    accelerator->txDone = 1;
+    accelerator->rxDone = 1;
 
-    if (((SbSUpdateAccelerator *) data)->memory_cmd.cmdID == MEM_CMD_MOVE)
-      memcpy(((SbSUpdateAccelerator *) data)->memory_cmd.dest,
-             ((SbSUpdateAccelerator *) data)->memory_cmd.src,
-             ((SbSUpdateAccelerator *) data)->memory_cmd.size);
+    if (accelerator->memory_cmd.cmdID == MEM_CMD_MOVE)
+      memcpy(accelerator->memory_cmd.dest,
+             accelerator->memory_cmd.src,
+             accelerator->memory_cmd.size);
+
+    SbsLogger_logPoint (accelerator->logger, 1);
+    SbsLogger_logPoint (accelerator->logger, 0);
   }
 }
 
@@ -1252,8 +1322,6 @@ static void Accelerator_hardwareInterruptHandler (void * data)
   ASSERT (accelerator->hardwareConfig->hwDriver != NULL);
   ASSERT (accelerator->hardwareConfig->hwDriver->InterruptGetStatus != NULL);
   ASSERT (accelerator->hardwareConfig->hwDriver->InterruptClear != NULL);
-
-  Timer_takeSample(accelerator->timer, 0, NULL);
 
   status = accelerator->hardwareConfig->hwDriver->InterruptGetStatus(accelerator->updateHardware);
   accelerator->hardwareConfig->hwDriver->InterruptClear(accelerator->updateHardware, status);
@@ -1473,7 +1541,7 @@ static int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
   accelerator->rxDone = 1;
   accelerator->txDone = 1;
 
-  accelerator->timer = Timer_new(1);
+  accelerator->logger = SbsLogger_new (100);
 
   return XST_SUCCESS;
 }
@@ -1525,7 +1593,9 @@ void Accelerator_delete (SbSUpdateAccelerator ** accelerator)
   {
     Accelerator_shutdown (*accelerator);
     (*accelerator)->hardwareConfig->hwDriver->delete(&(*accelerator)->updateHardware);
-    Timer_delete((&(*accelerator)->timer));
+
+    SbsLogger_delete (&((*accelerator)->logger));
+
     free (*accelerator);
     *accelerator = NULL;
   }
@@ -1691,8 +1761,9 @@ static void Accelerator_start(SbSUpdateAccelerator * accelerator)
                                    accelerator->rxBufferSize,
                                    XAXIDMA_DEVICE_TO_DMA);
 
-  Timer_start (accelerator->timer);
   ASSERT(status == XST_SUCCESS);
+  SbsLogger_logPoint (accelerator->logger, 0);
+  SbsLogger_logPoint (accelerator->logger, 1);
 }
 
 /*****************************************************************************/
@@ -2426,8 +2497,6 @@ static SbsLayer * SbsBaseLayer_new(SbsLayerType layer_type,
     else
       layer->spike_matrix = layer->partition_array[0]->spike_matrix;
 
-    layer->timer = Timer_new(1);
-
     /* Assign parameters */
     layer->rows          = rows;
     layer->columns       = columns;
@@ -2435,6 +2504,8 @@ static SbsLayer * SbsBaseLayer_new(SbsLayerType layer_type,
     layer->kernel_size   = kernel_size;
     layer->kernel_stride = kernel_stride;
     layer->weight_shift  = weight_shift;
+
+    layer->logger = SbsLogger_new(100);
   }
 
   return (SbsLayer *) layer;
@@ -2455,7 +2526,7 @@ static void SbsBaseLayer_delete(SbsLayer ** layer_ptr)
       while ((*layer)->num_partitions)
         SbsLayerPartition_delete (&((*layer)->partition_array[--(*layer)->num_partitions]));
 
-    Timer_delete(&(*layer)->timer);
+    SbsLogger_delete(&((*layer)->logger));
 
     free (*layer);
     *layer = NULL;
@@ -2850,7 +2921,8 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
     ASSERT (rows == state_matrix->dimension_size[0]);
     ASSERT (columns == state_matrix->dimension_size[1]);
 
-    Timer_start(layer->timer);
+    SbsLogger_logPoint (layer->logger, 0);
+    SbsLogger_logPoint (layer->logger, 1);
 
     Accelerator_setup (partition->accelerator, &partition->profile, SPIKE_MODE);
 
@@ -2860,8 +2932,8 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
                                      Multivector_2DAccess (state_matrix, row, column));
 
     Accelerator_start (partition->accelerator);
-
-    Timer_takeSample(layer->timer, 0, NULL);
+    SbsLogger_logPoint (layer->logger, 1);
+    SbsLogger_logPoint (layer->logger, 0);
   }
 }
 
@@ -2904,8 +2976,10 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
 
     WeightShift layer_weight_shift = layer->weight_shift;
 
+    SbsLogger_logPoint (layer->logger, 0);
+    SbsLogger_logPoint (layer->logger, 1);
+
     kernel_row_pos = 0, layer_row = 0;
-    Timer_start(layer->timer);
     for (i = 0; i < layer->num_partitions; i ++)
     {
       update_partition = layer->partition_array[i];
@@ -2994,7 +3068,8 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
       /* Update ends */
       Accelerator_start (update_partition_accelerator);
     }
-    Timer_takeSample(layer->timer, 0, NULL);
+    SbsLogger_logPoint (layer->logger, 1);
+    SbsLogger_logPoint (layer->logger, 0);
   }
 }
 
@@ -3015,7 +3090,7 @@ static SbsNetwork * SbsBaseNetwork_new(void)
     network->input_label = (uint8_t) -1;
     network->inferred_output = (uint8_t) -1;
 
-    network->timer = Timer_new(10);
+    network->logger = SbsLogger_new(100);
 
     sgenrand (666); /*TODO: Create MT19937 object wrapper */
   }
@@ -3037,7 +3112,7 @@ static void SbsBaseNetwork_delete(SbsNetwork ** network_ptr)
     while (0 < (*network)->size)
       SbsBaseLayer_delete((SbsLayer **)&(*network)->layer_array[--((*network)->size)]);
 
-    Timer_delete(&(*network)->timer);
+    SbsLogger_delete(&((*network)->logger));
 
     free(*network);
     *network = NULL;
@@ -3249,18 +3324,25 @@ static void SbsBaseNetwork_printTime (SbsBaseNetwork * network)
   ASSERT (network != NULL);
   if (network != NULL)
   {
+    Point * point;
     int i;
-    double start;
-    double layer;
-    double hw;
+    int p;
+    printf ("\naccelerator_activity.csv\n");
 
-    printf ("\nNetwork time schedule\n");
-    for (i = 0; i < network->size; i++)
+    for (p = 0; p < network->layer_array[0]->logger->index; p++)
     {
-      start = Timer_getSample(network->timer, i);
-      layer = Timer_getSample(network->layer_array[i]->timer, 0);
-      hw = Timer_getSample(SbSUpdateAccelerator_list[i]->timer, 0);
-      printf ("\nLayer[%d]: Start = %lf, Layer_SW = %lf, Layer_HW = %lf\n", i, start, layer, hw);
+      for (i = 0; i < network->size; i++)
+      {
+        point = &network->layer_array[i]->logger->point_array[p];
+        printf ("%lf,%l.0f,", point->time, point->value);
+      }
+
+      for (i = 0; i < NUM_ACCELERATOR_INSTANCES; i ++)
+      {
+        point = &SbSUpdateAccelerator_list[i]->logger->point_array[p];
+        printf ("%lf,%l.0f,", point->time, point->value);
+      }
+      printf ("\n");
     }
   }
 }
@@ -3295,22 +3377,23 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
     printf (" Update cycles: %d \n", cycles);
 
     Timer_start(timer_update);
+    SbsLogger_timeReset ();
     /************************ Begins Update cycle ****************************/
     while (cycles--)
     {
-      Timer_start(network->timer);
-      Timer_takeSample(network->timer, 0, NULL);
+      SbsLogger_logPoint (network->logger, 1);
       SbsBaseLayer_generateSpikes (input_layer);
 
       for (i = 1; i <= network->size - 1; i++)
       {
         layer_wait = i;
-        Timer_takeSample(network->timer, i, NULL);
         SbsBaseLayer_update (network->layer_array[i],
                              network->layer_array[i - 1]);
       }
-      sleep (1);
-      SbsBaseNetwork_printTime (network);
+      SbsLogger_logPoint (network->logger, 0);
+
+      if (cycles == 990)
+        SbsBaseNetwork_printTime (network);
     }
     /************************ Ends Update cycle ******************************/
     Timer_takeSample(timer_update, 0, NULL);
