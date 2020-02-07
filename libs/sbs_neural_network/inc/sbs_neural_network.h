@@ -5,14 +5,26 @@
  *      Author: Yarib Nevarez
  */
 
-#ifndef SBS_NN_H_
-#define SBS_NN_H_
+#ifndef SBS_NEURAL_NETWORK_H_
+#define SBS_NEURAL_NETWORK_H_
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stdint.h>
 #include <stddef.h>
 
+#include <result.h>
+
 #pragma pack(push)
 #pragma pack(1)
+
+typedef enum
+{
+  SBS_LEARNING_NONE,
+  SBS_LEARNING_DELTA_MSE,
+  SBS_LEARNING_RELATIVE_ENTROPY
+} SbsLearningRule;
 
 typedef enum
 {
@@ -20,21 +32,46 @@ typedef enum
   COLUMN_SHIFT
 } WeightShift;
 
+typedef enum
+{
+  NONE_LAYER               = 0,
+  HX_INPUT_LAYER           = 1<<0,
+  H1_CONVOLUTION_LAYER     = 1<<1,
+  H2_POOLING_LAYER         = 1<<2,
+  H3_CONVOLUTION_LAYER     = 1<<3,
+  H4_POOLING_LAYER         = 1<<4,
+  H5_FULLY_CONNECTED_LAYER = 1<<5,
+  HY_OUTPUT_LAYER          = 1<<6
+} SbsLayerType;
+
+/*___________________________________________________________________________*/
+/* TODO: Implement nicely                                                    */
+#define ACCELERATOR_0     HX_INPUT_LAYER
+#define ACCELERATOR_1     H1_CONVOLUTION_LAYER | H4_POOLING_LAYER
+#define ACCELERATOR_2     H2_POOLING_LAYER
+#define ACCELERATOR_3     H3_CONVOLUTION_LAYER
+#define ACCELERATOR_4     0
+#define ACCELERATOR_5     H5_FULLY_CONNECTED_LAYER
+#define ACCELERATOR_6     HY_OUTPUT_LAYER
+#define ACCELERATOR_7     H3_CONVOLUTION_LAYER
+/*___________________________________________________________________________*/
+
 typedef float  NeuronState;
 typedef void * SbsWeightMatrix;
 
 typedef struct SbsLayer_VTable SbsLayer;
 struct SbsLayer_VTable
 {
-  SbsLayer * (*new)        (uint16_t rows,
+  SbsLayer * (*new)        (SbsLayerType layer_type,
+                            uint16_t rows,
                             uint16_t columns,
                             uint16_t neurons,
                             uint16_t kernel_size,
                             uint16_t kernel_stride,
-                            WeightShift weight_shift,
-                            uint16_t    neurons_previous_Layer);
+                            WeightShift weight_shift);
   void       (*delete)     (SbsLayer ** layer);
   void       (*setEpsilon) (SbsLayer * layer, float epsilon);
+  void       (*setLearningRule) (SbsLayer * layer, SbsLearningRule rule, double gama, int number_of_patterns);
   void       (*giveWeights)(SbsLayer * layer, SbsWeightMatrix weight_matrix);
 };
 extern struct SbsLayer_VTable _SbsLayer;
@@ -52,7 +89,7 @@ struct SbsNetwork_VTable
   uint8_t      (*getInputLabel)     (SbsNetwork * network);
   /* Note: 'NeuronState ** output_vector' must use intermediate variables to support unaligned accesses in ARM architectures */
   void         (*getOutputVector)   (SbsNetwork * network, NeuronState ** output_vector, uint16_t * output_vector_size);
-  size_t       (*getMemorySize)     (SbsNetwork * network);
+  void         (*printStatistics)   (SbsNetwork * network);
 };
 extern struct SbsNetwork_VTable _SbsNetwork;
 
@@ -60,45 +97,55 @@ typedef struct
 {
   SbsNetwork *    (*Network)(void);
 
-  SbsLayer *      (*Layer)  (uint16_t rows,
+  SbsLayer *      (*Layer)  (SbsLayerType layer_type,
+                             uint16_t rows,
                              uint16_t columns,
                              uint16_t neurons,
                              uint16_t kernel_size,
                              uint16_t kernel_stride,
-                             WeightShift weight_shift,
-                             uint16_t    neurons_previous_Layer);
+                             WeightShift weight_shift);
 
-  SbsWeightMatrix (*WeightMatrix)(uint16_t rows, uint16_t columns, char * file_name);
+  SbsWeightMatrix (*WeightMatrix)(uint16_t rows, uint16_t columns, uint16_t spikes, uint16_t neurons, char * file_name);
 
-  SbsLayer *      (*InputLayer)  (uint16_t rows, uint16_t columns, uint16_t neurons);
+  SbsLayer *      (*InputLayer)  (SbsLayerType layer_type,
+                                  uint16_t rows,
+                                  uint16_t columns,
+                                  uint16_t neurons);
 
-  SbsLayer *      (*ConvolutionLayer)(uint16_t rows,
+  SbsLayer *      (*ConvolutionLayer)(SbsLayerType layer_type,
+                                      uint16_t rows,
                                       uint16_t columns,
                                       uint16_t neurons,
                                       uint16_t kernel_size,
-                                      WeightShift weight_shift,
-                                      uint16_t neurons_prev_Layer);
+                                      WeightShift weight_shift);
 
-  SbsLayer *      (*PoolingLayer)(uint16_t rows,
+  SbsLayer *      (*PoolingLayer)(SbsLayerType layer_type,
+                                  uint16_t rows,
                                   uint16_t columns,
                                   uint16_t neurons,
                                   uint16_t kernel_size,
-                                  WeightShift weight_shift,
-                                  uint16_t neurons_prev_Layer);
+                                  WeightShift weight_shift);
 
-  SbsLayer *      (*FullyConnectedLayer)(uint16_t neurons,
+  SbsLayer *      (*FullyConnectedLayer)(SbsLayerType layer_type,
+                                         uint16_t neurons,
                                          uint16_t kernel_size,
-                                         WeightShift weight_shift,
-                                         uint16_t neurons_prev_Layer);
+                                         WeightShift weight_shift);
 
-  SbsLayer *      (*OutputLayer)(uint16_t neurons,
-                                 WeightShift weight_shift,
-                                 uint16_t neurons_prev_Layer);
+  SbsLayer *      (*OutputLayer)(SbsLayerType layer_type,
+                                 uint16_t neurons,
+                                 WeightShift weight_shift);
 } SbsNew;
-
 
 extern SbsNew sbs_new;
 
 #pragma pack(pop)
 
-#endif /* SBS_NN_H_ */
+Result SbsHardware_initialize (void);
+void SbsHardware_shutdown (void);
+
+void SbsStatistics_initialize (void);
+
+#ifdef __cplusplus
+}
+#endif
+#endif /* SBS_NEURAL_NETWORK_H_ */

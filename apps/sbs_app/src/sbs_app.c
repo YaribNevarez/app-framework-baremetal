@@ -23,14 +23,10 @@
 #include "sbs_app.h"
 #include "stdio.h"
 
-#ifdef USE_XILINX
-
-#include "platform.h"
 #include "xil_printf.h"
-#include "IO.h"
+#include "xstatus.h"
 #include "ff.h"
 
-#endif
 
 // FORWARD DECLARATIONS --------------------------------------------------------
 
@@ -41,7 +37,7 @@
 // STRUCTS AND NAMESPACES ------------------------------------------------------
 
 // DEFINITIONs -----------------------------------------------------------------
-#ifdef USE_XILINX
+
 static FATFS fatfs;
 static u32 SnnApp_initializeSD(void)
 {
@@ -59,121 +55,208 @@ static u32 SnnApp_initializeSD(void)
 
   return OK;
 }
-#endif
+
 
 Result SnnApp_initialize(void)
 {
-#ifdef USE_XILINX
-    init_platform();
-    SnnApp_initializeSD();
-#endif
-
+  SnnApp_initializeSD();
   return OK;
 }
 
-Result SnnApp_run(void)
+Result SnnApp_run (void)
 {
+  int pattern_index;
+  char input_pattern_file_name[128];
   NeuronState * output_vector;
   uint16_t output_vector_size;
+  Result rc;
 
   /*********************/
   // ********** Create SBS Neural Network **********
-  printf("\n==========  SbS Neural Network  ===============\n");
-  printf("\n==========  MNIST example  ====================\n");
+  printf ("\n==========  SbS Neural Network  ===============\n");
+  printf ("\n==========  MNIST example  ====================\n");
 
-  SbsNetwork * network = sbs_new.Network();
+  SbsStatistics_initialize ();
 
-  // Instantiate SBS Network objects
+  rc = SbsHardware_initialize ();
 
-  /** Layer = 24x24x50, Spike = 24x24, Weight = 0 **/
-  SbsLayer * input_layer = sbs_new.InputLayer(24, 24, 50);
-  network->giveLayer(network, input_layer);
-
-  SbsWeightMatrix P_IN_H1 = sbs_new.WeightMatrix(2 * 5 * 5, 32, SBS_P_IN_H1_WEIGHTS_FILE);
-
-  /** Layer = 24x24x32, Spike = 24x24, Weight = 50x32 **/
-  SbsLayer * H1 = sbs_new.ConvolutionLayer(24, 24, 32, 1, ROW_SHIFT, 50);
-  H1->setEpsilon(H1, 0.1);
-  H1->giveWeights(H1, P_IN_H1);
-  network->giveLayer(network, H1);
-
-  SbsWeightMatrix P_H1_H2 = sbs_new.WeightMatrix(32 * 2 * 2, 32, SBS_P_H1_H2_WEIGHTS_FILE);
-
-  /** Layer = 12x12x32, Spike = 12x12, Weight = 128x32 **/
-  SbsLayer * H2 = sbs_new.PoolingLayer(12, 12, 32, 2, COLUMN_SHIFT, 32);
-  H2->setEpsilon(H2, 0.1 / 4.0);
-  H2->giveWeights(H2, P_H1_H2);
-  network->giveLayer(network, H2);
-
-  SbsWeightMatrix P_H2_H3 = sbs_new.WeightMatrix(32 * 5 * 5, 64, SBS_P_H2_H3_WEIGHTS_FILE);
-
-  /** Layer = 8x8x64, Spike = 8x8, Weight = 800x64 **/
-  SbsLayer * H3 = sbs_new.ConvolutionLayer(8, 8, 64, 5, COLUMN_SHIFT, 32);
-  H3->setEpsilon(H3, 0.1 / 25.0);
-  H3->giveWeights(H3, P_H2_H3);
-  network->giveLayer(network, H3);
-
-  SbsWeightMatrix P_H3_H4 = sbs_new.WeightMatrix(64 * 2 * 2, 64, SBS_P_H3_H4_WEIGHTS_FILE);
-
-  /** Layer = 4x4x64, Spike = 4x4, Weight = 256x64 **/
-  SbsLayer * H4 = sbs_new.PoolingLayer(4, 4, 64, 2, COLUMN_SHIFT, 64);
-  H4->setEpsilon(H4, 0.1 / 4.0);
-  H4->giveWeights(H4, P_H3_H4);
-  network->giveLayer(network, H4);
-
-  SbsWeightMatrix P_H4_H5 = sbs_new.WeightMatrix(64 * 4 * 4, 1024, SBS_P_H4_H5_WEIGHTS_FILE);
-
-  /** Layer = 1x1x1024, Spike = 1x1, Weight = 1024x1024 **/
-  SbsLayer * H5 = sbs_new.FullyConnectedLayer(1024, 4, ROW_SHIFT, 64);
-  H5->setEpsilon(H5, 0.1 / 16.0);
-  H5->giveWeights(H5, P_H4_H5);
-  network->giveLayer(network, H5);
-
-  SbsWeightMatrix P_H5_HY = sbs_new.WeightMatrix(1024, 10, SBS_P_H5_HY_WEIGHTS_FILE);
-
-  /** Layer = 1x1x10, Spike = 1x1, Weight = 1024x10 **/
-  SbsLayer * HY = sbs_new.OutputLayer(10, ROW_SHIFT, 0);
-  HY->setEpsilon(HY, 0.1);
-  HY->giveWeights(HY, P_H5_HY);
-  network->giveLayer(network, HY);
-
-    // Perform Network load pattern and update cycle
-  network->loadInput(network, SBS_INPUT_PATTERN_FILE);
-  network->updateCycle(network, 1000);
-
-  printf("\n==========  Results ===========================\n");
-
-  printf("\n Output value: %d \n", network->getInferredOutput(network));
-  printf("\n Label value: %d \n", network->getInputLabel(network));
-
-  network->getOutputVector(network, &output_vector, &output_vector_size);
-
-  printf("\n==========  Output layer values ===============\n");
-
-  while (output_vector_size --)
+  if (rc != OK)
   {
-    NeuronState h = output_vector[output_vector_size]; /* Ensure data alignment */
-    printf(" [ %d ] = %.6f\n", output_vector_size, h);
+    printf ("Hardware error\n");
+    return rc;
   }
 
-  printf("\n===============================================\n");
+  /*_________________________________________________________________________*/
 
-#ifdef USE_XILINX
-  printf("\n Pool size: %d \n", network->getMemorySize(network));
-#else
-  printf("\n Pool size: %ld \n", network->getMemorySize(network));
-#endif
+  SbsNetwork * network = sbs_new.Network ();
 
-  network->delete(&network);
+  /*_________________________________________________________________________*/
 
-  return OK;
+  SbsLayer * input_layer = sbs_new.InputLayer (HX_INPUT_LAYER,
+                                               SBS_INPUT_LAYER_ROWS,
+                                               SBS_INPUT_LAYER_COLUMNS,
+                                               SBS_INPUT_LAYER_NEURONS);
+  network->giveLayer (network, input_layer);
+
+  /*_________________________________________________________________________*/
+
+  SbsLayer * H1 = sbs_new.ConvolutionLayer (H1_CONVOLUTION_LAYER,
+                                            SBS_H1_CONVOLUTION_LAYER_ROWS,
+                                            SBS_H1_CONVOLUTION_LAYER_COLUMNS,
+                                            SBS_H1_CONVOLUTION_LAYER_NEURONS,
+                                            SBS_H1_CONVOLUTION_LAYER_KERNEL,
+                                            ROW_SHIFT);
+  H1->setEpsilon (H1, SBS_H1_CONVOLUTION_LAYER_EPSION);
+  network->giveLayer (network, H1);
+
+  SbsWeightMatrix P_IN_H1 = sbs_new.WeightMatrix (SBS_H1_CONVOLUTION_LAYER_KERNEL,
+                                                  SBS_H1_CONVOLUTION_LAYER_KERNEL,
+                                                  SBS_INPUT_LAYER_NEURONS,
+                                                  SBS_H1_CONVOLUTION_LAYER_NEURONS,
+                                                  SBS_P_IN_H1_WEIGHTS_FILE);
+  H1->giveWeights (H1, P_IN_H1);
+
+  /*_________________________________________________________________________*/
+
+  SbsLayer * H2 = sbs_new.PoolingLayer (H2_POOLING_LAYER,
+                                        SBS_H2_POOLING_LAYER_ROWS,
+                                        SBS_H2_POOLING_LAYER_COLUMNS,
+                                        SBS_H2_POOLING_LAYER_NEURONS,
+                                        SBS_H2_POOLING_LAYER_KERNEL,
+                                        COLUMN_SHIFT);
+  H2->setEpsilon (H2, SBS_H2_POOLING_LAYER_EPSION);
+  network->giveLayer (network, H2);
+
+  SbsWeightMatrix P_H1_H2 = sbs_new.WeightMatrix (SBS_H2_POOLING_LAYER_KERNEL,
+                                                  SBS_H2_POOLING_LAYER_KERNEL,
+                                                  SBS_H1_CONVOLUTION_LAYER_NEURONS,
+                                                  SBS_H2_POOLING_LAYER_NEURONS,
+                                                  SBS_P_H1_H2_WEIGHTS_FILE);
+  H2->giveWeights (H2, P_H1_H2);
+
+  /*_________________________________________________________________________*/
+
+  SbsLayer * H3 = sbs_new.ConvolutionLayer (H3_CONVOLUTION_LAYER,
+                                            SBS_H3_CONVOLUTION_LAYER_ROWS,
+                                            SBS_H3_CONVOLUTION_LAYER_COLUMNS,
+                                            SBS_H3_CONVOLUTION_LAYER_NEURONS,
+                                            SBS_H3_CONVOLUTION_LAYER_KERNEL,
+                                            COLUMN_SHIFT);
+  H3->setEpsilon (H3, SBS_H3_CONVOLUTION_LAYER_EPSION);
+  network->giveLayer (network, H3);
+
+  SbsWeightMatrix P_H2_H3 = sbs_new.WeightMatrix (SBS_H3_CONVOLUTION_LAYER_KERNEL,
+                                                  SBS_H3_CONVOLUTION_LAYER_KERNEL,
+                                                  SBS_H2_POOLING_LAYER_NEURONS,
+                                                  SBS_H3_CONVOLUTION_LAYER_NEURONS,
+                                                  SBS_P_H2_H3_WEIGHTS_FILE);
+  H3->giveWeights (H3, P_H2_H3);
+
+  /*_________________________________________________________________________*/
+
+  SbsLayer * H4 = sbs_new.PoolingLayer (H4_POOLING_LAYER,
+                                        SBS_H4_POOLING_LAYER_ROWS,
+                                        SBS_H4_POOLING_LAYER_COLUMNS,
+                                        SBS_H4_POOLING_LAYER_NEURONS,
+                                        SBS_H4_POOLING_LAYER_KERNEL,
+                                        COLUMN_SHIFT);
+  H4->setEpsilon (H4, SBS_H4_POOLING_LAYER_EPSION);
+  network->giveLayer (network, H4);
+
+  SbsWeightMatrix P_H3_H4 = sbs_new.WeightMatrix (SBS_H4_POOLING_LAYER_KERNEL,
+                                                  SBS_H4_POOLING_LAYER_KERNEL,
+                                                  SBS_H3_CONVOLUTION_LAYER_NEURONS,
+                                                  SBS_H4_POOLING_LAYER_NEURONS,
+                                                  SBS_P_H3_H4_WEIGHTS_FILE);
+  H4->giveWeights (H4, P_H3_H4);
+
+  /*_________________________________________________________________________*/
+
+  SbsLayer * H5 = sbs_new.FullyConnectedLayer (H5_FULLY_CONNECTED_LAYER,
+                                               SBS_FULLY_CONNECTED_LAYER_NEURONS,
+                                               SBS_H4_POOLING_LAYER_ROWS,
+                                               ROW_SHIFT);
+  H5->setEpsilon (H5, SBS_FULLY_CONNECTED_LAYER_EPSION);
+  network->giveLayer (network, H5);
+
+  SbsWeightMatrix P_H4_H5 = sbs_new.WeightMatrix (SBS_H4_POOLING_LAYER_ROWS,
+                                                  SBS_H4_POOLING_LAYER_COLUMNS,
+                                                  SBS_H4_POOLING_LAYER_NEURONS,
+                                                  SBS_FULLY_CONNECTED_LAYER_NEURONS,
+                                                  SBS_P_H4_H5_WEIGHTS_FILE);
+  H5->giveWeights (H5, P_H4_H5);
+
+
+  /*_________________________________________________________________________*/
+
+  SbsLayer * HY = sbs_new.OutputLayer (HY_OUTPUT_LAYER,
+                                       SBS_OUTPUT_LAYER_NEURONS,
+                                       ROW_SHIFT);
+  HY->setEpsilon (HY, SBS_OUTPUT_LAYER_EPSION);
+  network->giveLayer (network, HY);
+
+  SbsWeightMatrix P_H5_HY = sbs_new.WeightMatrix (1,
+                                                  1,
+                                                  SBS_FULLY_CONNECTED_LAYER_NEURONS,
+                                                  SBS_OUTPUT_LAYER_NEURONS,
+                                                  SBS_P_H5_HY_WEIGHTS_FILE);
+  HY->giveWeights (HY, P_H5_HY);
+
+  /*_________________________________________________________________________*/
+
+  HY->setLearningRule(HY, SBS_LEARNING_DELTA_MSE, 0.05, SBS_INPUT_PATTERN_LAST - SBS_INPUT_PATTERN_FIRST + 1);
+
+  /*_________________________________________________________________________*/
+
+  for (int loop = 0;; loop ++)
+  {
+    printf ("\n===============================================\n");
+    printf ("\n Start loop: %d\n", loop);
+    printf ("\n===============================================\n");
+    for (pattern_index = SBS_INPUT_PATTERN_FIRST;
+         pattern_index <= SBS_INPUT_PATTERN_LAST;
+         pattern_index++)
+    {
+      printf ("\n===============================================\n");
+      sprintf (input_pattern_file_name,
+               SBS_INPUT_PATTERN_FORMAT_NAME,
+               pattern_index);
+
+      printf ("\nInput pattern: %s\n", input_pattern_file_name);
+      network->loadInput (network, input_pattern_file_name);
+
+      printf ("\n Loop: %d\n", loop);
+
+      network->updateCycle (network, SBS_NETWORK_UPDATE_CYCLES);
+
+      printf ("\n Output value: %d \n", network->getInferredOutput (network));
+      printf ("\n Label value: %d \n", network->getInputLabel (network));
+
+      network->getOutputVector (network, &output_vector, &output_vector_size);
+
+      while (output_vector_size--)
+      {
+        NeuronState h = output_vector[output_vector_size]; /* Ensure data alignment */
+        printf (" [ %d ] = %.6f\n", output_vector_size, h);
+      }
+
+      network->printStatistics (network);
+      printf ("\n===============================================\n");
+    }
+    printf ("\n===============================================\n");
+    printf ("\n End loop: %d\n", loop);
+    printf ("\n===============================================\n");
+  }
+  network->delete (&network);
+
+  SbsHardware_shutdown ();
+
+  return rc;
 }
 
 void SnnApp_dispose(void)
 {
-#ifdef USE_XILINX
-	cleanup_platform();
-#endif
+
 }
 
 static SnnApp SnnApp_obj = { SnnApp_initialize,
