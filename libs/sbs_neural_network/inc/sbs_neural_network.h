@@ -47,13 +47,13 @@ typedef enum
 /*___________________________________________________________________________*/
 /* TODO: Implement nicely                                                    */
 #define ACCELERATOR_0     HX_INPUT_LAYER
-#define ACCELERATOR_1     H1_CONVOLUTION_LAYER
+#define ACCELERATOR_1     H1_CONVOLUTION_LAYER | H4_POOLING_LAYER
 #define ACCELERATOR_2     H2_POOLING_LAYER
 #define ACCELERATOR_3     H3_CONVOLUTION_LAYER
-#define ACCELERATOR_4     H4_POOLING_LAYER
+#define ACCELERATOR_4     0
 #define ACCELERATOR_5     H5_FULLY_CONNECTED_LAYER
 #define ACCELERATOR_6     HY_OUTPUT_LAYER
-#define ACCELERATOR_7     NONE_LAYER
+#define ACCELERATOR_7     H3_CONVOLUTION_LAYER
 /*___________________________________________________________________________*/
 
 typedef float  NeuronState;

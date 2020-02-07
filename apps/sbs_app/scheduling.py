@@ -18,7 +18,6 @@ def scheduler(swT, hwT, hwAlloc):
       Accel_work[instance] = Layer_sw_time[i] + hwT[i]
     end_time[j] = Layer_sw_time[-1]
 
-    print(end_time)
     print("Time:")
     print(end_time[1] - end_time[0])
       
@@ -64,4 +63,4 @@ hwT = (P['LayerRows'] * P['LayerColumns'] * (16 * P['Neurons'] + P['KernelRows']
 #np.set_printoptions(suppress=True)
 print(hwT)
 
-scheduler(swT = swT_pred, hwT = hwT, hwAlloc = [0,0,0,0,0,0])
+scheduler(swT = swT_pred, hwT = hwT, hwAlloc = [0,1,2,0,1,3])
