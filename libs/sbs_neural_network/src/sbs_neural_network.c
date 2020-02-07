@@ -20,7 +20,25 @@
 #include "ff.h"
 #endif
 
-#define ASSERT(expr)  assert(expr)
+#define DEBUG
+
+#ifdef DEBUG
+
+void sbs_assert(const char * file, int line, const char * function, const char * expression)
+{
+  int BypassFail = 0;
+  printf ("Fail: %s, in \"%s\" [%s, %d]\n", expression, function, file, line);
+
+  while (!BypassFail)
+    ;
+
+  printf ("Bypass Fail\n");
+}
+
+#define ASSERT(expr) if (!(expr)) sbs_assert(__FILE__, __LINE__, __func__, #expr);
+#else
+#define ASSERT(expr)
+#endif
 
 /*****************************************************************************/
 #pragma pack(push)  /* push current alignment to stack */
@@ -306,7 +324,7 @@ static void SbsBaseLayer_initializeIP(NeuronState * state_vector, uint16_t size)
   }
 }
 
-static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vector, Weight * weight_vector, uint16_t size, float epsilon)
+static void SbsBaseLayer_updateIP_float32(SbsBaseLayer * layer, NeuronState * state_vector, Weight * weight_vector, uint16_t size, float epsilon)
 {
   ASSERT(state_vector != NULL);
   ASSERT(weight_vector != NULL);
@@ -374,7 +392,340 @@ static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vect
   }
 }
 
-static SpikeID SbsBaseLayer_generateSpikeIP(NeuronState * state_vector, uint16_t size)
+#define FIXED_POINT_QF    (14)
+#define FIXED_POINT_ONE   ((uint64_t)1 << FIXED_POINT_QF)
+
+static void SbsBaseLayer_updateIP_fixed32(SbsBaseLayer * layer, uint64_t * state_vector, uint64_t * weight_vector, uint16_t size, uint64_t epsilon)
+{
+  ASSERT(state_vector != NULL);
+  ASSERT(weight_vector != NULL);
+  ASSERT(layer->update_buffer != NULL);
+  ASSERT(0 < size);
+
+  if ((state_vector != NULL) && (weight_vector != NULL)
+      && (layer->update_buffer != NULL) && (0 < size))
+  {
+    static uint64_t temp_data[1024];
+
+    uint64_t sum             = 0;
+    uint64_t reverse_epsilon = (FIXED_POINT_ONE << FIXED_POINT_QF) / (FIXED_POINT_ONE + (uint64_t)epsilon);
+    uint64_t epsion_over_sum = 0;
+    uint64_t temp_dynamic    = 0;
+    uint16_t neuron;
+
+#if defined (__x86_64__) || defined(__amd64__)
+    for (neuron = 0; neuron < size; neuron ++)
+    {
+      temp_data[neuron] = (((uint64_t)state_vector[neuron]) * ((uint64_t)weight_vector[neuron])) >> FIXED_POINT_QF;
+      sum += temp_data[neuron];
+    }
+
+    if (sum < 1) // TODO: DEFINE constant
+      return;
+
+    epsion_over_sum = (((uint64_t)epsilon) << FIXED_POINT_QF) / sum;
+
+    for (neuron = 0; neuron < size; neuron ++)
+    {
+      temp_dynamic = (temp_data[neuron] * epsion_over_sum) >> FIXED_POINT_QF;
+      state_vector[neuron] = (reverse_epsilon * (((uint64_t)state_vector[neuron]) + temp_dynamic)) >> FIXED_POINT_QF;
+
+      if (state_vector[neuron] == 0)
+        printf("*ZERO*");
+    }
+
+#elif defined(__arm__)
+    /* Support for unaligned accesses in ARM architecture */
+    NeuronState h;
+    NeuronState p;
+    NeuronState h_p;
+    NeuronState h_new;
+
+    for (neuron = 0; neuron < size; neuron ++)
+    {
+      h = state_vector[neuron];
+      p = weight_vector[neuron];
+      h_p = h * p;
+
+      temp_data[neuron] = h_p;
+      sum += h_p;
+    }
+
+    if (sum < 1e-20) // TODO: DEFINE constant
+      return;
+
+    epsion_over_sum = epsilon / sum;
+
+    for (neuron = 0; neuron < size; neuron ++)
+    {
+      h_p = temp_data[neuron];
+      h = state_vector[neuron];
+
+      h_new = reverse_epsilon * (h + h_p * epsion_over_sum);
+      state_vector[neuron] = h_new;
+    }
+#else
+#error "Unsupported processor architecture"
+#endif
+  }
+}
+typedef __int128 int128_t;
+typedef unsigned __int128 uint128_t;
+
+typedef struct
+{
+  float state_vector[1024];
+  float weight_vector[1024];
+  float epsilon;
+  uint32_t size;
+
+  float temp_vector[1024];
+  float sum;
+  float reverse_epsilon;
+  float epsion_over_sum;
+} SbSUpdateDataFloat32;
+
+typedef struct
+{
+  uint32_t state_vector[1024];
+  uint16_t weight_vector[1024];
+  uint32_t epsilon;
+  uint32_t size;
+
+  uint64_t temp_vector[1024];
+  uint64_t sum;
+  uint64_t reverse_epsilon;
+  uint64_t epsion_over_sum;
+} SbSUpdateDataUint32;
+
+#define U32_QF    (21)
+#define U16_QF    (15)
+#define U32_MAX   (((uint64_t)1 << U32_QF) - 1)
+#define U16_MAX   (((uint64_t)1 << U16_QF) - 1)
+
+static void SbsBaseLayer_updateIP_fixedpoint(SbSUpdateDataUint32 * u32)
+{
+  ASSERT(u32 != NULL);
+
+  if (u32 != NULL)
+  {
+    u32->sum             = 0;
+
+    u32->reverse_epsilon = U32_MAX + u32->epsilon;
+
+    u32->reverse_epsilon = (U32_MAX << U32_QF) / u32->reverse_epsilon;
+
+    u32->epsion_over_sum = 0;
+
+    int neuron;
+    int size = u32->size;
+
+    for (neuron = 0; neuron < size; neuron ++)
+    {
+      u32->temp_vector[neuron] = ((uint64_t)u32->state_vector[neuron]) * ((uint64_t)u32->weight_vector[neuron] << (U32_QF - U16_QF));
+
+      u32->sum += u32->temp_vector[neuron];
+    }
+
+    if (u32->sum < 1)
+      return;
+
+    u32->epsion_over_sum = (((uint64_t)u32->epsilon) << 2 * U32_QF) / u32->sum;
+
+    for (neuron = 0; neuron < size; neuron ++)
+    {
+      u32->temp_vector[neuron] = (u32->temp_vector[neuron] * u32->epsion_over_sum) >> U32_QF;
+
+      u32->temp_vector[neuron] += ((uint64_t)u32->state_vector[neuron]) << U32_QF;
+
+      u32->temp_vector[neuron] *= u32->reverse_epsilon;
+
+      u32->temp_vector[neuron] = u32->temp_vector[neuron] >> 2 * U32_QF;
+      u32->state_vector[neuron] = u32->temp_vector[neuron];
+    }
+  }
+}
+
+static void SbsBaseLayer_updateIP_algorithm(SbSUpdateDataFloat32 * f32, SbSUpdateDataUint32 * u32)
+{
+  ASSERT(f32 != NULL);
+  ASSERT(u32 != NULL);
+
+  ASSERT(f32->size == u32->size);
+
+  if ((f32 != NULL) && (u32 != NULL) && (f32->size == u32->size))
+  {
+    f32->sum             = 0.0f;
+    u32->sum             = 0;
+
+    f32->reverse_epsilon = 1.0f + f32->epsilon;
+    u32->reverse_epsilon = U32_MAX + u32->epsilon;
+
+    f32->reverse_epsilon = 1.0f / f32->reverse_epsilon;
+    u32->reverse_epsilon = (U32_MAX << U32_QF) / u32->reverse_epsilon;
+
+    f32->epsion_over_sum = 0.0f;
+    u32->epsion_over_sum = 0;
+
+    int neuron;
+    int size = u32->size;
+
+#if defined (__x86_64__) || defined(__amd64__)
+    for (neuron = 0; neuron < size; neuron ++)
+    {
+      f32->temp_vector[neuron] = f32->state_vector[neuron] * f32->weight_vector[neuron];
+      u32->temp_vector[neuron] = ((uint64_t)u32->state_vector[neuron]) * ((uint64_t)u32->weight_vector[neuron]);
+
+      f32->sum += f32->temp_vector[neuron];
+      u32->sum += u32->temp_vector[neuron];
+    }
+
+    if (f32->sum < 1e-20) // TODO: DEFINE constant
+      return;
+
+    if (u32->sum < 1) // TODO: DEFINE constant
+      u32->sum = 1;
+
+    f32->epsion_over_sum = f32->epsilon / f32->sum;
+    u32->epsion_over_sum = (((uint64_t)u32->epsilon) << 2 * U32_QF) / u32->sum;
+
+    for (neuron = 0; neuron < size; neuron ++)
+    {
+      f32->temp_vector[neuron] *= f32->epsion_over_sum;
+      u32->temp_vector[neuron] *= u32->epsion_over_sum;
+
+      f32->temp_vector[neuron] += f32->state_vector[neuron];
+      u32->temp_vector[neuron] += ((uint64_t)u32->state_vector[neuron]) << 2 * U32_QF;
+
+      f32->temp_vector[neuron] *= f32->reverse_epsilon;
+      u32->temp_vector[neuron] *= u32->reverse_epsilon;
+
+      f32->state_vector[neuron] = f32->temp_vector[neuron];
+
+      u32->temp_vector[neuron] = u32->temp_vector[neuron] >> 3 * U32_QF;
+      u32->state_vector[neuron] = u32->temp_vector[neuron];
+    }
+
+#elif defined(__arm__)
+    /* Support for unaligned accesses in ARM architecture */
+    NeuronState h;
+    NeuronState p;
+    NeuronState h_p;
+    NeuronState h_new;
+
+    for (neuron = 0; neuron < size; neuron ++)
+    {
+      h = state_vector[neuron];
+      p = weight_vector[neuron];
+      h_p = h * p;
+
+      temp_data[neuron] = h_p;
+      sum += h_p;
+    }
+
+    if (sum < 1e-20) // TODO: DEFINE constant
+      return;
+
+    epsion_over_sum = epsilon / sum;
+
+    for (neuron = 0; neuron < size; neuron ++)
+    {
+      h_p = temp_data[neuron];
+      h = state_vector[neuron];
+
+      h_new = reverse_epsilon * (h + h_p * epsion_over_sum);
+      state_vector[neuron] = h_new;
+    }
+#else
+#error "Unsupported processor architecture"
+#endif
+  }
+}
+
+typedef enum
+{
+  FIXED_16,
+  FIXED_32,
+  FLOATING_32
+} RadixType;
+
+static void SbsBaseLayer_updateIP_debug(SbsBaseLayer * layer, NeuronState * state_vector, Weight * weight_vector, uint16_t size, float epsilon)
+{
+  ASSERT(state_vector != NULL);
+  ASSERT(weight_vector != NULL);
+  ASSERT(layer->update_buffer != NULL);
+  ASSERT(0 < size);
+
+  static SbSUpdateDataFloat32  f32;
+  static SbSUpdateDataUint32   u32;
+
+  memset(&f32, 0, sizeof (f32));
+  memset(&u32, 0, sizeof (u32));
+
+  for (int i = 0; i < size; i++)
+  {
+    f32.state_vector[i] = state_vector[i];
+    u32.state_vector[i] = U32_MAX * state_vector[i];
+
+    f32.weight_vector[i] = weight_vector[i];
+    u32.weight_vector[i] = U32_MAX * weight_vector[i];
+  }
+
+  f32.epsilon = epsilon;
+  u32.epsilon = U32_MAX *epsilon;
+
+  f32.size = size;
+  u32.size = size;
+
+  SbsBaseLayer_updateIP_algorithm (&f32, &u32);
+
+  for (int i = 0; i < size; i++)
+  {
+    //state_vector[i] = f32.state_vector[i];
+    state_vector[i] = ((float)u32.state_vector[i])/((float)U32_MAX);
+
+//    if (u32.state_vector[i] < 0)
+//      printf ("\nNEGARTIVE\n");
+//
+//    if (f32.state_vector[i] < lowest_h_value)
+//    {
+//      lowest_h_value = f32.state_vector[i];
+//      printf ("\nLowest = %e\n", lowest_h_value);
+//    }
+  }
+}
+
+static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vector, Weight * weight_vector, uint16_t size, float epsilon)
+{
+  ASSERT(state_vector != NULL);
+  ASSERT(weight_vector != NULL);
+  ASSERT(layer->update_buffer != NULL);
+  ASSERT(0 < size);
+
+  static SbSUpdateDataUint32   u32;
+
+  memset(&u32, 0, sizeof (u32));
+
+  for (int i = 0; i < size; i++)
+  {
+    u32.state_vector[i] = U32_MAX * state_vector[i];
+
+    u32.weight_vector[i] = U16_MAX * weight_vector[i];
+  }
+
+  u32.epsilon = U32_MAX *epsilon;
+
+  u32.size = size;
+
+  SbsBaseLayer_updateIP_fixedpoint(&u32);
+
+  for (int i = 0; i < size; i++)
+  {
+    state_vector[i] = ((float)u32.state_vector[i])/((float)U32_MAX);
+  }
+}
+
+static SpikeID SbsBaseLayer_generateSpikeIP_float(NeuronState * state_vector, uint16_t size)
 {
   ASSERT(state_vector != NULL);
   ASSERT(0 < size);
@@ -391,7 +742,7 @@ static SpikeID SbsBaseLayer_generateSpikeIP(NeuronState * state_vector, uint16_t
     {
         sum += state_vector[spikeID];
 
-        ASSERT(sum <= 1 + 1e-5);
+        //ASSERT(sum <= 1 + 1e-5);
 
         if (random_s <= sum)
               return spikeID;
@@ -399,6 +750,46 @@ static SpikeID SbsBaseLayer_generateSpikeIP(NeuronState * state_vector, uint16_t
   }
 
   return size - 1;
+}
+
+static SpikeID SbsBaseLayer_generateSpikeIP_fixedpoint(uint32_t * state_vector, uint16_t size)
+{
+  ASSERT(state_vector != NULL);
+  ASSERT(0 < size);
+
+  if ((state_vector != NULL) && (0 < size))
+  {
+    uint32_t random_s = genrand() >> (32 - U32_QF);
+    uint32_t sum      = 0;
+    SpikeID  spikeID;
+
+    ASSERT(random_s <= U32_MAX);
+
+    for (spikeID = 0; spikeID < size; spikeID ++)
+    {
+        sum += state_vector[spikeID];
+
+        //ASSERT(sum <= 1 + 1e-5);
+
+        if (random_s <= sum)
+              return spikeID;
+    }
+  }
+
+  return size - 1;
+}
+
+static SpikeID SbsBaseLayer_generateSpikeIP(NeuronState * state_vector, uint16_t size)
+{
+  static uint32_t state_vector_fixedpoint[1024];
+
+  for (int i = 0; i < size; i ++)
+  {
+    state_vector_fixedpoint[i] = U32_MAX * state_vector[i];
+  }
+
+  return SbsBaseLayer_generateSpikeIP_fixedpoint(state_vector_fixedpoint, size);
+  //return SbsBaseLayer_generateSpikeIP_float(state_vector, size);
 }
 
 static void SbsBaseLayer_initialize(SbsBaseLayer * layer)
