@@ -237,7 +237,7 @@ Result SnnApp_run (void)
       while (output_vector_size--)
       {
         NeuronState h = output_vector[output_vector_size]; /* Ensure data alignment */
-        printf (" [ %d ] = %.6f\n", output_vector_size, h);
+        printf (" [ %d ] = %X, (%f)\n", output_vector_size, h, (float)h/(float)H_MAX);
       }
 
       network->printStatistics (network);

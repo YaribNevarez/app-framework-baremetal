@@ -28,16 +28,8 @@
 
 #include "xscugic.h"
 
-#include "xsbs_spike_50.h"
-#ifdef CUSTOM_ACCELERATOR
-#include "xsbs_update_10.h"
-#include "xsbs_update_1024.h"
-#include "xsbs_update_32.h"
-#include "xsbs_update_64.h"
-#include "xsbs_update_64_p.h"
-#else
-#include "xsbs_accelerator.h"
-#endif
+#include "xsbs_fixedpoint_spike.h"
+#include "xsbs_fixedpoint.h"
 
 #define DEBUG
 
@@ -120,41 +112,41 @@ void Sbs_driver_delete (void ** InstancePtr)
   }
 }
 
-void * Sbs_spike_50_new (void)
+void * Sbs_spike_new (void)
 {
-  return malloc (sizeof(XSbs_spike_50));
+  return malloc (sizeof(XSbs_fixedpoint_spike));
 }
 
-SbsHardwareDriver SbsHardwareDriver_spike = {
-  .new = Sbs_spike_50_new,
+SbsHardwareDriver SbsHardwareDriver_fixedpoint_spike = {
+  .new = Sbs_spike_new,
   .delete = Sbs_driver_delete,
-  .Initialize = (int (*)(void *, u16)) XSbs_spike_50_Initialize,
+  .Initialize = (int (*)(void *, u16)) XSbs_fixedpoint_spike_Initialize,
 
-  .Start = (void (*)(void *)) XSbs_spike_50_Start,
-  .IsDone = (uint32_t(*)(void *)) XSbs_spike_50_IsDone,
-  .IsIdle = (uint32_t(*) (void *)) XSbs_spike_50_IsIdle,
-  .IsReady = (uint32_t(*) (void *)) XSbs_spike_50_IsReady,
-  .EnableAutoRestart = (void (*) (void *)) XSbs_spike_50_EnableAutoRestart,
-  .DisableAutoRestart = (void (*) (void *)) XSbs_spike_50_DisableAutoRestart,
+  .Start = (void (*)(void *)) XSbs_fixedpoint_spike_Start,
+  .IsDone = (uint32_t(*)(void *)) XSbs_fixedpoint_spike_IsDone,
+  .IsIdle = (uint32_t(*) (void *)) XSbs_fixedpoint_spike_IsIdle,
+  .IsReady = (uint32_t(*) (void *)) XSbs_fixedpoint_spike_IsReady,
+  .EnableAutoRestart = (void (*) (void *)) XSbs_fixedpoint_spike_EnableAutoRestart,
+  .DisableAutoRestart = (void (*) (void *)) XSbs_fixedpoint_spike_DisableAutoRestart,
 
   .Set_mode = (void (*) (void *, uint32_t )) NULL,
   .Get_mode = (uint32_t(*) (void *)) NULL,
-  .Set_layerSize = (void (*) (void *, uint32_t )) XSbs_spike_50_Set_layerSize,
-  .Get_layerSize = (uint32_t(*) (void *)) XSbs_spike_50_Get_layerSize,
+  .Set_layerSize = (void (*) (void *, uint32_t )) XSbs_fixedpoint_spike_Set_layerSize,
+  .Get_layerSize = (uint32_t(*) (void *)) XSbs_fixedpoint_spike_Get_layerSize,
   .Set_kernelSize = (void (*) (void *, uint32_t )) NULL,
   .Get_kernelSize = (uint32_t(*) (void *)) NULL,
-  .Set_vectorSize = (void (*) (void *, uint32_t )) XSbs_spike_50_Set_vectorSize,
-  .Get_vectorSize = (uint32_t(*) (void *)) XSbs_spike_50_Get_vectorSize,
+  .Set_vectorSize = (void (*) (void *, uint32_t )) XSbs_fixedpoint_spike_Set_vectorSize,
+  .Get_vectorSize = (uint32_t(*) (void *)) XSbs_fixedpoint_spike_Get_vectorSize,
   .Set_epsilon = (void (*) (void *, uint32_t )) NULL,
   .Get_epsilon = (uint32_t(*) (void *)) NULL,
 
-  .InterruptGlobalEnable = (void (*) (void *)) XSbs_spike_50_InterruptGlobalEnable,
-  .InterruptGlobalDisable = (void (*) (void *)) XSbs_spike_50_InterruptGlobalDisable,
-  .InterruptEnable = (void (*) (void *, uint32_t )) XSbs_spike_50_InterruptEnable,
-  .InterruptDisable = (void (*) (void *, uint32_t )) XSbs_spike_50_InterruptDisable,
-  .InterruptClear = (void (*) (void *, uint32_t )) XSbs_spike_50_InterruptClear,
-  .InterruptGetEnabled = (uint32_t(*) (void *)) XSbs_spike_50_InterruptGetEnabled,
-  .InterruptGetStatus = (uint32_t(*) (void *)) XSbs_spike_50_InterruptGetStatus,
+  .InterruptGlobalEnable = (void (*) (void *)) XSbs_fixedpoint_spike_InterruptGlobalEnable,
+  .InterruptGlobalDisable = (void (*) (void *)) XSbs_fixedpoint_spike_InterruptGlobalDisable,
+  .InterruptEnable = (void (*) (void *, uint32_t )) XSbs_fixedpoint_spike_InterruptEnable,
+  .InterruptDisable = (void (*) (void *, uint32_t )) XSbs_fixedpoint_spike_InterruptDisable,
+  .InterruptClear = (void (*) (void *, uint32_t )) XSbs_fixedpoint_spike_InterruptClear,
+  .InterruptGetEnabled = (uint32_t(*) (void *)) XSbs_fixedpoint_spike_InterruptGetEnabled,
+  .InterruptGetStatus = (uint32_t(*) (void *)) XSbs_fixedpoint_spike_InterruptGetStatus,
 };
 
 #ifdef CUSTOM_ACCELERATOR
@@ -349,39 +341,39 @@ SbsHardwareDriver SbsHardwareDriver_update64_p = {
 
 void * Sbs_accelerator_new (void)
 {
-  return malloc (sizeof(XSbs_accelerator));
+  return malloc (sizeof(XSbs_fixedpoint));
 }
 
-SbsHardwareDriver SbsHardwareDriver_accelerator = {
+SbsHardwareDriver SbsHardwareDriver_fixedpoint = {
     .new =    Sbs_accelerator_new,
     .delete = Sbs_driver_delete,
 
-    .Initialize =         (int (*)(void *, u16))  XSbs_accelerator_Initialize,
-    .Start =              (void (*)(void *))      XSbs_accelerator_Start,
-    .IsDone =             (uint32_t(*)(void *))   XSbs_accelerator_IsDone,
-    .IsIdle =             (uint32_t(*) (void *))  XSbs_accelerator_IsIdle,
-    .IsReady =            (uint32_t(*) (void *))  XSbs_accelerator_IsReady,
-    .EnableAutoRestart =  (void (*) (void *))     XSbs_accelerator_EnableAutoRestart,
-    .DisableAutoRestart = (void (*) (void *))     XSbs_accelerator_DisableAutoRestart,
+    .Initialize =         (int (*)(void *, u16))  XSbs_fixedpoint_Initialize,
+    .Start =              (void (*)(void *))      XSbs_fixedpoint_Start,
+    .IsDone =             (uint32_t(*)(void *))   XSbs_fixedpoint_IsDone,
+    .IsIdle =             (uint32_t(*) (void *))  XSbs_fixedpoint_IsIdle,
+    .IsReady =            (uint32_t(*) (void *))  XSbs_fixedpoint_IsReady,
+    .EnableAutoRestart =  (void (*) (void *))     XSbs_fixedpoint_EnableAutoRestart,
+    .DisableAutoRestart = (void (*) (void *))     XSbs_fixedpoint_DisableAutoRestart,
 
     .Set_mode =       (void (*) (void *, uint32_t ))  NULL,
     .Get_mode =       (uint32_t(*) (void *))          NULL,
-    .Set_layerSize =  (void (*) (void *, uint32_t ))  XSbs_accelerator_Set_layerSize,
-    .Get_layerSize =  (uint32_t(*) (void *))          XSbs_accelerator_Get_layerSize,
-    .Set_kernelSize = (void (*) (void *, uint32_t ))  XSbs_accelerator_Set_kernelSize,
-    .Get_kernelSize = (uint32_t(*) (void *))          XSbs_accelerator_Get_kernelSize,
-    .Set_vectorSize = (void (*) (void *, uint32_t ))  XSbs_accelerator_Set_vectorSize,
-    .Get_vectorSize = (uint32_t(*) (void *))          XSbs_accelerator_Get_vectorSize,
-    .Set_epsilon =    (void (*) (void *, uint32_t ))  XSbs_accelerator_Set_epsilon,
-    .Get_epsilon =    (uint32_t(*) (void *))          XSbs_accelerator_Get_epsilon,
+    .Set_layerSize =  (void (*) (void *, uint32_t ))  XSbs_fixedpoint_Set_layerSize,
+    .Get_layerSize =  (uint32_t(*) (void *))          XSbs_fixedpoint_Get_layerSize,
+    .Set_kernelSize = (void (*) (void *, uint32_t ))  XSbs_fixedpoint_Set_kernelSize,
+    .Get_kernelSize = (uint32_t(*) (void *))          XSbs_fixedpoint_Get_kernelSize,
+    .Set_vectorSize = (void (*) (void *, uint32_t ))  XSbs_fixedpoint_Set_vectorSize,
+    .Get_vectorSize = (uint32_t(*) (void *))          XSbs_fixedpoint_Get_vectorSize,
+    .Set_epsilon =    (void (*) (void *, uint32_t ))  XSbs_fixedpoint_Set_epsilon,
+    .Get_epsilon =    (uint32_t(*) (void *))          XSbs_fixedpoint_Get_epsilon,
 
-    .InterruptGlobalEnable =  (void (*) (void *))             XSbs_accelerator_InterruptGlobalEnable,
-    .InterruptGlobalDisable = (void (*) (void *))             XSbs_accelerator_InterruptGlobalDisable,
-    .InterruptEnable =        (void (*) (void *, uint32_t ))  XSbs_accelerator_InterruptEnable,
-    .InterruptDisable =       (void (*) (void *, uint32_t ))  XSbs_accelerator_InterruptDisable,
-    .InterruptClear =         (void (*) (void *, uint32_t ))  XSbs_accelerator_InterruptClear,
-    .InterruptGetEnabled =    (uint32_t(*) (void *))          XSbs_accelerator_InterruptGetEnabled,
-    .InterruptGetStatus =     (uint32_t(*) (void *))          XSbs_accelerator_InterruptGetStatus
+    .InterruptGlobalEnable =  (void (*) (void *))             XSbs_fixedpoint_InterruptGlobalEnable,
+    .InterruptGlobalDisable = (void (*) (void *))             XSbs_fixedpoint_InterruptGlobalDisable,
+    .InterruptEnable =        (void (*) (void *, uint32_t ))  XSbs_fixedpoint_InterruptEnable,
+    .InterruptDisable =       (void (*) (void *, uint32_t ))  XSbs_fixedpoint_InterruptDisable,
+    .InterruptClear =         (void (*) (void *, uint32_t ))  XSbs_fixedpoint_InterruptClear,
+    .InterruptGetEnabled =    (uint32_t(*) (void *))          XSbs_fixedpoint_InterruptGetEnabled,
+    .InterruptGetStatus =     (uint32_t(*) (void *))          XSbs_fixedpoint_InterruptGetStatus
   };
 #endif
 
@@ -425,7 +417,7 @@ typedef struct
   uint32_t      layerSize;
   uint32_t      kernelSize;
   uint32_t      vectorSize;
-  float         epsilon;
+  Epsilon       epsilon;
 
   size_t        vectorBufferSize;
 
@@ -491,8 +483,8 @@ typedef struct
 } SbSUpdateAccelerator;
 
 
-typedef float     Weight;
-typedef float     Random32;
+typedef uint32_t  Weight;
+typedef uint32_t  Random32;
 typedef uint32_t  SpikeID;
 
 typedef enum
@@ -776,7 +768,7 @@ typedef struct
   uint16_t              kernel_size;
   uint16_t              kernel_stride;
   WeightShift           weight_shift;
-  float                 epsilon;
+  Epsilon               epsilon;
   Multivector *         spike_matrix;
   SbsLearningData       learning_data;
 
@@ -1067,7 +1059,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     }
   }
 };
-#else
+#elif defined (HOME_FLOATING_POINT)
 SbSHardwareConfig SbSHardwareConfig_list[] =
 {
   { .hwDriver      = &SbsHardwareDriver_spike,
@@ -1173,6 +1165,36 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3C000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3FFFFFFF,
+      .blockIndex  = 0
+    }
+  }
+};
+#else
+SbSHardwareConfig SbSHardwareConfig_list[] =
+{
+  { .hwDriver      = &SbsHardwareDriver_fixedpoint_spike,
+	.layerAssign   = ACCELERATOR_0,
+	.hwDeviceID    = XPAR_SBS_FIXEDPOINT_SPIKE_0_DEVICE_ID,
+	.dmaDeviceID   = XPAR_AXI_DMA_1_DEVICE_ID,
+	.hwIntVecID    = XPAR_FABRIC_SBS_FIXEDPOINT_SPIKE_0_INTERRUPT_INTR,
+	.dmaTxIntVecID = 0,
+	.dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_1_S2MM_INTROUT_INTR,
+	.ddrMem =
+	{ .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x24000000,
+	  .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x27FFFFFF,
+	  .blockIndex  = 0
+	}
+  },
+  { .hwDriver      = &SbsHardwareDriver_fixedpoint,
+    .layerAssign   = ACCELERATOR_1,
+    .hwDeviceID    = XPAR_SBS_FIXEDPOINT_0_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXIDMA_0_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_FIXEDPOINT_0_INTERRUPT_INTR,
+    .dmaTxIntVecID = 0,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_0_S2MM_INTROUT_INTR,
+    .ddrMem =
+    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x28000000,
+      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2BFFFFFF,
       .blockIndex  = 0
     }
   }
@@ -1632,8 +1654,7 @@ static void Accelerator_setup(SbSUpdateAccelerator * accelerator,
 
     if (accelerator->hardwareConfig->hwDriver->Set_epsilon)
       accelerator->hardwareConfig->hwDriver->Set_epsilon (
-          accelerator->updateHardware,
-          *(uint32_t*) &accelerator->profile->epsilon);
+          accelerator->updateHardware, accelerator->profile->epsilon);
   }
 
   accelerator->mode = mode;
@@ -1667,7 +1688,7 @@ inline static void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerat
                                          NeuronState * state_vector) __attribute__((always_inline));
 
 inline static void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
-                                         NeuronState * state_vector)
+                                                NeuronState * state_vector)
 {
   ASSERT (accelerator != NULL);
   ASSERT (accelerator->profile != NULL);
@@ -1675,8 +1696,9 @@ inline static void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerat
   ASSERT (0 < accelerator->profile->vectorBufferSize);
   ASSERT (state_vector != NULL);
 
-  *((Random32 *)accelerator->txBufferCurrentPtr ++) =
-      ((NeuronState) genrand ()) * (1.0/((NeuronState) 0xFFFFFFFF));;
+//  *((Random32 *)accelerator->txBufferCurrentPtr ++) =
+//      ((NeuronState) genrand ()) * (1.0/((NeuronState) 0xFFFFFFFF));;
+  *((Random32 *)accelerator->txBufferCurrentPtr ++) = ((Random32) genrand ()) >> (32 - H_QF);
 
   memcpy(accelerator->txBufferCurrentPtr,
          state_vector,
@@ -2191,13 +2213,29 @@ static void Multivector_delete(Multivector ** multivector)
   }
 }
 
+static void Multivector_float2Fixed(Multivector * multivector)
+{
+  ASSERT(multivector != NULL);
+
+  if (multivector != NULL)
+  {
+    int size = Multivector_dataSize(multivector) / multivector->data_type_size;
+	  float *     float_ptr = (float *)     multivector->data;
+	  uint32_t *  fixed_ptr = (uint32_t *)  multivector->data;
+    for (int i = 0; i < size; i ++)
+    {
+      fixed_ptr[i] = (uint32_t) (float_ptr[i] * H_MAX);
+    }
+  }
+}
+
 /*****************************************************************************/
 void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
                                      SbsLayerType layerType,
                                      Multivector * state_matrix,
                                      Multivector * spike_matrix,
                                      uint32_t kernel_size,
-                                     float epsilon,
+                                     Epsilon epsilon,
                                      MemoryCmd memory_cmd)
 {
   ASSERT (profile != NULL);
@@ -2338,8 +2376,8 @@ static void SbsLayerPartition_initializeIP (NeuronState * state_vector, uint16_t
 
   if ((state_vector != NULL) && (0 < size))
   {
-      float    initial_value_h = 1.0f / size;
-      uint16_t neuron;
+	  NeuronState	initial_value_h = H_MAX / size;
+      uint16_t 		neuron;
       for (neuron = 0; neuron < size; neuron ++)
         state_vector[neuron] = initial_value_h;
   }
@@ -2348,7 +2386,7 @@ static void SbsLayerPartition_initializeIP (NeuronState * state_vector, uint16_t
 static void SbsLayerPartition_initialize (SbsLayerPartition * partition,
                                           SbsLayerType layerType,
                                           uint32_t kernel_size,
-                                          float epsilon,
+                                          Epsilon epsilon,
                                           MemoryCmd accelerator_memory_cmd)
 {
   ASSERT(partition != NULL);
@@ -2610,7 +2648,7 @@ static void SbsBaseLayer_setEpsilon(SbsLayer * layer, float epsilon)
   /*ASSERT(epsilon != 0.0f);*/ /* 0.0 is allowed? */
 
   if (layer != NULL)
-    ((SbsBaseLayer *)layer)->epsilon = epsilon;
+    ((SbsBaseLayer *)layer)->epsilon = (Epsilon) (epsilon * H_MAX);
 }
 
 static void SbsBaseLayer_setLearningRule (SbsLayer * layer_ptr, SbsLearningRule rule, double gama, int number_of_patterns)
@@ -2700,11 +2738,11 @@ inline static SpikeID SbsStateVector_generateSpike (NeuronState * state_vector, 
 
   if ((state_vector != NULL) && (0 < size))
   {
-    NeuronState random_s = ((NeuronState) genrand ()) * (1.0/((NeuronState) 0xFFFFFFFF));
-    NeuronState sum      = 0.0f;
+    NeuronState random_s = ((NeuronState) genrand ()) >> (32 - H_QF);
+    NeuronState sum      = 0;
     SpikeID     spikeID;
 
-    ASSERT(random_s <= 1.0F);
+    ASSERT(random_s <= H_MAX);
 
     for (spikeID = 0; spikeID < size; spikeID++)
     {
@@ -2761,6 +2799,8 @@ static void SbsLayerPartition_loadInput(SbsLayerPartition * partition, char * fi
         rc = f_read (&fil, input_label, sizeof(uint8_t), &read_result);
         (*input_label)--;
         good_reading_flag = read_result == sizeof(uint8_t);
+
+        Multivector_float2Fixed(partition->state_matrix);
       }
 
       f_close (&fil);
@@ -2863,7 +2903,7 @@ inline SbsLayerPartition * SbsBaseLayer_getPartition(SbsBaseLayer * layer, uint1
 //  {
 //    int i;
 //    uint16_t columns = layer->columns;
-//    uint16_t neurons = layer->neurons;
+//    uint16_t neurons = layer->vector_size;
 //
 //    uint16_t partition_row = 0;
 //    SbsLayerPartition *  partition = NULL;
@@ -3317,7 +3357,8 @@ static void SbsBaseLayer_learning(SbsBaseLayer * layer, SbsBaseLayer * prev_laye
       case SBS_LEARNING_NONE:
         break;
       case SBS_LEARNING_DELTA_MSE:
-        SbsBaseLayer_learningDeltaMSE(layer, prev_layer);
+        // TODO: MSE in fixed-point
+        //SbsBaseLayer_learningDeltaMSE(layer, prev_layer);
         break;
       case SBS_LEARNING_RELATIVE_ENTROPY:
         break;
@@ -3640,6 +3681,8 @@ static SbsWeightMatrix SbsWeightMatrix_new (uint16_t rows,
         rc = f_read (&fil, weight_watrix->data, data_size, &read_size);
         ASSERT((rc == FR_OK) && (read_size == data_size));
         f_close (&fil);
+
+        Multivector_float2Fixed(weight_watrix);
       }
       else Multivector_delete (&weight_watrix);
     }

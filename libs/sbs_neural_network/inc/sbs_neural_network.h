@@ -44,20 +44,26 @@ typedef enum
   HY_OUTPUT_LAYER          = 1<<6
 } SbsLayerType;
 
+#define H_QF    (21)
+#define W_QF    (21)
+#define H_MAX   (((unsigned long)1 << H_QF) - 1)
+#define W_MAX   (((unsigned long)1 << W_QF) - 1)
+
 /*___________________________________________________________________________*/
 /* TODO: Implement nicely                                                    */
 #define ACCELERATOR_0     HX_INPUT_LAYER
-#define ACCELERATOR_1     H1_CONVOLUTION_LAYER | H4_POOLING_LAYER
-#define ACCELERATOR_2     H2_POOLING_LAYER
-#define ACCELERATOR_3     H3_CONVOLUTION_LAYER
-#define ACCELERATOR_4     0
-#define ACCELERATOR_5     H5_FULLY_CONNECTED_LAYER
-#define ACCELERATOR_6     HY_OUTPUT_LAYER
-#define ACCELERATOR_7     H3_CONVOLUTION_LAYER
+#define ACCELERATOR_1     H1_CONVOLUTION_LAYER | H2_POOLING_LAYER | H3_CONVOLUTION_LAYER | H4_POOLING_LAYER | H5_FULLY_CONNECTED_LAYER | HY_OUTPUT_LAYER
+//#define ACCELERATOR_2     H2_POOLING_LAYER
+//#define ACCELERATOR_3     H3_CONVOLUTION_LAYER
+//#define ACCELERATOR_4     0
+//#define ACCELERATOR_5     H5_FULLY_CONNECTED_LAYER
+//#define ACCELERATOR_6     HY_OUTPUT_LAYER
+//#define ACCELERATOR_7     H3_CONVOLUTION_LAYER
 /*___________________________________________________________________________*/
 
-typedef float  NeuronState;
-typedef void * SbsWeightMatrix;
+typedef uint32_t  	NeuronState;
+typedef uint32_t    Epsilon;
+typedef void * 		  SbsWeightMatrix;
 
 typedef struct SbsLayer_VTable SbsLayer;
 struct SbsLayer_VTable
