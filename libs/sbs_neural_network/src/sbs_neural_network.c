@@ -39,6 +39,8 @@
 #include "xsbs_accelerator.h"
 #endif
 
+#define DEBUG
+
 #ifdef DEBUG
 
 void sbs_assert(const char * file, int line, const char * function, const char * expression)
@@ -928,7 +930,8 @@ inline static void SbsLogger_logPoint(SbsLogger * logger, double p)
   ASSERT(logger != NULL);
   logger->point_array[logger->index].time = Timer_getCurrentTime(logger->timer);
   logger->point_array[logger->index].value = p;
-  if (logger->size <= ++ logger->index)
+  logger->index ++;
+  if (logger->size <= logger->index)
     logger->index = 0;
 }
 
@@ -1073,7 +1076,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .dmaDeviceID   = XPAR_AXIDMA_0_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_SPIKE_50_0_VEC_ID,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_0_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_0_INPUT_LAYER_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x24000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x27FFFFFF,
@@ -1083,10 +1086,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardwareDriver_accelerator,
     .layerAssign   = ACCELERATOR_1,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_1_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_1_H1_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_0_VEC_ID,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_1_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_1_H1_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x28000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2BFFFFFF,
@@ -1096,10 +1099,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardwareDriver_accelerator,
     .layerAssign   = ACCELERATOR_2,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_1_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_2_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_2_H2_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_1_VEC_ID,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_2_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_2_H2_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2C000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2FFFFFFF,
@@ -1109,10 +1112,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardwareDriver_accelerator,
     .layerAssign   = ACCELERATOR_3,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_2_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_3_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_P0_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_2_VEC_ID,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_3_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_P0_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x30000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x33FFFFFF,
@@ -1123,10 +1126,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardwareDriver_accelerator,
     .layerAssign   = ACCELERATOR_4,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_3_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_4_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_P1_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_3_VEC_ID,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_4_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_P1_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x20000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x23FFFFFF,
@@ -1137,10 +1140,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardwareDriver_accelerator,
     .layerAssign   = ACCELERATOR_5,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_4_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_5_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_H4_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_4_VEC_ID,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_5_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_H4_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x34000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x37FFFFFF,
@@ -1150,10 +1153,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardwareDriver_accelerator,
     .layerAssign   = ACCELERATOR_6,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_5_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_6_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_H5_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_5_VEC_ID,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_6_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_H5_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x38000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3BFFFFFF,
@@ -1163,10 +1166,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardwareDriver_accelerator,
     .layerAssign   = ACCELERATOR_7,
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_6_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_7_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_HY_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_6_VEC_ID,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXIDMA_7_VEC_ID,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_HY_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3C000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3FFFFFFF,
@@ -1762,8 +1765,8 @@ static void Accelerator_start(SbSUpdateAccelerator * accelerator)
                                    XAXIDMA_DEVICE_TO_DMA);
 
   ASSERT(status == XST_SUCCESS);
-  SbsLogger_logPoint (accelerator->logger, 0);
-  SbsLogger_logPoint (accelerator->logger, 1);
+  //SbsLogger_logPoint (accelerator->logger, 0);
+  //SbsLogger_logPoint (accelerator->logger, 1); // Huge risk when using in both execution and interruption context!!!
 }
 
 /*****************************************************************************/
