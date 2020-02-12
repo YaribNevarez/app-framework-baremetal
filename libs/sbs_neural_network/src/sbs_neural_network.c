@@ -1173,28 +1173,41 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
 SbSHardwareConfig SbSHardwareConfig_list[] =
 {
   { .hwDriver      = &SbsHardwareDriver_fixedpoint_spike,
-	.layerAssign   = ACCELERATOR_0,
-	.hwDeviceID    = XPAR_SBS_FIXEDPOINT_SPIKE_0_DEVICE_ID,
-	.dmaDeviceID   = XPAR_AXI_DMA_1_DEVICE_ID,
-	.hwIntVecID    = XPAR_FABRIC_SBS_FIXEDPOINT_SPIKE_0_INTERRUPT_INTR,
-	.dmaTxIntVecID = 0,
-	.dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_1_S2MM_INTROUT_INTR,
-	.ddrMem =
-	{ .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x24000000,
-	  .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x27FFFFFF,
-	  .blockIndex  = 0
-	}
+    .layerAssign   = ACCELERATOR_0,
+    .hwDeviceID    = XPAR_SBS_FIXEDPOINT_SPIKE_0_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_0_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_FIXEDPOINT_SPIKE_0_INTERRUPT_INTR,
+    .dmaTxIntVecID = 0,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_0_S2MM_INTROUT_INTR,
+    .ddrMem =
+    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x24000000,
+      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x27FFFFFF,
+      .blockIndex  = 0
+    }
   },
   { .hwDriver      = &SbsHardwareDriver_fixedpoint,
     .layerAssign   = ACCELERATOR_1,
     .hwDeviceID    = XPAR_SBS_FIXEDPOINT_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXIDMA_0_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_1_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_FIXEDPOINT_0_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_0_S2MM_INTROUT_INTR,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_1_S2MM_INTROUT_INTR,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x28000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2BFFFFFF,
+      .blockIndex  = 0
+    }
+  },
+  { .hwDriver      = &SbsHardwareDriver_fixedpoint,
+    .layerAssign   = ACCELERATOR_2,
+    .hwDeviceID    = XPAR_SBS_FIXEDPOINT_1_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_2_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_FIXEDPOINT_1_INTERRUPT_INTR,
+    .dmaTxIntVecID = 0,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_2_S2MM_INTROUT_INTR,
+    .ddrMem =
+    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2C000000,
+      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2FFFFFFF,
       .blockIndex  = 0
     }
   }
