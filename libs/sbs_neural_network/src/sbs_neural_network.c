@@ -488,7 +488,7 @@ typedef struct
 typedef struct
 {
   uint32_t state_vector[1024];
-  uint16_t weight_vector[1024];
+  uint32_t weight_vector[1024];
   uint32_t epsilon;
   uint32_t size;
 
@@ -499,7 +499,7 @@ typedef struct
 } SbSUpdateDataUint32;
 
 #define U32_QF    (21)
-#define U16_QF    (15)
+#define U16_QF    (21)
 #define U32_MAX   (((uint64_t)1 << U32_QF) - 1)
 #define U16_MAX   (((uint64_t)1 << U16_QF) - 1)
 
@@ -510,11 +510,7 @@ static void SbsBaseLayer_updateIP_fixedpoint(SbSUpdateDataUint32 * u32)
   if (u32 != NULL)
   {
     u32->sum             = 0;
-
-    u32->reverse_epsilon = U32_MAX + u32->epsilon;
-
-    u32->reverse_epsilon = (U32_MAX << U32_QF) / u32->reverse_epsilon;
-
+    u32->reverse_epsilon = (U32_MAX << U32_QF) / (U32_MAX + u32->epsilon);
     u32->epsion_over_sum = 0;
 
     int neuron;
@@ -523,7 +519,6 @@ static void SbsBaseLayer_updateIP_fixedpoint(SbSUpdateDataUint32 * u32)
     for (neuron = 0; neuron < size; neuron ++)
     {
       u32->temp_vector[neuron] = ((uint64_t)u32->state_vector[neuron]) * ((uint64_t)u32->weight_vector[neuron] << (U32_QF - U16_QF));
-
       u32->sum += u32->temp_vector[neuron];
     }
 
@@ -533,16 +528,7 @@ static void SbsBaseLayer_updateIP_fixedpoint(SbSUpdateDataUint32 * u32)
     u32->epsion_over_sum = (((uint64_t)u32->epsilon) << 2 * U32_QF) / u32->sum;
 
     for (neuron = 0; neuron < size; neuron ++)
-    {
-      u32->temp_vector[neuron] = (u32->temp_vector[neuron] * u32->epsion_over_sum) >> U32_QF;
-
-      u32->temp_vector[neuron] += ((uint64_t)u32->state_vector[neuron]) << U32_QF;
-
-      u32->temp_vector[neuron] *= u32->reverse_epsilon;
-
-      u32->temp_vector[neuron] = u32->temp_vector[neuron] >> 2 * U32_QF;
-      u32->state_vector[neuron] = u32->temp_vector[neuron];
-    }
+      u32->state_vector[neuron] = ((((u32->temp_vector[neuron] * u32->epsion_over_sum) >> U32_QF) + (((uint64_t)u32->state_vector[neuron]) << U32_QF)) * u32->reverse_epsilon) >> (2 * U32_QF);
   }
 }
 
