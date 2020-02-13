@@ -50,7 +50,7 @@ void sbs_fixedpoint (hls::stream<StreamChannel> &stream_in,
 
   ap_uint<42> sum;
 
-  ap_uint<22> reverse_epsilon = (((unsigned long)H_MAX) << H_QF) / ((unsigned long)H_MAX + (unsigned long)(epsilon));
+  ap_uint<22> reverse_epsilon = (((ap_uint<42>)H_MAX) << H_QF) / ((ap_uint<42>)H_MAX + (ap_uint<42>)(epsilon));
 
   for (ip_index = 0; ip_index < layerSize; ip_index++)
   {
@@ -95,14 +95,14 @@ void sbs_fixedpoint (hls::stream<StreamChannel> &stream_in,
       if (0 < sum)
       {
 #pragma HLS pipeline
-        epsion_over_sum = (((unsigned long)epsilon) << (2 * H_QF)) / sum;
+        epsion_over_sum = (((ap_uint<60>)epsilon) << (2 * H_QF)) / sum;
 
         for (i = 0; i < vectorSize; i++)
         {
 #pragma HLS pipeline
           temp_data[i] *= epsion_over_sum;
           temp_data[i] >>= H_QF;
-          temp_data[i] += ((unsigned long)state_vector[i]) << H_QF;
+          temp_data[i] += ((ap_uint<42>)state_vector[i]) << H_QF;
           temp_data[i] *= reverse_epsilon;
           state_vector[i] = temp_data[i] >> (2 * H_QF);
         }
