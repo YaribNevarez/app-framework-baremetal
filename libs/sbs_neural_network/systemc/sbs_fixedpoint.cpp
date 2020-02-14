@@ -44,13 +44,17 @@ void sbs_fixedpoint (hls::stream<StreamChannel> &stream_in,
   static unsigned int spike_matrix[MAX_SPIKE_MATRIX_SIZE];
   static unsigned int spike_index;
   static ap_uint<21> state_vector[MAX_VECTOR_SIZE];
-  static ap_uint<63> temp_data[MAX_VECTOR_SIZE];
-  static ap_uint<39> epsion_over_sum;
+  static ap_uint<42> temp_data[MAX_VECTOR_SIZE];
+  static ap_uint<42> epsion_over_sum;
   static ap_uint<21> random_value;
+  static ap_uint<42> sum;
+  static ap_uint<21> reverse_epsilon;
 
-  ap_uint<42> sum;
+  sum = H_MAX;
+  sum <<= H_QF;
+  sum /= (ap_uint<42>)H_MAX + (ap_uint<42>)(epsilon);
 
-  ap_uint<22> reverse_epsilon = (((ap_uint<42>)H_MAX) << H_QF) / ((ap_uint<42>)H_MAX + (ap_uint<42>)(epsilon));
+  reverse_epsilon = sum;
 
   for (ip_index = 0; ip_index < layerSize; ip_index++)
   {
@@ -92,19 +96,25 @@ void sbs_fixedpoint (hls::stream<StreamChannel> &stream_in,
         sum += temp_data[i];
       }
 
+      sum >>= H_QF;
+
       if (0 < sum)
       {
 #pragma HLS pipeline
-        epsion_over_sum = (((ap_uint<60>)epsilon) << (2 * H_QF)) / sum;
+        epsion_over_sum = epsilon;
+        epsion_over_sum <<= H_QF;
+        epsion_over_sum /= sum;
 
         for (i = 0; i < vectorSize; i++)
         {
 #pragma HLS pipeline
+          temp_data[i] >>= H_QF;
           temp_data[i] *= epsion_over_sum;
           temp_data[i] >>= H_QF;
-          temp_data[i] += ((ap_uint<42>)state_vector[i]) << H_QF;
+          temp_data[i] += state_vector[i];
           temp_data[i] *= reverse_epsilon;
-          state_vector[i] = temp_data[i] >> (2 * H_QF);
+          temp_data[i] >>= H_QF;
+          state_vector[i] = temp_data[i];
         }
       }
     }
