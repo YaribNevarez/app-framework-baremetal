@@ -9,18 +9,14 @@
 #define H_MAX   (((unsigned long)1 << H_QF) - 1)
 #define W_MAX   (((unsigned long)1 << W_QF) - 1)
 
+#define EPSILON_DIV_SUM_EX_QF (H_QF/2)
+#define REV_DIV_EPSILON_EX_QF (H_QF/2)
+
+
 #define MAX_VECTOR_SIZE       (1024)
 #define MAX_SPIKE_MATRIX_SIZE (60*60)
 
 typedef ap_axis<32, 2, 5, 6> StreamChannel;
-
-//typedef ap_uint<H_QF>        Data1QF;
-//typedef ap_uint<2*H_QF>      Data2QF;
-//typedef ap_ufixed<H_QF,H_QF>        Data1QF;
-//typedef ap_ufixed<2*H_QF,2*H_QF>      Data2QF;
-//typedef ap_ufixed<3*H_QF,3*H_QF>      Data3QF;
-//typedef unsigned int    Data1QF;
-//typedef unsigned long   Data2QF;
 
 void sbs_fixedpoint (hls::stream<StreamChannel> &stream_in,
                  hls::stream<StreamChannel> &stream_out,
@@ -43,18 +39,17 @@ void sbs_fixedpoint (hls::stream<StreamChannel> &stream_in,
   static StreamChannel channel;
   static unsigned int spike_matrix[MAX_SPIKE_MATRIX_SIZE];
   static unsigned int spike_index;
-  static ap_uint<21> state_vector[MAX_VECTOR_SIZE];
-  static ap_uint<42> temp_data[MAX_VECTOR_SIZE];
-  static ap_uint<42> epsion_over_sum;
-  static ap_uint<21> random_value;
-  static ap_uint<42> sum;
-  static ap_uint<21> reverse_epsilon;
+  static ap_uint<H_QF> state_vector[MAX_VECTOR_SIZE];
+  static ap_uint<2 * H_QF> temp_data[MAX_VECTOR_SIZE];
+  static ap_uint<2 * H_QF + EPSILON_DIV_SUM_EX_QF> epsilon_div_sum;
+  static ap_uint<H_QF> random_value;
+  static ap_uint<2 * H_QF> sum;
+  static ap_uint<H_QF + REV_DIV_EPSILON_EX_QF> rev_div_epsilon;
+  static ap_uint<3 * H_QF> wide_reg;
 
-  sum = H_MAX;
-  sum <<= H_QF;
-  sum /= (ap_uint<42>)H_MAX + (ap_uint<42>)(epsilon);
-
-  reverse_epsilon = sum;
+  rev_div_epsilon = H_MAX;
+  rev_div_epsilon <<= REV_DIV_EPSILON_EX_QF;
+  rev_div_epsilon /= ((ap_uint<H_QF + REV_DIV_EPSILON_EX_QF>)H_MAX + (ap_uint<H_QF + REV_DIV_EPSILON_EX_QF>)(epsilon)) >> (H_QF - REV_DIV_EPSILON_EX_QF);
 
   for (ip_index = 0; ip_index < layerSize; ip_index++)
   {
@@ -96,25 +91,25 @@ void sbs_fixedpoint (hls::stream<StreamChannel> &stream_in,
         sum += temp_data[i];
       }
 
-      sum >>= H_QF;
+      sum >>= H_QF - EPSILON_DIV_SUM_EX_QF;
 
       if (0 < sum)
       {
 #pragma HLS pipeline
-        epsion_over_sum = epsilon;
-        epsion_over_sum <<= H_QF;
-        epsion_over_sum /= sum;
+        epsilon_div_sum = epsilon;
+        epsilon_div_sum <<= H_QF + EPSILON_DIV_SUM_EX_QF;
+        epsilon_div_sum /= sum;
 
         for (i = 0; i < vectorSize; i++)
         {
 #pragma HLS pipeline
-          temp_data[i] >>= H_QF;
-          temp_data[i] *= epsion_over_sum;
-          temp_data[i] >>= H_QF;
-          temp_data[i] += state_vector[i];
-          temp_data[i] *= reverse_epsilon;
-          temp_data[i] >>= H_QF;
-          state_vector[i] = temp_data[i];
+          wide_reg = temp_data[i];
+          wide_reg *= epsilon_div_sum;
+          wide_reg >>= H_QF;
+          wide_reg += ((ap_uint<2 * H_QF>) state_vector[i]) << H_QF;
+          wide_reg *= rev_div_epsilon;
+          wide_reg >>= 2 * H_QF;
+          state_vector[i] = wide_reg;
         }
       }
     }
