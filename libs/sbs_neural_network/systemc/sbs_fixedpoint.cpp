@@ -10,13 +10,19 @@
 #define W_MAX   (((unsigned long)1 << W_QF) - 1)
 
 #define EPSILON_DIV_SUM_EX_QF (H_QF/2)
-#define REV_DIV_EPSILON_EX_QF (H_QF/2)
+#define REV_DIV_EPSILON_EX_QF (H_QF)
 
 
 #define MAX_VECTOR_SIZE       (1024)
 #define MAX_SPIKE_MATRIX_SIZE (60*60)
 
 typedef ap_axis<32, 2, 5, 6> StreamChannel;
+
+static ap_uint<2*H_QF + EPSILON_DIV_SUM_EX_QF> wide_div(ap_uint<2*H_QF + EPSILON_DIV_SUM_EX_QF> dividend, ap_uint<2*H_QF + EPSILON_DIV_SUM_EX_QF> divisor)
+{
+#pragma HLS inline off
+  return dividend / divisor;
+}
 
 void sbs_fixedpoint (hls::stream<StreamChannel> &stream_in,
                  hls::stream<StreamChannel> &stream_out,
@@ -44,12 +50,15 @@ void sbs_fixedpoint (hls::stream<StreamChannel> &stream_in,
   static ap_uint<2 * H_QF + EPSILON_DIV_SUM_EX_QF> epsilon_div_sum;
   static ap_uint<H_QF> random_value;
   static ap_uint<2 * H_QF> sum;
-  static ap_uint<H_QF + REV_DIV_EPSILON_EX_QF> rev_div_epsilon;
+  static ap_uint<H_QF> rev_div_epsilon;
   static ap_uint<3 * H_QF> wide_reg;
+/*
+  epsilon_div_sum = H_MAX;
+  epsilon_div_sum <<= REV_DIV_EPSILON_EX_QF;
+  epsilon_div_sum /= ((ap_uint<H_QF + REV_DIV_EPSILON_EX_QF>)H_MAX + (ap_uint<H_QF + REV_DIV_EPSILON_EX_QF>)(epsilon)) >> (H_QF - REV_DIV_EPSILON_EX_QF);
 
-  rev_div_epsilon = H_MAX;
-  rev_div_epsilon <<= REV_DIV_EPSILON_EX_QF;
-  rev_div_epsilon /= ((ap_uint<H_QF + REV_DIV_EPSILON_EX_QF>)H_MAX + (ap_uint<H_QF + REV_DIV_EPSILON_EX_QF>)(epsilon)) >> (H_QF - REV_DIV_EPSILON_EX_QF);
+*/
+  rev_div_epsilon = (ap_uint<H_QF>) wide_div(H_MAX << REV_DIV_EPSILON_EX_QF, ((ap_uint<H_QF + REV_DIV_EPSILON_EX_QF>)H_MAX + (ap_uint<H_QF + REV_DIV_EPSILON_EX_QF>)(epsilon)) >> (H_QF - REV_DIV_EPSILON_EX_QF));
 
   for (ip_index = 0; ip_index < layerSize; ip_index++)
   {
@@ -96,9 +105,10 @@ void sbs_fixedpoint (hls::stream<StreamChannel> &stream_in,
       if (0 < sum)
       {
 #pragma HLS pipeline
-        epsilon_div_sum = epsilon;
-        epsilon_div_sum <<= H_QF + EPSILON_DIV_SUM_EX_QF;
-        epsilon_div_sum /= sum;
+//        epsilon_div_sum = epsilon;
+//        epsilon_div_sum <<= H_QF + EPSILON_DIV_SUM_EX_QF;
+//        epsilon_div_sum /= sum;
+        epsilon_div_sum = wide_div((ap_uint<2*H_QF + EPSILON_DIV_SUM_EX_QF>)epsilon << (H_QF + EPSILON_DIV_SUM_EX_QF), sum);
 
         for (i = 0; i < vectorSize; i++)
         {

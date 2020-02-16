@@ -69,6 +69,8 @@ Result SnnApp_run (void)
   char input_pattern_file_name[128];
   NeuronState * output_vector;
   uint16_t output_vector_size;
+  uint8_t input_label;
+  uint8_t output_label;
   Result rc;
 
   /*********************/
@@ -229,18 +231,25 @@ Result SnnApp_run (void)
 
       network->updateCycle (network, SBS_NETWORK_UPDATE_CYCLES);
 
-      printf ("\n Output value: %d \n", network->getInferredOutput (network));
-      printf ("\n Label value: %d \n", network->getInputLabel (network));
+      output_label = network->getInferredOutput (network);
+      input_label = network->getInputLabel (network);
+
+      if (output_label == input_label)
+      {
+    	  printf ("\n	PASS!");
+      }
+      else
+      {
+    	  printf ("\n	Misclassification!, %d != %d", input_label, output_label);
+      }
 
       network->getOutputVector (network, &output_vector, &output_vector_size);
 
       while (output_vector_size--)
       {
         NeuronState h = output_vector[output_vector_size]; /* Ensure data alignment */
-        printf (" [ %d ] = %X, (%f)\n", output_vector_size, h, (float)h/(float)H_MAX);
+        printf ("\n [ %d ] = %f (0x%X)", output_vector_size, (float)h/(float)H_MAX, (unsigned int) h);
       }
-
-      network->printStatistics (network);
       printf ("\n===============================================\n");
     }
     printf ("\n===============================================\n");
