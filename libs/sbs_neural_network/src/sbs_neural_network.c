@@ -1246,32 +1246,32 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
       .blockIndex  = 0
     }
   },
-//  { .hwDriver      = &SbsHardwareDriver_fixedpoint,
-//    .layerAssign   = ACCELERATOR_2,
-//    .hwDeviceID    = XPAR_SBS_FIXEDPOINT_1_DEVICE_ID,
-//    .dmaDeviceID   = XPAR_AXI_DMA_2_DEVICE_ID,
-//    .hwIntVecID    = XPAR_FABRIC_SBS_FIXEDPOINT_1_INTERRUPT_INTR,
-//    .dmaTxIntVecID = 0,
-//    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_2_S2MM_INTROUT_INTR,
-//    .ddrMem =
-//    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2C000000,
-//      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2FFFFFFF,
-//      .blockIndex  = 0
-//    }
-//  },
-//  { .hwDriver      = &SbsHardwareDriver_fixedpoint,
-//    .layerAssign   = ACCELERATOR_3,
-//    .hwDeviceID    = XPAR_SBS_FIXEDPOINT_2_DEVICE_ID,
-//    .dmaDeviceID   = XPAR_AXI_DMA_3_DEVICE_ID,
-//    .hwIntVecID    = XPAR_FABRIC_SBS_FIXEDPOINT_2_INTERRUPT_INTR,
-//    .dmaTxIntVecID = 0,
-//    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_3_S2MM_INTROUT_INTR,
-//    .ddrMem =
-//    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x30000000,
-//      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x33FFFFFF,
-//      .blockIndex  = 0
-//    }
-//  }
+  { .hwDriver      = &SbsHardwareDriver_fixedpoint,
+    .layerAssign   = ACCELERATOR_2,
+    .hwDeviceID    = XPAR_SBS_FIXEDPOINT_1_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_2_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_FIXEDPOINT_1_INTERRUPT_INTR,
+    .dmaTxIntVecID = 0,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_2_S2MM_INTROUT_INTR,
+    .ddrMem =
+    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2C000000,
+      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2FFFFFFF,
+      .blockIndex  = 0
+    }
+  },
+  { .hwDriver      = &SbsHardwareDriver_fixedpoint,
+    .layerAssign   = ACCELERATOR_3,
+    .hwDeviceID    = XPAR_SBS_FIXEDPOINT_2_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_3_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_FIXEDPOINT_2_INTERRUPT_INTR,
+    .dmaTxIntVecID = 0,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_3_S2MM_INTROUT_INTR,
+    .ddrMem =
+    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x30000000,
+      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x33FFFFFF,
+      .blockIndex  = 0
+    }
+  }
 };
 #endif
 

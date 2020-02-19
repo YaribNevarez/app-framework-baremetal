@@ -251,6 +251,7 @@ Result SnnApp_run (void)
         printf ("\n [ %d ] = %f (0x%X)", output_vector_size, (float)h/(float)H_MAX, (unsigned int) h);
       }
       printf ("\n===============================================\n");
+      network->printStatistics (network);
     }
     printf ("\n===============================================\n");
     printf ("\n End loop: %d\n", loop);
