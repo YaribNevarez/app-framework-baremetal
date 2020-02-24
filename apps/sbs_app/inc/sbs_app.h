@@ -22,6 +22,10 @@
 #ifndef SBS_APP_H_
 #define SBS_APP_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // INCLUDES --------------------------------------------------------------------
 //#include "xil_types.h"
 #include "stdint.h"
@@ -46,4 +50,9 @@ typedef struct
 } SnnApp;
 
 SnnApp * SnnApp_instance(void);
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
 #endif /* SBS_APP_H_ */

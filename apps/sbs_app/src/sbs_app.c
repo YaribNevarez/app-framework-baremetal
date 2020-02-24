@@ -78,8 +78,6 @@ Result SnnApp_run (void)
   printf ("\n==========  SbS Neural Network  ===============\n");
   printf ("\n==========  MNIST example  ====================\n");
 
-  SbsStatistics_initialize ();
-
   rc = SbsHardware_initialize ();
 
   if (rc != OK)

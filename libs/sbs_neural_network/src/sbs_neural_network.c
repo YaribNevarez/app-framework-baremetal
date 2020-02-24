@@ -6,8 +6,8 @@
  */
 
 
-//#define MULTIVECTOR_USE_POINTER_ARITHMETICS
-//#define DEBUG
+#define MULTIVECTOR_USE_POINTER_ARITHMETICS
+#define DEBUG
 
 
 #include "stdlib.h"
@@ -17,6 +17,9 @@
 #include "stddef.h"
 #include "stdarg.h"
 
+#include "timer.h"
+#include "miscellaneous.h"
+
 #include "sbs_neural_network.h"
 #include "mt19937int.h"
 
@@ -24,31 +27,12 @@
 #include "ff.h"
 #include "xparameters.h"
 #include "xaxidma.h"
-#include "xtime_l.h"
 
 #include "xscugic.h"
 
 #include "xsbs_fixedpoint_spike.h"
 #include "xsbs_fixedpoint.h"
 
-
-#ifdef DEBUG
-
-void sbs_assert(const char * file, int line, const char * function, const char * expression)
-{
-  int BypassFail = 0;
-  printf ("Fail: %s, in \"%s\" [%s, %d]\n", expression, function, file, line);
-
-  while (!BypassFail)
-    ;
-
-  printf ("Bypass Fail\n");
-}
-
-#define ASSERT(expr) if (!(expr)) sbs_assert(__FILE__, __LINE__, __func__, #expr);
-#else
-#define ASSERT(expr)
-#endif
 
 /*****************************************************************************/
 #define   MEMORY_SIZE         (4771384)
@@ -432,27 +416,6 @@ typedef struct
 
 typedef struct
 {
-  XTime   start_time;
-  uint8_t num_samples;
-  XTime   sample_array[1];
-} Timer;
-
-typedef struct
-{
-  double value;
-  double time;
-} Point;
-
-typedef struct
-{
-  Timer *   timer;
-  int       index;
-  int       size;
-  Point     point_array[1];
-} SbsLogger;
-
-typedef struct
-{
   SbSHardwareConfig *     hardwareConfig;
   void *                  updateHardware;
   XAxiDma                 dmaHardware;
@@ -478,8 +441,6 @@ typedef struct
   uint8_t           rxDone;
   uint8_t           acceleratorReady;
   MemoryCmd         memory_cmd;
-
-  SbsLogger *       logger;
 } SbSUpdateAccelerator;
 
 
@@ -492,6 +453,7 @@ typedef enum
   M32BIT_TYPE_BEGIN = 0,
   M_DOUBLE_1024_10_ID,
   M32BIT_24_24_ID,
+  M32BIT_12_24_ID,
   M32BIT_24_24_50_ID,
   M32BIT_24_24_32_ID,
   M32BIT_12_24_32_ID,
@@ -500,6 +462,7 @@ typedef enum
   M32BIT_6_12_32_ID,
   M32BIT_12_12_32_ID,
   M32BIT_12_12_ID,
+  M32BIT_6_12_ID,
   M32BIT_2_2_32_32_ID,
   M16BIT_2_2_32_32_ID,
   M32BIT_8_8_64_ID,
@@ -511,6 +474,7 @@ typedef enum
   M32BIT_2_4_64_ID,
   M32BIT_4_4_64_ID,
   M32BIT_4_4_ID,
+  M32BIT_2_4_ID,
   M32BIT_2_2_64_64_ID,
   M16BIT_2_2_64_64_ID,
   M32BIT_1_1_1024_ID,
@@ -525,6 +489,7 @@ typedef enum
 
 typedef double   MDouble_1024_10[1024][10];
 typedef uint32_t M32Bit_24_24[24][24];
+typedef uint32_t M32Bit_12_24[12][24];
 typedef uint32_t M32Bit_24_24_50[24][24][50];
 typedef uint32_t M32Bit_12_24_32[12][24][32];
 typedef uint32_t M32Bit_24_24_32[24][24][32];
@@ -533,6 +498,7 @@ typedef Weight   M16Bit_1_1_50_32[1][1][50][32];
 typedef uint32_t M32Bit_6_12_32[6][12][32];
 typedef uint32_t M32Bit_12_12_32[6][12][32];
 typedef uint32_t M32Bit_12_12[12][12];
+typedef uint32_t M32Bit_6_12[6][12];
 typedef uint32_t M32Bit_2_2_32_32[2][2][32][32];
 typedef Weight   M16Bit_2_2_32_32[2][2][32][32];
 typedef uint32_t M32Bit_8_8_64[8][8][64];
@@ -544,6 +510,7 @@ typedef Weight   M16Bit_5_5_32_64[5][5][32][64];
 typedef uint32_t M32Bit_2_4_64[2][4][64];
 typedef uint32_t M32Bit_4_4_64[4][4][64];
 typedef uint32_t M32Bit_4_4[4][4];
+typedef uint32_t M32Bit_2_4[2][4];
 typedef uint32_t M32Bit_2_2_64_64[2][2][64][64];
 typedef Weight   M16Bit_2_2_64_64[2][2][64][64];
 typedef uint32_t M32Bit_1_1_1024[1][1][1024];
@@ -575,6 +542,12 @@ M32BitFormat M32BitFormat_list[] =
         .data_type_size = sizeof(uint32_t),
         .dimensionality = 2,
         .dimension_size = {24, 24, 0, 0}
+    },
+    {
+        .type_id = M32BIT_12_24_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 2,
+        .dimension_size = {12, 24, 0, 0}
     },
     {
         .type_id = M32BIT_24_24_50_ID,
@@ -623,6 +596,12 @@ M32BitFormat M32BitFormat_list[] =
         .data_type_size = sizeof(uint32_t),
         .dimensionality = 2,
         .dimension_size = {12, 12, 0, 0}
+    },
+    {
+        .type_id = M32BIT_6_12_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 2,
+        .dimension_size = {6, 12, 0, 0}
     },
     {
         .type_id = M32BIT_2_2_32_32_ID,
@@ -689,6 +668,12 @@ M32BitFormat M32BitFormat_list[] =
         .data_type_size = sizeof(uint32_t),
         .dimensionality = 2,
         .dimension_size = {4, 4, 0, 0}
+    },
+    {
+        .type_id = M32BIT_2_4_ID,
+        .data_type_size = sizeof(uint32_t),
+        .dimensionality = 2,
+        .dimension_size = {2, 4, 0, 0}
     },
     {
         .type_id = M32BIT_2_2_64_64_ID,
@@ -819,8 +804,6 @@ typedef struct
   Epsilon               epsilon;
   Multivector *         spike_matrix;
   SbsLearningData       learning_data;
-
-  SbsLogger *           logger;
 } SbsBaseLayer;
 
 typedef struct
@@ -830,150 +813,9 @@ typedef struct
   SbsBaseLayer **   layer_array;
   uint8_t           input_label;
   uint8_t           inferred_output;
-
-  SbsLogger *       logger;
 } SbsBaseNetwork;
 
 #pragma pack(pop)   /* restore original alignment from stack */
-
-/*****************************************************************************/
-/************************ Timer **********************************************/
-
-Timer * Timer_new (uint8_t num_samples)
-{
-  Timer * timer = NULL;
-  ASSERT(0 < num_samples);
-  if (0 < num_samples)
-  {
-    size_t size = sizeof(Timer) + ((num_samples - 1) * sizeof(XTime));
-    timer = malloc (size);
-    ASSERT(timer != NULL);
-    if (timer != NULL)
-    {
-      memset (timer, 0x00, size);
-      timer->num_samples = num_samples;
-    }
-  }
-
-  return timer;
-}
-
-void Timer_delete (Timer ** timer)
-{
-  ASSERT (timer != NULL);
-  ASSERT (*timer != NULL);
-
-  if ((timer != NULL) && (*timer != NULL))
-  {
-    free (*timer);
-    *timer = NULL;
-  }
-}
-
-void Timer_start (Timer * timer)
-{
-  ASSERT(timer != NULL);
-  if (timer != NULL)
-    XTime_GetTime (&timer->start_time);
-}
-
-double Timer_getCurrentTime (Timer * timer)
-{
-  double time = 0.0;
-  ASSERT(timer != NULL);
-  if (timer != NULL)
-  {
-    XTime temp;
-    XTime_GetTime (&temp);
-    time = ((double) (temp - timer->start_time)) / ((double) COUNTS_PER_SECOND);
-  }
-  return time;
-}
-
-void Timer_takeSample (Timer * timer, uint8_t index, double * sample)
-{
-  ASSERT(timer != NULL);
-  ASSERT(index < timer->num_samples);
-  if ((timer != NULL) && (index < timer->num_samples))
-  {
-    XTime time;
-    XTime_GetTime (&time);
-    timer->sample_array[index] = time;
-    if (sample != NULL)
-      *sample = ((double) (timer->sample_array[index] - timer->start_time))
-          / ((double) COUNTS_PER_SECOND);
-  }
-}
-
-double Timer_getSample(Timer * timer, uint8_t index)
-{
-  double sample = 0.0;
-  ASSERT(timer != NULL);
-  ASSERT(index < timer->num_samples);
-  if ((timer != NULL) && (index < timer->num_samples))
-    sample = ((double) (timer->sample_array[index] - timer->start_time))
-                      / ((double) COUNTS_PER_SECOND);
-  return sample;
-}
-
-/*****************************************************************************/
-
-/************************ Event logger ***************************************/
-
-Timer * SbsLogger_timer = NULL;
-
-static SbsLogger * SbsLogger_new (int num_logs)
-{
-  SbsLogger * logger = NULL;
-
-  if (SbsLogger_timer == NULL)
-    SbsLogger_timer = Timer_new (1);
-
-  ASSERT (SbsLogger_timer != NULL);
-
-  logger = malloc (sizeof(SbsLogger) + (num_logs - 1) * sizeof(Point));
-
-  ASSERT (logger != NULL);
-
-  memset (logger, 0, sizeof(SbsLogger) + (num_logs - 1) * sizeof(Point));
-
-  logger->size = num_logs;
-  logger->timer = SbsLogger_timer;
-
-  return logger;
-}
-
-static void SbsLogger_delete (SbsLogger ** logger)
-{
-  ASSERT (logger != NULL);
-  ASSERT (*logger != NULL);
-
-  if ((logger != NULL) && (*logger != NULL))
-  {
-    free (*logger);
-    *logger = NULL;
-  }
-}
-
-inline static void SbsLogger_timeReset (void) __attribute__((always_inline));
-inline static void SbsLogger_timeReset (void)
-{
-  if (SbsLogger_timer == NULL)
-    SbsLogger_timer = Timer_new(1);
-
-  Timer_start(SbsLogger_timer);
-}
-
-inline static void SbsLogger_logPoint(SbsLogger * logger, double p) __attribute__((always_inline));
-inline static void SbsLogger_logPoint(SbsLogger * logger, double p)
-{
-  ASSERT(logger != NULL);
-  logger->point_array[logger->index].time = Timer_getCurrentTime(logger->timer);
-  logger->point_array[logger->index].value = p;
-  logger->index ++;
-  if (logger->size <= logger->index)
-    logger->index = 0;
-}
 
 /*****************************************************************************/
 
@@ -1278,24 +1120,6 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
 
 /*****************************************************************************/
 
-typedef struct
-{
-  Timer * timer;
-  double cache_max_transfer_speed;
-  double copy_max_transfer_speed;
-} SbsStatistics;
-
-SbsStatistics SbsStatistics_instance;
-
-void SbsStatistics_initialize (void)
-{
-  SbsStatistics_instance.timer = Timer_new (1);
-  SbsStatistics_instance.cache_max_transfer_speed = 0;
-  SbsStatistics_instance.copy_max_transfer_speed = 0;
-}
-
-/*****************************************************************************/
-
 #define NUM_ACCELERATOR_INSTANCES  (sizeof(SbSHardwareConfig_list) / sizeof(SbSHardwareConfig))
 
 static SbSUpdateAccelerator *  SbSUpdateAccelerator_list[NUM_ACCELERATOR_INSTANCES] = {NULL};
@@ -1407,9 +1231,6 @@ static void Accelerator_rxInterruptHandler (void * data)
       memcpy(accelerator->memory_cmd.dest,
              accelerator->memory_cmd.src,
              accelerator->memory_cmd.size);
-
-    SbsLogger_logPoint (accelerator->logger, 1);
-    SbsLogger_logPoint (accelerator->logger, 0);
   }
 }
 
@@ -1642,8 +1463,6 @@ static int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
   accelerator->rxDone = 1;
   accelerator->txDone = 1;
 
-  accelerator->logger = SbsLogger_new (100);
-
   return XST_SUCCESS;
 }
 
@@ -1679,6 +1498,9 @@ static SbSUpdateAccelerator * Accelerator_new(SbSHardwareConfig * hardware_confi
     {
       int status = Accelerator_initialize(accelerator, hardware_config);
       ASSERT (status == XST_SUCCESS);
+
+      if (status != XST_SUCCESS)
+        free (accelerator);
     }
   }
 
@@ -1694,8 +1516,6 @@ void Accelerator_delete (SbSUpdateAccelerator ** accelerator)
   {
     Accelerator_shutdown (*accelerator);
     (*accelerator)->hardwareConfig->hwDriver->delete(&(*accelerator)->updateHardware);
-
-    SbsLogger_delete (&((*accelerator)->logger));
 
     free (*accelerator);
     *accelerator = NULL;
@@ -1815,12 +1635,7 @@ inline static void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelera
 #endif
 }
 
-int accelerator_wait [7][10] = {0};
-int tx_wait [7][10] = {0};
-int rx_wait [7][10] = {0};
-int layer_wait = 0;
-
-static void Accelerator_start(SbSUpdateAccelerator * accelerator)
+static int Accelerator_start(SbSUpdateAccelerator * accelerator)
 {
   int status;
 
@@ -1838,9 +1653,9 @@ static void Accelerator_start(SbSUpdateAccelerator * accelerator)
 
   Xil_DCacheFlushRange ((UINTPTR) accelerator->txBuffer, accelerator->txBufferSize);
 
-  while (accelerator->acceleratorReady == 0) accelerator_wait[layer_wait][accelerator->hardwareConfig->dmaDeviceID] ++;
-  while (accelerator->txDone == 0) tx_wait[layer_wait][accelerator->hardwareConfig->dmaDeviceID] ++;
-  while (accelerator->rxDone == 0) rx_wait[layer_wait][accelerator->hardwareConfig->dmaDeviceID] ++;
+  while (accelerator->acceleratorReady == 0);
+  while (accelerator->txDone == 0);
+  while (accelerator->rxDone == 0);
 
   accelerator->memory_cmd = accelerator->profile->memory_cmd[accelerator->mode];
 
@@ -1855,14 +1670,18 @@ static void Accelerator_start(SbSUpdateAccelerator * accelerator)
                                    XAXIDMA_DMA_TO_DEVICE);
   ASSERT(status == XST_SUCCESS);
 
+  if (status == XST_SUCCESS)
+  {
+    accelerator->rxDone = 0;
+    status = XAxiDma_SimpleTransfer (&accelerator->dmaHardware,
+                                     (UINTPTR) accelerator->rxBuffer,
+                                     accelerator->rxBufferSize,
+                                     XAXIDMA_DEVICE_TO_DMA);
 
-  accelerator->rxDone = 0;
-  status = XAxiDma_SimpleTransfer (&accelerator->dmaHardware,
-                                   (UINTPTR) accelerator->rxBuffer,
-                                   accelerator->rxBufferSize,
-                                   XAXIDMA_DEVICE_TO_DMA);
+    ASSERT(status == XST_SUCCESS);
+  }
 
-  ASSERT(status == XST_SUCCESS);
+  return status;
 }
 
 /*****************************************************************************/
@@ -2101,6 +1920,8 @@ void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uin
       return &(*(MDouble_1024_10*) multivector->data)[row][column];
     case M32BIT_24_24_ID:
       return &(*(M32Bit_24_24*) multivector->data)[row][column];
+    case M32BIT_12_24_ID:
+      return &(*(M32Bit_12_24*) multivector->data)[row][column];
     case M32BIT_24_24_50_ID:
       return &(*(M32Bit_24_24_50*) multivector->data)[row][column];
     case M32BIT_12_24_32_ID:
@@ -2115,6 +1936,8 @@ void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uin
       return &(*(M32Bit_12_12_32*) multivector->data)[row][column];
     case M32BIT_12_12_ID:
       return &(*(M32Bit_12_12*) multivector->data)[row][column];
+    case M32BIT_6_12_ID:
+      return &(*(M32Bit_6_12*) multivector->data)[row][column];
     case M32BIT_2_2_32_32_ID:
       return &(*(M32Bit_2_2_32_32*) multivector->data)[row][column];
     case M32BIT_8_8_64_ID:
@@ -2701,8 +2524,6 @@ static SbsLayer * SbsBaseLayer_new(SbsLayerType layer_type,
     layer->kernel_size   = kernel_size;
     layer->kernel_stride = kernel_stride;
     layer->weight_shift  = weight_shift;
-
-    layer->logger = SbsLogger_new(100);
   }
 
   return (SbsLayer *) layer;
@@ -2722,8 +2543,6 @@ static void SbsBaseLayer_delete(SbsLayer ** layer_ptr)
     if ((*layer)->partition_array != NULL)
       while ((*layer)->num_partitions)
         SbsLayerPartition_delete (&((*layer)->partition_array[--(*layer)->num_partitions]));
-
-    SbsLogger_delete(&((*layer)->logger));
 
     free (*layer);
     *layer = NULL;
@@ -3098,7 +2917,6 @@ inline SbsLayerPartition * SbsBaseLayer_getPartition(SbsBaseLayer * layer, uint1
 
 static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
 {
-  Timer_start(SbsLogger_timer);
   ASSERT(layer != NULL);
   ASSERT(layer->partition_array != NULL);
   ASSERT(1 == layer->num_partitions);
@@ -3135,7 +2953,6 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
 inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer) __attribute__((always_inline));
 inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer)
 {
-  Timer_start(SbsLogger_timer);
   ASSERT (layer != NULL);
   ASSERT (spike_layer != NULL);
   if ((layer != NULL) && (spike_layer != NULL))
@@ -3144,13 +2961,13 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
     SbsLayerPartition *  update_partition = NULL;
     uint16_t             update_partition_rows;
     uint16_t             update_partition_row;
-
-    SpikeID   spikeID       = 0;
     Multivector * spike_layer_spike_matrix = spike_layer->spike_matrix;
 
-
+#ifdef DEBUG
+    SpikeID   spikeID       = 0;
     Weight * weight_vector  = NULL;
     NeuronState* state_vector;
+#endif
 
 
     uint16_t kernel_stride  = layer->kernel_stride;
@@ -3282,8 +3099,6 @@ static SbsNetwork * SbsBaseNetwork_new(void)
     network->input_label = (uint8_t) -1;
     network->inferred_output = (uint8_t) -1;
 
-    network->logger = SbsLogger_new(100);
-
     sgenrand (666); /*TODO: Create MT19937 object wrapper */
   }
 
@@ -3303,8 +3118,6 @@ static void SbsBaseNetwork_delete(SbsNetwork ** network_ptr)
     SbsBaseNetwork ** network = (SbsBaseNetwork **) network_ptr;
     while (0 < (*network)->size)
       SbsBaseLayer_delete((SbsLayer **)&(*network)->layer_array[--((*network)->size)]);
-
-    SbsLogger_delete(&((*network)->logger));
 
     free(*network);
     *network = NULL;
@@ -3503,7 +3316,7 @@ static void SbsBaseLayer_learning(SbsBaseLayer * layer, SbsBaseLayer * prev_laye
         break;
       case SBS_LEARNING_DELTA_MSE:
         // TODO: MSE in fixed-point
-        //SbsBaseLayer_learningDeltaMSE(layer, prev_layer);
+        SbsBaseLayer_learningDeltaMSE(layer, prev_layer);
         break;
       case SBS_LEARNING_RELATIVE_ENTROPY:
         break;
@@ -3512,12 +3325,40 @@ static void SbsBaseLayer_learning(SbsBaseLayer * layer, SbsBaseLayer * prev_laye
     }
 }
 
+static void SbsBaseNetwork_updateInferredOutput(SbsBaseNetwork * network)
+{
+  ASSERT (network != NULL);
+
+  if (network != NULL)
+  {
+    NeuronState max_value = 0;
+    SbsBaseLayer * output_layer = network->layer_array[network->size - 1];
+    NeuronState * output_state_vector = NULL;
+    uint16_t output_vector_size = 0;
+    int i;
+
+    SbsBaseLayer_getOutputVector (output_layer, &output_state_vector,
+                                  &output_vector_size);
+
+    ASSERT (output_state_vector != NULL);
+    ASSERT (0 < output_vector_size);
+
+    for (i = 0; i < output_vector_size; i++)
+    {
+      NeuronState h = output_state_vector[i]; /* Ensure data alignment */
+      if (max_value < h)
+      {
+        network->inferred_output = i;
+        max_value = h;
+      }
+    }
+  }
+}
+
 static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles)
 {
   SbsBaseNetwork * network = (SbsBaseNetwork *) network_ptr;
   SbsBaseLayer * input_layer = NULL;
-  Timer * timer_update   = Timer_new (1);
-  Timer * timer_learning = Timer_new (1);
 
   ASSERT(network != NULL);
   ASSERT(3 <= network->size);
@@ -3539,30 +3380,19 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
 
     input_layer = network->layer_array[0];
 
-    printf (" Update cycles: %d \n", cycles);
-
-    Timer_start(timer_update);
-    SbsLogger_timeReset ();
-
     /************************ Begins Update cycle ****************************/
     while (cycles--)
     {
-      SbsLogger_logPoint (network->logger, 1);
       SbsBaseLayer_generateSpikes (input_layer);
 
       for (i = 1; i <= network->size - 1; i++)
       {
-        layer_wait = i;
         SbsBaseLayer_update (network->layer_array[i],
                              network->layer_array[i - 1]);
       }
-      SbsLogger_logPoint (network->logger, 0);
     }
     /************************ Ends Update cycle ******************************/
-    Timer_takeSample(timer_update, 0, NULL);
 
-
-    Timer_start(timer_learning);
     /************************ Begins Learning cycle **************************/
     for (i = 1; i <= network->size - 1; i++)
     {
@@ -3570,35 +3400,11 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
                              network->layer_array[i - 1]);
     }
     /************************ Ends Learning cycle ****************************/
-    Timer_takeSample(timer_learning, 0, NULL);
-
 
     /************************ Ends Update cycle ****************************/
-    printf ("\n Time:\n Update %f S\n Learning %f\n", Timer_getSample(timer_update, 0), Timer_getSample(timer_learning, 0));
 
     /************************ Get inferred output **************************/
-    {
-      NeuronState max_value = 0;
-      SbsBaseLayer * output_layer = network->layer_array[network->size - 1];
-      NeuronState * output_state_vector = NULL;
-      uint16_t output_vector_size = 0;
-
-      SbsBaseLayer_getOutputVector (output_layer, &output_state_vector,
-                                    &output_vector_size);
-
-      ASSERT(output_state_vector != NULL);
-      ASSERT(0 < output_vector_size);
-
-      for (i = 0; i < output_vector_size; i++)
-      {
-        NeuronState h = output_state_vector[i]; /* Ensure data alignment */
-        if (max_value < h)
-        {
-          network->inferred_output = i;
-          max_value = h;
-        }
-      }
-    }
+    SbsBaseNetwork_updateInferredOutput (network);
   }
 }
 
@@ -3655,18 +3461,7 @@ static void SbsBaseNetwork_getOutputVector(SbsNetwork * network_ptr,
 
 static void SbsBaseNetwork_printStatistics (SbsNetwork * network)
 {
-  for (int l = 0; l < ((SbsBaseNetwork *) network)->size; l++)
-    for (int a = 0; a < 10; a++)
-    {
-      if (accelerator_wait[l][a])
-        printf ("accelerator_wait[%d][%d] = %d\n", l, a, accelerator_wait[l][a]);
 
-      if (tx_wait[l][a])
-        printf ("tx_wait[%d][%d] = %d\n", l, a, tx_wait[l][a]);
-
-      if (rx_wait[l][a])
-        printf ("rx_wait[%d][%d] = %d\n", l, a, rx_wait[l][a]);
-    }
 }
 /*****************************************************************************/
 
