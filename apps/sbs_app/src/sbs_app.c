@@ -23,10 +23,10 @@
 #include "sbs_app.h"
 #include "stdio.h"
 
-#include "xil_printf.h"
 #include "xstatus.h"
 #include "ff.h"
 
+#include "toolcom.h"
 
 // FORWARD DECLARATIONS --------------------------------------------------------
 
@@ -207,38 +207,32 @@ Result SnnApp_run (void)
   HY->setLearningRule(HY, SBS_LEARNING_DELTA_MSE, 0.05, SBS_INPUT_PATTERN_LAST - SBS_INPUT_PATTERN_FIRST + 1);
 
   /*_________________________________________________________________________*/
+  double v[2];
 
   for (int loop = 0;; loop ++)
   {
-    printf ("\n===============================================\n");
-    printf ("\n Start loop: %d\n", loop);
-    printf ("\n===============================================\n");
     for (pattern_index = SBS_INPUT_PATTERN_FIRST;
          pattern_index <= SBS_INPUT_PATTERN_LAST;
          pattern_index++)
     {
-      printf ("\n===============================================\n");
       sprintf (input_pattern_file_name,
                SBS_INPUT_PATTERN_FORMAT_NAME,
                pattern_index);
 
-      printf ("\nInput pattern: %s\n", input_pattern_file_name);
+      ToolCom_instance()->textMsg(0,input_pattern_file_name);
+
       network->loadInput (network, input_pattern_file_name);
-
-      printf ("\n Loop: %d\n", loop);
-
+      v[0] = 0;v[1] = 1;ToolCom_instance()->plotSamples(0, v, sizeof(v)/sizeof(double));
       network->updateCycle (network, SBS_NETWORK_UPDATE_CYCLES);
-
+      v[0] = 1;v[1] = 0;ToolCom_instance()->plotSamples(0, v, sizeof(v)/sizeof(double));
       output_label = network->getInferredOutput (network);
       input_label = network->getInputLabel (network);
 
       if (output_label == input_label)
       {
-    	  printf ("\n	PASS!");
       }
       else
       {
-    	  printf ("\n	Misclassification!, %d != %d", input_label, output_label);
       }
 
       network->getOutputVector (network, &output_vector, &output_vector_size);
@@ -246,14 +240,8 @@ Result SnnApp_run (void)
       while (output_vector_size--)
       {
         NeuronState h = output_vector[output_vector_size]; /* Ensure data alignment */
-        printf ("\n [ %d ] = %f (0x%X)", output_vector_size, (float)h/(float)H_MAX, (unsigned int) h);
       }
-      printf ("\n===============================================\n");
-      network->printStatistics (network);
     }
-    printf ("\n===============================================\n");
-    printf ("\n End loop: %d\n", loop);
-    printf ("\n===============================================\n");
   }
   network->delete (&network);
 

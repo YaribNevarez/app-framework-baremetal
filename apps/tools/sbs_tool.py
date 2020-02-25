@@ -1,37 +1,65 @@
-import sys
-import random
-from PySide2.QtWidgets import (QApplication, QLabel, QPushButton,
-                               QVBoxLayout, QWidget)
-from PySide2.QtCore import Slot, Qt
+#!/usr/bin/env python
+# SBS Tool
+import matplotlib.pyplot as plt
+import numpy as np
+from time import sleep
+import struct
+import serial
 
-class MyWidget(QWidget):
-    def __init__(self):
-        QWidget.__init__(self)
+SerialPort_frameSignature = 0x5A
+CMD_CLEAR         = 0x00
+CMD_PLOT          = 0x01
+CMD_SET_VISIBLE   = 0x02
+CMD_SET_STEP_TIME = 0x03
+CMD_SET_TIME      = 0x04
+CMD_TEXT_MSG      = 0x05
 
-        self.hello = ["Hallo Welt", "你好，世界", "Hei maailma",
-            "Hola Mundo", "Привет мир"]
+if __name__ == '__main__':
+    fig, axs = plt.subplots(5)
+    plot_x = np.array([])
+    plot_y = np.array([])
+    x = 0
+    fig.suptitle('SbS platform')
 
-        self.button = QPushButton("Click me!")
-        self.text = QLabel("Hello World")
-        self.text.setAlignment(Qt.AlignCenter)
+    port = '/dev/ttyUSB1'
+    serial_port = serial.Serial(port=port, baudrate=115200, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, bytesize=serial.EIGHTBITS)
+    
+    while True:
+        if serial_port.readable():
+            frameSignature = int.from_bytes(serial_port.read(), byteorder='big', signed=False)
 
-        self.layout = QVBoxLayout()
-        self.layout.addWidget(self.text)
-        self.layout.addWidget(self.button)
-        self.setLayout(self.layout)
+            if frameSignature == SerialPort_frameSignature:
+                frameSize = int.from_bytes(serial_port.read(), byteorder='big', signed=False)
+                command = int.from_bytes(serial_port.read(), byteorder='big', signed=False)
 
-        # Connecting the signal
-        self.button.clicked.connect(self.magic)
-
-    @Slot()
-    def magic(self):
-        self.text.setText(random.choice(self.hello))
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-
-    widget = MyWidget()
-    widget.resize(800, 600)
-    widget.show()
-
-    sys.exit(app.exec_())
+                if command == CMD_CLEAR:
+                    pass
+                elif command == CMD_PLOT:
+                    trace = int.from_bytes(serial_port.read(), byteorder='big', signed=False)
+                    length = int.from_bytes(serial_port.read(), byteorder='big', signed=False)
+                    Y = np.array([1])
+                    X = np.array([1])
+                    for i in range(length):
+                        Y[0] = struct.unpack('d', serial_port.read(8))[0]
+                        X[0] = x
+                        x += 1
+                        plot_x = np.append(plot_x, X)
+                        plot_y = np.append(plot_y, Y)
+                    crc = int.from_bytes(serial_port.read(), byteorder='big', signed=False)
+                    
+                    axs[trace+1].plot(plot_x, plot_y)
+                    plt.ion()
+                    plt.show()
+                    plt.pause(0.001)
+                elif command == CMD_SET_VISIBLE:
+                    pass
+                if command == CMD_SET_STEP_TIME:
+                    pass
+                elif command == CMD_SET_TIME:
+                    pass
+                elif command == CMD_TEXT_MSG:
+                    id = int.from_bytes(serial_port.read(), byteorder='big', signed=False)
+                    msgSize = int.from_bytes(serial_port.read(), byteorder='big', signed=False)
+                    msg = serial_port.read(msgSize)
+                    print(msg)
+                    crc = int.from_bytes(serial_port.read(), byteorder='big', signed=False)

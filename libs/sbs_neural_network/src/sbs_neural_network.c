@@ -6,8 +6,8 @@
  */
 
 
-#define MULTIVECTOR_USE_POINTER_ARITHMETICS
-#define DEBUG
+//#define MULTIVECTOR_USE_POINTER_ARITHMETICS
+//#define DEBUG
 
 
 #include "stdlib.h"
