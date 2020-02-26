@@ -26,7 +26,7 @@
 #include "xstatus.h"
 #include "ff.h"
 
-#include "toolcom.h"
+#include "eventlogger.h"
 
 // FORWARD DECLARATIONS --------------------------------------------------------
 
@@ -207,7 +207,7 @@ Result SnnApp_run (void)
   HY->setLearningRule(HY, SBS_LEARNING_DELTA_MSE, 0.05, SBS_INPUT_PATTERN_LAST - SBS_INPUT_PATTERN_FIRST + 1);
 
   /*_________________________________________________________________________*/
-  double v[2];
+  EventLogger * event_logger = EventLogger_new(10);
 
   for (int loop = 0;; loop ++)
   {
@@ -219,12 +219,17 @@ Result SnnApp_run (void)
                SBS_INPUT_PATTERN_FORMAT_NAME,
                pattern_index);
 
-      ToolCom_instance()->textMsg(0,input_pattern_file_name);
 
       network->loadInput (network, input_pattern_file_name);
-      v[0] = 0;v[1] = 1;ToolCom_instance()->plotSamples(0, v, sizeof(v)/sizeof(double));
+
+      EventLogger_logPoint(event_logger, 0);
+      EventLogger_logPoint(event_logger, 1);
       network->updateCycle (network, SBS_NETWORK_UPDATE_CYCLES);
-      v[0] = 1;v[1] = 0;ToolCom_instance()->plotSamples(0, v, sizeof(v)/sizeof(double));
+      EventLogger_logPoint(event_logger, 1);
+      EventLogger_logPoint(event_logger, 0);
+
+      EventLogger_flush(event_logger);
+
       output_label = network->getInferredOutput (network);
       input_label = network->getInputLabel (network);
 

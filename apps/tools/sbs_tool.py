@@ -15,13 +15,14 @@ CMD_SET_TIME      = 0x04
 CMD_TEXT_MSG      = 0x05
 
 if __name__ == '__main__':
-    fig, axs = plt.subplots(5)
+    fig, axs = plt.subplots(2)
+    plt.ion()
+
     plot_x = np.array([])
     plot_y = np.array([])
-    x = 0
     fig.suptitle('SbS platform')
 
-    port = '/dev/ttyUSB1'
+    port = '/dev/ttyUSB2'
     serial_port = serial.Serial(port=port, baudrate=115200, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, bytesize=serial.EIGHTBITS)
     
     while True:
@@ -39,18 +40,17 @@ if __name__ == '__main__':
                     length = int.from_bytes(serial_port.read(), byteorder='big', signed=False)
                     Y = np.array([1])
                     X = np.array([1])
-                    for i in range(length):
-                        Y[0] = struct.unpack('d', serial_port.read(8))[0]
-                        X[0] = x
-                        x += 1
-                        plot_x = np.append(plot_x, X)
-                        plot_y = np.append(plot_y, Y)
+                    for i in range(length // 2):
+                        x = np.float64(struct.unpack('d', serial_port.read(8))[0])
+                        plot_x = np.append(plot_x, x)
+
+                        y = np.float64(struct.unpack('d', serial_port.read(8))[0])
+                        plot_y = np.append(plot_y, y)
                     crc = int.from_bytes(serial_port.read(), byteorder='big', signed=False)
                     
-                    axs[trace+1].plot(plot_x, plot_y)
-                    plt.ion()
+                    axs[trace].plot(plot_x, plot_y)
+
                     plt.show()
-                    plt.pause(0.001)
                 elif command == CMD_SET_VISIBLE:
                     pass
                 if command == CMD_SET_STEP_TIME:
@@ -63,3 +63,4 @@ if __name__ == '__main__':
                     msg = serial_port.read(msgSize)
                     print(msg)
                     crc = int.from_bytes(serial_port.read(), byteorder='big', signed=False)
+        plt.pause(0.001)

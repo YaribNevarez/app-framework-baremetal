@@ -2,9 +2,13 @@
 /************************ Event logger ***************************************/
 #include "eventlogger.h"
 #include "miscellaneous.h"
+#include "toolcom.h"
 
 #include "string.h"
 #include "stdlib.h"
+
+#define MUTEX_LOCK(mutex)       while (mutex); (mutex) = 1;
+#define MUTEX_UNLOCK(mutex)     (mutex) = 0;
 
 Timer * EventLogger_timer = NULL;
 
@@ -41,7 +45,6 @@ void EventLogger_delete (EventLogger ** logger)
   }
 }
 
-inline void EventLogger_timeReset (void) __attribute__((always_inline));
 inline void EventLogger_timeReset (void)
 {
   if (EventLogger_timer == NULL)
@@ -54,9 +57,32 @@ inline void EventLogger_logPoint(EventLogger * logger, double p) __attribute__((
 inline void EventLogger_logPoint(EventLogger * logger, double p)
 {
   ASSERT(logger != NULL);
-  logger->point_array[logger->index].time = Timer_getCurrentTime(logger->timer);
-  logger->point_array[logger->index].value = p;
-  logger->index ++;
-  if (logger->size <= logger->index)
+  if (logger != NULL)
+  {
+    MUTEX_LOCK(logger->mutex);
+
+    logger->point_array[logger->index].time = Timer_getCurrentTime(logger->timer);
+    logger->point_array[logger->index].value = p;
+    logger->index ++;
+    if (logger->size <= logger->index)
+      logger->index = 0;
+
+    MUTEX_UNLOCK(logger->mutex);
+  }
+}
+
+void EventLogger_flush(EventLogger * logger)
+{
+  ASSERT(logger != NULL);
+  if (logger != NULL)
+  {
+    MUTEX_LOCK(logger->mutex);
+
+    ToolCom_instance ()->plotSamples (0,
+                                      (double *) logger->point_array,
+                                      logger->index * (sizeof(Point) / sizeof(double)));
     logger->index = 0;
+
+    MUTEX_UNLOCK(logger->mutex);
+  }
 }

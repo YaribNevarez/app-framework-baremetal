@@ -17,10 +17,13 @@ extern "C" {
 
 
 /**************************** Type Definitions *******************************/
+#pragma pack(push)  /* push current alignment to stack */
+#pragma pack(1)     /* set alignment to 1 byte boundary */
+
 typedef struct
 {
-  double value;
   double time;
+  double value;
 } Point;
 
 typedef struct
@@ -32,12 +35,22 @@ typedef struct
   Point point_array[1];
 } EventLogger;
 
+#pragma pack(pop)   /* restore original alignment from stack */
 /************************** Constant Definitions *****************************/
 
 /************************** Variable Definitions *****************************/
 
 /************************** Function Prototypes ******************************/
 
+EventLogger * EventLogger_new (int num_logs);
+
+void EventLogger_delete (EventLogger ** logger);
+
+void EventLogger_timeReset (void);
+
+void EventLogger_logPoint(EventLogger * logger, double p);
+
+void EventLogger_flush(EventLogger * logger);
 
 #ifdef __cplusplus
 }
