@@ -469,6 +469,53 @@ static void SbsBaseLayer_updateIP_fixed32(SbsBaseLayer * layer, uint64_t * state
 #endif
   }
 }
+
+#define FLOAT16_EXPONENT_BIAS 0xF
+#define FLOAT32_EXPONENT_BIAS 0x7F
+typedef uint16_t  Float16;
+
+float Float16_f16Tof32(Float16 reg16)
+{
+  uint32_t reg32 = 0;
+
+  if (reg16 != 0x0)
+  {
+    reg32 |= (reg16 & 0x8000) << 16; // Sign
+
+    reg32 |= (((reg16 & 0x07C00) >> 10) - FLOAT16_EXPONENT_BIAS + FLOAT32_EXPONENT_BIAS) << 23; // Exponent
+
+    reg32 |= (reg16 & 0x03FF) << 13; // Mantissa
+  }
+
+  return *(float *)&reg32;
+}
+
+Float16 Float16_f32Tof16(float float32)
+{
+  Float16 reg16 = 0;
+  uint32_t reg32 = *(uint32_t *)&float32;
+
+  if (reg32 != 0)
+  {
+    int32_t exponent = 0;
+
+    reg16 |= (reg32 & 0x80000000) >> 16; // Sign
+
+    exponent = (((reg32 & 0x7F800000) >> 23) - FLOAT32_EXPONENT_BIAS);
+
+    if ((-FLOAT16_EXPONENT_BIAS <= exponent) && (exponent <= FLOAT16_EXPONENT_BIAS + 1))
+    {
+      reg16 |= (exponent + FLOAT16_EXPONENT_BIAS) << 10; // Exponent
+
+      reg16 |= (reg32 & 0x07FFFFF) >> 13; // Mantissa
+    }
+    else if (FLOAT16_EXPONENT_BIAS + 1 < exponent)
+      reg16 |= (1 + 2 * FLOAT32_EXPONENT_BIAS) << 10; // Exponent Infinity
+  }
+
+  return reg16;
+}
+
 typedef __int128 int128_t;
 typedef unsigned __int128 uint128_t;
 
@@ -494,14 +541,50 @@ typedef struct
 
   uint64_t temp_vector[1024];
   uint64_t sum;
-  uint64_t reverse_epsilon;
+  uint32_t reverse_epsilon;
   uint64_t epsion_over_sum;
 } SbSUpdateDataUint32;
 
 #define U32_QF    (21)
-#define U16_QF    (21)
+#define U16_QF    (16)
 #define U32_MAX   (((uint64_t)1 << U32_QF) - 1)
 #define U16_MAX   (((uint64_t)1 << U16_QF) - 1)
+
+unsigned long reverse_epsilon_max = 0;
+unsigned long sum_max = 0;
+unsigned long epsion_over_sum_max = 0;
+unsigned long temp_vector_max = 0;
+unsigned long temp_vector_mul_epsion_over_sum_max = 0;
+unsigned long epslion_max = 0;
+unsigned long state_vector_max = 0;
+unsigned long weight_vector_max = 0;
+unsigned long temp_max = 0;
+
+unsigned int reverse_epsilon_max_bit = 0;
+unsigned int sum_max_bit = 0;
+unsigned int epsion_over_sum_max_bit = 0;
+unsigned int temp_vector_max_bit = 0;
+unsigned int temp_vector_mul_epsion_over_sum_max_bit = 0;
+unsigned int epslion_max_bit = 0;
+unsigned int state_vector_max_bit = 0;
+unsigned int weight_vector_max_bit = 0;
+unsigned int temp_max_bit = 0;
+
+#define SET_MAX(reg, val) if ((reg) < (val)) { (reg) = (val); }
+#define CALCULATE_MAX_BIT(max_bit, max_val) for (int i = 0; i < (8 * sizeof(max_val)); i ++) { if ((max_val) & ((unsigned long)1<<i)) { (max_bit) = i + 1; } }
+
+void Statistics_fixedpoint_calculate_max(void)
+{
+  CALCULATE_MAX_BIT(reverse_epsilon_max_bit, reverse_epsilon_max);
+  CALCULATE_MAX_BIT(sum_max_bit, sum_max);
+  CALCULATE_MAX_BIT(epsion_over_sum_max_bit, epsion_over_sum_max);
+  CALCULATE_MAX_BIT(temp_vector_max_bit, temp_vector_max);
+  CALCULATE_MAX_BIT(temp_vector_mul_epsion_over_sum_max_bit, temp_vector_mul_epsion_over_sum_max);
+  CALCULATE_MAX_BIT(epslion_max_bit, epslion_max);
+  CALCULATE_MAX_BIT(state_vector_max_bit, state_vector_max);
+  CALCULATE_MAX_BIT(weight_vector_max_bit, weight_vector_max);
+  CALCULATE_MAX_BIT(temp_max_bit, temp_max);
+}
 
 static void SbsBaseLayer_updateIP_fixedpoint(SbSUpdateDataUint32 * u32)
 {
@@ -509,8 +592,13 @@ static void SbsBaseLayer_updateIP_fixedpoint(SbSUpdateDataUint32 * u32)
 
   if (u32 != NULL)
   {
-    u32->sum             = 0;
-    u32->reverse_epsilon = (U32_MAX << U32_QF) / (U32_MAX + u32->epsilon);
+    u32->sum = U32_MAX;
+    u32->sum <<= U32_QF;
+    u32->sum /= (U32_MAX + u32->epsilon);
+
+    u32->reverse_epsilon = u32->sum;
+    SET_MAX(reverse_epsilon_max, u32->reverse_epsilon);
+
     u32->epsion_over_sum = 0;
 
     int neuron;
@@ -518,17 +606,42 @@ static void SbsBaseLayer_updateIP_fixedpoint(SbSUpdateDataUint32 * u32)
 
     for (neuron = 0; neuron < size; neuron ++)
     {
-      u32->temp_vector[neuron] = ((uint64_t)u32->state_vector[neuron]) * ((uint64_t)u32->weight_vector[neuron] << (U32_QF - U16_QF));
+      u32->temp_vector[neuron] = u32->state_vector[neuron];
+
+      u32->temp_vector[neuron] *= (uint64_t)u32->weight_vector[neuron] << (U32_QF - U16_QF);
+
       u32->sum += u32->temp_vector[neuron];
+      SET_MAX(sum_max, u32->sum);
     }
+
+    u32->sum >>= U32_QF;
 
     if (u32->sum < 1)
       return;
 
-    u32->epsion_over_sum = (((uint64_t)u32->epsilon) << 2 * U32_QF) / u32->sum;
+    u32->epsion_over_sum = u32->epsilon;
+    u32->epsion_over_sum <<= U32_QF;
+
+    u32->epsion_over_sum /= u32->sum;
 
     for (neuron = 0; neuron < size; neuron ++)
-      u32->state_vector[neuron] = ((((u32->temp_vector[neuron] * u32->epsion_over_sum) >> U32_QF) + (((uint64_t)u32->state_vector[neuron]) << U32_QF)) * u32->reverse_epsilon) >> (2 * U32_QF);
+    {
+      //u32->temp_vector[neuron] >>= U32_QF;
+
+      u32->temp_vector[neuron] *= u32->epsion_over_sum;
+      SET_MAX(temp_vector_max, u32->temp_vector[neuron]);
+
+      u32->temp_vector[neuron] >>= U32_QF;
+
+      u32->temp_vector[neuron] += ((uint64_t)u32->state_vector[neuron]) << U32_QF;
+
+      u32->temp_vector[neuron] *= u32->reverse_epsilon;
+      SET_MAX(temp_vector_max, u32->temp_vector[neuron]);
+
+      u32->temp_vector[neuron] >>= 2 * U32_QF;
+
+      u32->state_vector[neuron] = u32->temp_vector[neuron];
+    }
   }
 }
 
@@ -1201,6 +1314,7 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
         }
       }
     }
+    Statistics_fixedpoint_calculate_max();
   }
 }
 
