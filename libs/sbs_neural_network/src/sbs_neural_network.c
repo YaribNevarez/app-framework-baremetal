@@ -306,12 +306,30 @@ static void SbsBaseLayer_initializeIP(NeuronState * state_vector, uint16_t size)
   }
 }
 
+#define FP_OR_MASK  (0x30000000)
+#define FP_AND_MASK (0x0ffff000) | FP_OR_MASK
+
+
+#define OR_MASK(reg)  {*((uint32_t*)&reg) |= FP_OR_MASK;}
+#define AND_MASK(reg) {*((uint32_t*)&reg) &= FP_AND_MASK;}
+
+#define FORCE(reg) {AND_MASK(reg); if (*((uint32_t*)&reg) != 0) while ((*((uint32_t*)&reg) & FP_OR_MASK) != FP_OR_MASK);}
+
+
 static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vector, Weight * weight_vector, uint16_t size, float epsilon)
 {
   ASSERT(state_vector != NULL);
   ASSERT(weight_vector != NULL);
   ASSERT(layer->update_buffer != NULL);
   ASSERT(0 < size);
+
+  for (int i = 0; i < size; i ++)
+  {
+    FORCE(state_vector[i]);
+    FORCE(weight_vector[i]);
+  }
+
+  FORCE(epsilon);
 
   if ((state_vector != NULL) && (weight_vector != NULL)
       && (layer->update_buffer != NULL) && (0 < size))
@@ -323,11 +341,16 @@ static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vect
     NeuronState epsion_over_sum = 0.0f;
     uint16_t    neuron;
 
+    FORCE(reverse_epsilon);
+
 #if defined (__x86_64__) || defined(__amd64__)
     for (neuron = 0; neuron < size; neuron ++)
     {
       temp_data[neuron] = state_vector[neuron] * weight_vector[neuron];
+      FORCE(temp_data[neuron]);
+
       sum += temp_data[neuron];
+      FORCE(sum);
     }
 
     if (sum < 1e-20) // TODO: DEFINE constant
@@ -335,8 +358,13 @@ static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vect
 
     epsion_over_sum = epsilon / sum;
 
+    //FORCE(epsion_over_sum);
+
     for (neuron = 0; neuron < size; neuron ++)
+    {
       state_vector[neuron] = reverse_epsilon * (state_vector[neuron] + temp_data[neuron] * epsion_over_sum);
+      FORCE(state_vector[neuron]);
+    }
 
 #elif defined(__arm__)
     /* Support for unaligned accesses in ARM architecture */
@@ -391,7 +419,7 @@ static SpikeID SbsBaseLayer_generateSpikeIP(NeuronState * state_vector, uint16_t
     {
         sum += state_vector[spikeID];
 
-        ASSERT(sum <= 1 + 1e-5);
+        //ASSERT(sum <= 1 + 1e-5);
 
         if (random_s <= sum)
               return spikeID;
@@ -798,7 +826,7 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
       }
 
       if (cycle % 100 == 0)
-        printf(" - Spike cycle: %d\n", cycles);
+        printf(" - Spike cycle: %d\n", cycle);
     }
     /************************ Ends Update cycle ****************************/
 

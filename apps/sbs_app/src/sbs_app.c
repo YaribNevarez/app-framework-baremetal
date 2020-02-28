@@ -75,6 +75,8 @@ Result SnnApp_run(void)
 {
   NeuronState * output_vector;
   uint16_t output_vector_size;
+  int misclassification = 0;
+  char file_name[64];
 
   /*********************/
   // ********** Create SBS Neural Network **********
@@ -137,26 +139,35 @@ Result SnnApp_run(void)
   HY->giveWeights(HY, P_H5_HY);
   network->giveLayer(network, HY);
 
-    // Perform Network load pattern and update cycle
-  network->loadInput(network, SBS_INPUT_PATTERN_FILE);
-  network->updateCycle(network, 1000);
-
-  printf("\n==========  Results ===========================\n");
-
-  printf("\n Output value: %d \n", network->getInferredOutput(network));
-  printf("\n Label value: %d \n", network->getInputLabel(network));
-
-  network->getOutputVector(network, &output_vector, &output_vector_size);
-
-  printf("\n==========  Output layer values ===============\n");
-
-  while (output_vector_size --)
+  for (int i = 1; i <= 100; i++)
   {
-    NeuronState h = output_vector[output_vector_size]; /* Ensure data alignment */
-    printf(" [ %d ] = %.6f\n", output_vector_size, h);
-  }
+    sprintf(file_name, SBS_INPUT_PATTERN_FILE, i);
+    printf ("\n%s\n",file_name);
+    // Perform Network load pattern and update cycle
+    network->loadInput (network, file_name);
 
-  printf("\n===============================================\n");
+    network->updateCycle (network, 1000);
+
+    if (network->getInferredOutput (network) != network->getInputLabel (network))
+    {
+      misclassification ++;
+    }
+
+    printf ("\n Input = %d, Output = %d \n\n",
+            network->getInputLabel (network),
+            network->getInferredOutput (network));
+
+    network->getOutputVector (network, &output_vector, &output_vector_size);
+
+    while (output_vector_size--)
+    {
+      NeuronState h = output_vector[output_vector_size]; /* Ensure data alignment */
+      printf (" [ %d ] = %.6f\n", output_vector_size, h);
+    }
+
+    printf ("\nMisclassification = %d/%d\n", misclassification, i);
+    printf ("\n===============================================\n");
+  }
 
 #ifdef USE_XILINX
   printf("\n Pool size: %d \n", network->getMemorySize(network));

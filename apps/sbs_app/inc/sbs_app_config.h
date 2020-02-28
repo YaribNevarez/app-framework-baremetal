@@ -41,7 +41,7 @@
 
 #else
 
-#define SBS_INPUT_PATTERN_FILE   "MNIST/Pattern/Input_1.bin"
+#define SBS_INPUT_PATTERN_FILE   "MNIST/Pattern/Input_%d.bin"
 
 #define SBS_P_IN_H1_WEIGHTS_FILE "MNIST/W_X_H1.bin"
 #define SBS_P_H1_H2_WEIGHTS_FILE "MNIST/W_H1_H2.bin"
