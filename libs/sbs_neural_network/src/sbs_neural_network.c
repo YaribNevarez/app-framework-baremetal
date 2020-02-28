@@ -313,7 +313,7 @@ static void SbsBaseLayer_initializeIP(NeuronState * state_vector, uint16_t size)
 #define OR_MASK(reg)  {*((uint32_t*)&reg) |= FP_OR_MASK;}
 #define AND_MASK(reg) {*((uint32_t*)&reg) &= FP_AND_MASK;}
 
-#define FORCE(reg) {AND_MASK(reg); if (*((uint32_t*)&reg) != 0) while ((*((uint32_t*)&reg) & FP_OR_MASK) != FP_OR_MASK);}
+#define FORCE(reg) {AND_MASK(reg); if ((*((uint32_t*)&reg) & FP_OR_MASK) != FP_OR_MASK) *((uint32_t*)&reg) = 0;}
 
 
 static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vector, Weight * weight_vector, uint16_t size, float epsilon)
@@ -347,10 +347,7 @@ static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vect
     for (neuron = 0; neuron < size; neuron ++)
     {
       temp_data[neuron] = state_vector[neuron] * weight_vector[neuron];
-      FORCE(temp_data[neuron]);
-
       sum += temp_data[neuron];
-      FORCE(sum);
     }
 
     if (sum < 1e-20) // TODO: DEFINE constant
