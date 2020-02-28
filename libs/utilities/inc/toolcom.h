@@ -13,6 +13,9 @@ extern "C" {
 #endif
 
 #include "xil_types.h"
+#include "stddef.h"
+#include "result.h"
+
 
 typedef enum
 {
@@ -29,7 +32,7 @@ typedef enum
   TRACE_ALL = 0xFF
 } ToolTrace;
 
-typedef uint8_t (*ToolProgressCallback)(void * data, uint32_t progress, uint32_t total);
+typedef Result (*ToolProgressCallback)(void * data, uint32_t progress, uint32_t total);
 
 typedef struct //class
 {
@@ -40,6 +43,7 @@ typedef struct //class
   void    (*setStepTime)  (ToolTrace trace, double time);
   void    (*textMsg)      (uint8_t id, char * msg);
   void    (*setProgressCallback)  (ToolProgressCallback function, void * data);
+  Result  (*sendByteBuffer)       (void * buffer, size_t size);
 } ToolCom;
 
 ToolCom * ToolCom_instance(void);

@@ -71,6 +71,31 @@ inline void EventLogger_logPoint(EventLogger * logger, double p)
   }
 }
 
+inline void EventLogger_logTransition(EventLogger * logger, EventTransition event) __attribute__((always_inline));
+inline void EventLogger_logTransition(EventLogger * logger, EventTransition event)
+{
+  ASSERT(logger != NULL);
+  if (logger != NULL)
+  {
+    MUTEX_LOCK(logger->mutex);
+    if (logger->index + 2 <= logger->size)
+    {
+      double time = Timer_getCurrentTime (logger->timer);
+
+      logger->point_array[logger->index].time = time;
+      logger->point_array[logger->index].value = event == RISE_EVENT? 0.0 : 1.0;
+      logger->index++;
+
+      logger->point_array[logger->index].time = time;
+      logger->point_array[logger->index].value = event == RISE_EVENT? 1.0 : 0.0;
+      logger->index++;
+
+      if (logger->size <= logger->index) logger->index = 0;
+    }
+    MUTEX_UNLOCK(logger->mutex);
+  }
+}
+
 void EventLogger_flush(EventLogger * logger)
 {
   ASSERT(logger != NULL);

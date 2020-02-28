@@ -35,6 +35,12 @@ typedef struct
   Point point_array[1];
 } EventLogger;
 
+typedef enum
+{
+  RISE_EVENT,
+  FALL_EVENT
+} EventTransition;
+
 #pragma pack(pop)   /* restore original alignment from stack */
 /************************** Constant Definitions *****************************/
 
@@ -49,6 +55,8 @@ void EventLogger_delete (EventLogger ** logger);
 void EventLogger_timeReset (void);
 
 void EventLogger_logPoint(EventLogger * logger, double p);
+
+void EventLogger_logTransition(EventLogger * logger, EventTransition event);
 
 void EventLogger_flush(EventLogger * logger);
 

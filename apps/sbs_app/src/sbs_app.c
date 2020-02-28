@@ -222,11 +222,9 @@ Result SnnApp_run (void)
 
       network->loadInput (network, input_pattern_file_name);
 
-      EventLogger_logPoint(event_logger, 0);
-      EventLogger_logPoint(event_logger, 1);
+      EventLogger_logTransition(event_logger, RISE_EVENT);
       network->updateCycle (network, SBS_NETWORK_UPDATE_CYCLES);
-      EventLogger_logPoint(event_logger, 1);
-      EventLogger_logPoint(event_logger, 0);
+      EventLogger_logTransition(event_logger, FALL_EVENT);
 
       EventLogger_flush(event_logger);
 
