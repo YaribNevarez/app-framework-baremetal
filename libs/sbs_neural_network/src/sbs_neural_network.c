@@ -315,6 +315,14 @@ static void SbsBaseLayer_initializeIP(NeuronState * state_vector, uint16_t size)
 
 #define FORCE(reg) {AND_MASK(reg); if ((*((uint32_t*)&reg) & FP_OR_MASK) != FP_OR_MASK) *((uint32_t*)&reg) = 0;}
 
+static float max_w = 0.0;
+static float min_w = 1.0;
+
+void print_w()
+{
+  printf ("\nmin_w = %f, max_w = %f\n", min_w, max_w);
+}
+
 
 static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vector, Weight * weight_vector, uint16_t size, float epsilon)
 {
@@ -325,8 +333,19 @@ static void SbsBaseLayer_updateIP(SbsBaseLayer * layer, NeuronState * state_vect
 
   for (int i = 0; i < size; i ++)
   {
+    if (max_w < weight_vector[i]) max_w = weight_vector[i];
+    if ((*(uint32_t *)&weight_vector[i] != 0) && (weight_vector[i] < min_w)) min_w = weight_vector[i];
+
+    if (*((int32_t*) &weight_vector[i]) != 0)
+      if (*((int32_t*) &weight_vector[i]) & 0x38000000 != 0x38000000)
+      {
+        *((int32_t*) &weight_vector[i]) = 0;
+      }
+      else if (~0x3ff80000 & *((int32_t*) &weight_vector[i]))
+      {
+        *((int32_t*) &weight_vector[i]) &= 0x3ff80000;
+      }
     FORCE(state_vector[i]);
-    FORCE(weight_vector[i]);
   }
 
   FORCE(epsilon);
@@ -849,6 +868,8 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
         }
       }
     }
+
+    print_w();
   }
 }
 
