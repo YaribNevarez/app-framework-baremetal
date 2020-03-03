@@ -1,12 +1,13 @@
 /*
- * miscellaneous.c
+ * dma_hardware_mover.h
  *
- *  Created on: Feb 24th, 2020
+ *  Created on: Mar 3rd, 2020
  *      Author: Yarib Nevarez
  */
 /***************************** Include Files *********************************/
-#include "miscellaneous.h"
+#include "dma_hardware_mover.h"
 #include "stdio.h"
+#include "stdlib.h"
 
 /***************** Macros (Inline Functions) Definitions *********************/
 
@@ -20,15 +21,24 @@
 
 /************************** Function Definitions******************************/
 
-void _assert(const char * file,
-             const int    line,
-             const char * function,
-             const char * expression)
+static void * DMAHardware_new (void)
 {
-  int BypassFail = 0;
-  printf ("FAIL: %s\n\"%s\"\n[%s, %d]\n", expression, function, file, line);
-
-  while (!BypassFail);
-
-  printf ("BYPASSING FAIL\n"); // Bypassing
+  return malloc (sizeof(XAxiDma));
 }
+
+static void DMAHardware_delete (void ** InstancePtr)
+{
+  if (InstancePtr && *InstancePtr)
+  {
+    free (*InstancePtr);
+    *InstancePtr = NULL;
+  }
+}
+
+DMAHardware DMAHardware_mover =
+{
+  .new =    DMAHardware_new,
+  .delete = DMAHardware_delete,
+
+  .Move =   XAxiDma_SimpleTransfer
+};

@@ -1,34 +1,44 @@
 /*
- * miscellaneous.c
+ * dma_hardware.h
  *
- *  Created on: Feb 24th, 2020
+ *  Created on: Mar 3rd, 2020
  *      Author: Yarib Nevarez
  */
+#ifndef SBS_DMA_HARDWARE_H_
+#define SBS_DMA_HARDWARE_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /***************************** Include Files *********************************/
-#include "miscellaneous.h"
-#include "stdio.h"
+#include <stdint.h>
+#include <stddef.h>
+
+#include <result.h>
+
+#include "xaxidma.h"
+#include "xil_types.h"
 
 /***************** Macros (Inline Functions) Definitions *********************/
 
 /**************************** Type Definitions *******************************/
+typedef struct
+{
+  void *    (*new) (void);
+  void      (*delete) (void ** InstancePtr);
 
+  uint32_t  (*Move) (XAxiDma *InstancePtr, UINTPTR BuffAddr, u32 Length, int Direction);
+} DMAHardware;
 /************************** Constant Definitions *****************************/
 
 /************************** Variable Definitions *****************************/
 
 /************************** Function Prototypes ******************************/
 
-/************************** Function Definitions******************************/
 
-void _assert(const char * file,
-             const int    line,
-             const char * function,
-             const char * expression)
-{
-  int BypassFail = 0;
-  printf ("FAIL: %s\n\"%s\"\n[%s, %d]\n", expression, function, file, line);
-
-  while (!BypassFail);
-
-  printf ("BYPASSING FAIL\n"); // Bypassing
+#ifdef __cplusplus
 }
+#endif /* __cplusplus */
+
+#endif /* SBS_DMA_HARDWARE_H_ */

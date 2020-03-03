@@ -1,12 +1,17 @@
 /*
- * miscellaneous.c
+ * sbs_hardware_emulator.h
  *
- *  Created on: Feb 24th, 2020
+ *  Created on: Mar 3rd, 2020
  *      Author: Yarib Nevarez
  */
+#ifndef SBS_HARDWARE_EMULATOR_H_
+#define SBS_HARDWARE_EMULATOR_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /***************************** Include Files *********************************/
-#include "miscellaneous.h"
-#include "stdio.h"
 
 /***************** Macros (Inline Functions) Definitions *********************/
 
@@ -18,17 +23,9 @@
 
 /************************** Function Prototypes ******************************/
 
-/************************** Function Definitions******************************/
 
-void _assert(const char * file,
-             const int    line,
-             const char * function,
-             const char * expression)
-{
-  int BypassFail = 0;
-  printf ("FAIL: %s\n\"%s\"\n[%s, %d]\n", expression, function, file, line);
-
-  while (!BypassFail);
-
-  printf ("BYPASSING FAIL\n"); // Bypassing
+#ifdef __cplusplus
 }
+#endif /* __cplusplus */
+
+#endif /* SBS_HARDWARE_EMULATOR_H_ */
