@@ -15,6 +15,7 @@ extern "C" {
 #include <stddef.h>
 
 #include <result.h>
+#include "sbs_processing_unit.h"
 
 #pragma pack(push)
 #pragma pack(1)
@@ -31,23 +32,6 @@ typedef enum
   ROW_SHIFT,
   COLUMN_SHIFT
 } WeightShift;
-
-typedef enum
-{
-  NONE_LAYER               = 0,
-  HX_INPUT_LAYER           = 1<<0,
-  H1_CONVOLUTION_LAYER     = 1<<1,
-  H2_POOLING_LAYER         = 1<<2,
-  H3_CONVOLUTION_LAYER     = 1<<3,
-  H4_POOLING_LAYER         = 1<<4,
-  H5_FULLY_CONNECTED_LAYER = 1<<5,
-  HY_OUTPUT_LAYER          = 1<<6
-} SbsLayerType;
-
-#define H_QF    (21)
-#define W_QF    (21)
-#define H_MAX   (((unsigned long)1 << H_QF) - 1)
-#define W_MAX   (((unsigned long)1 << W_QF) - 1)
 
 typedef uint32_t  	NeuronState;
 typedef uint32_t    Epsilon;
@@ -133,9 +117,6 @@ typedef struct
 extern SbsNew sbs_new;
 
 #pragma pack(pop)
-
-Result SbsHardware_initialize (void);
-void SbsHardware_shutdown (void);
 
 void SbsStatistics_initialize (void);
 

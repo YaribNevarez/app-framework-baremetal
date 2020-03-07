@@ -9,83 +9,16 @@
 #include "sbs_hardware_spike.h"
 #include "sbs_hardware_update.h"
 #include "dma_hardware_mover.h"
+#include "miscellaneous.h"
 #include "stdio.h"
+#include "xscugic.h"
+#include "mt19937int.h"
 
 /***************** Macros (Inline Functions) Definitions *********************/
 
 /**************************** Type Definitions *******************************/
 
 /************************** Constant Definitions *****************************/
-/************************ Accelerator ****************************************/
-
-SbSHardwareConfig SbSHardwareConfig_list[] =
-{
-  { .hwDriver      = &SbsHardware_fixedpoint_spike,
-    .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = ACCELERATOR_0,
-    .hwDeviceID    = XPAR_SBS_FIXEDPOINT_SPIKE_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_0_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_FIXEDPOINT_SPIKE_0_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_0_S2MM_INTROUT_INTR,
-    .mode          = HARDWARE,
-    .ddrMem =
-    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x24000000,
-      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x27FFFFFF,
-      .blockIndex  = 0
-    }
-  },
-  { .hwDriver      = &SbsHardware_fixedpoint,
-    .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = ACCELERATOR_1,
-    .hwDeviceID    = XPAR_SBS_FIXEDPOINT_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_1_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_FIXEDPOINT_0_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_1_S2MM_INTROUT_INTR,
-    .mode          = HARDWARE,
-    .ddrMem =
-    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x28000000,
-      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2BFFFFFF,
-      .blockIndex  = 0
-    }
-  },
-  { .hwDriver      = &SbsHardware_fixedpoint,
-    .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = ACCELERATOR_2,
-    .hwDeviceID    = XPAR_SBS_FIXEDPOINT_1_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_2_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_FIXEDPOINT_1_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_2_S2MM_INTROUT_INTR,
-    .mode          = HARDWARE,
-    .ddrMem =
-    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2C000000,
-      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2FFFFFFF,
-      .blockIndex  = 0
-    }
-  },
-  { .hwDriver      = &SbsHardware_fixedpoint,
-    .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = ACCELERATOR_3,
-    .hwDeviceID    = XPAR_SBS_FIXEDPOINT_2_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_3_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_FIXEDPOINT_2_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_3_S2MM_INTROUT_INTR,
-    .mode          = HARDWARE,
-    .ddrMem =
-    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x30000000,
-      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x33FFFFFF,
-      .blockIndex  = 0
-    }
-  }
-};
-
-
-/*****************************************************************************/
-
-/*****************************************************************************/
 
 /************************** Variable Definitions *****************************/
 
@@ -93,9 +26,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
 
 /************************** Function Definitions******************************/
 
-#define NUM_ACCELERATOR_INSTANCES  (sizeof(SbSHardwareConfig_list) / sizeof(SbSHardwareConfig))
+//#define NUM_ACCELERATOR_INSTANCES  (sizeof(SbSHardwareConfig_list) / sizeof(SbSHardwareConfig))
 
-static SbSUpdateAccelerator *  SbSUpdateAccelerator_list[NUM_ACCELERATOR_INSTANCES] = {NULL};
+static SbSUpdateAccelerator **  SbSUpdateAccelerator_list = NULL;
+static uint8_t SbSUpdateAccelerator_list_length = 0;
 
 int SbSUpdateAccelerator_getGroupFromList (SbsLayerType layerType, SbSUpdateAccelerator ** sub_list, int sub_list_size)
 {
@@ -106,7 +40,7 @@ int SbSUpdateAccelerator_getGroupFromList (SbsLayerType layerType, SbSUpdateAcce
   ASSERT (0 < sub_list_size);
 
   ASSERT(SbSUpdateAccelerator_list != NULL);
-  for (i = 0; sub_list_count < sub_list_size && i < NUM_ACCELERATOR_INSTANCES;
+  for (i = 0; sub_list_count < sub_list_size && i < SbSUpdateAccelerator_list_length;
       i++)
   {
     ASSERT(SbSUpdateAccelerator_list[i] != NULL);
@@ -600,9 +534,9 @@ inline void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
   ASSERT (0 < accelerator->profile->stateBufferSize);
   ASSERT (state_vector != NULL);
 
-  *((Random32 *)accelerator->txBufferCurrentPtr) = ((Random32) genrand ()) >> (32 - H_QF);
+  *((uint32_t *)accelerator->txBufferCurrentPtr) = ((uint32_t) genrand ()) >> (32 - 21);
 
-  accelerator->txBufferCurrentPtr += sizeof(Random32);
+  accelerator->txBufferCurrentPtr += sizeof(uint32_t);
 
   memcpy(accelerator->txBufferCurrentPtr,
          state_vector,
@@ -610,9 +544,9 @@ inline void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
 
   accelerator->txBufferCurrentPtr += accelerator->profile->stateBufferSize;
 
+#ifdef DEBUG
   ASSERT(accelerator->txStateCounter <= accelerator->profile->layerSize);
 
-#ifdef DEBUG
   accelerator->txStateCounter ++;
 #endif
 }
@@ -630,7 +564,9 @@ inline void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
   ASSERT (0 < accelerator->profile->layerSize);
   ASSERT (weight_vector != NULL);
 
+#ifdef DEBUG
   ASSERT(accelerator->txWeightCounter <= accelerator->profile->kernelSize * accelerator->profile->layerSize);
+#endif
 
   memcpy(accelerator->txBufferCurrentPtr,
          weight_vector,
@@ -694,16 +630,26 @@ int Accelerator_start(SbSUpdateAccelerator * accelerator)
 
 /*****************************************************************************/
 
-Result SbsHardware_initialize (void)
+Result SbsPlatform_initialize (SbSHardwareConfig * hardware_config_list,
+                               uint32_t list_length)
 {
   int i;
   Result rc;
 
+  if (SbSUpdateAccelerator_list != NULL)
+    free (SbSUpdateAccelerator_list);
+
+  SbSUpdateAccelerator_list = malloc(sizeof(SbSUpdateAccelerator *) * list_length);
+
+  ASSERT (SbSUpdateAccelerator_list != NULL);
+
   rc = (SbSUpdateAccelerator_list != NULL) ? OK : ERROR;
 
-  for (i = 0; (rc == OK) && (i < NUM_ACCELERATOR_INSTANCES); i++)
+  SbSUpdateAccelerator_list_length = list_length;
+
+  for (i = 0; (rc == OK) && (i < list_length); i++)
   {
-    SbSUpdateAccelerator_list[i] = Accelerator_new (&SbSHardwareConfig_list[i]);
+    SbSUpdateAccelerator_list[i] = Accelerator_new (&hardware_config_list[i]);
 
     ASSERT (SbSUpdateAccelerator_list[i] != NULL);
 
@@ -713,17 +659,19 @@ Result SbsHardware_initialize (void)
   return rc;
 }
 
-void SbsHardware_shutdown (void)
+void SbsPlatform_shutdown (void)
 {
   int i;
   ASSERT (SbSUpdateAccelerator_list != NULL);
 
   if (SbSUpdateAccelerator_list != NULL)
   {
-    for (i = 0; i < NUM_ACCELERATOR_INSTANCES; i++)
+    for (i = 0; i < SbSUpdateAccelerator_list_length; i++)
     {
       Accelerator_delete ((&SbSUpdateAccelerator_list[i]));
     }
+
+    free (SbSUpdateAccelerator_list);
   }
 }
 

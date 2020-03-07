@@ -28,6 +28,18 @@ extern "C" {
 
 typedef enum
 {
+  NONE_LAYER               = 0,
+  HX_INPUT_LAYER           = 1<<0,
+  H1_CONVOLUTION_LAYER     = 1<<1,
+  H2_POOLING_LAYER         = 1<<2,
+  H3_CONVOLUTION_LAYER     = 1<<3,
+  H4_POOLING_LAYER         = 1<<4,
+  H5_FULLY_CONNECTED_LAYER = 1<<5,
+  HY_OUTPUT_LAYER          = 1<<6
+} SbsLayerType;
+
+typedef enum
+{
   HARDWARE,
   SOFTWARE
 } ProcessingMode;
@@ -118,19 +130,6 @@ typedef struct
 } SbSUpdateAccelerator;
 /************************** Constant Definitions *****************************/
 
-/*___________________________________________________________________________*/
-/* TODO: Implement nicely                                                    */
-#define ACCELERATOR_0     HX_INPUT_LAYER
-#define ACCELERATOR_1     H1_CONVOLUTION_LAYER | H2_POOLING_LAYER  | HY_OUTPUT_LAYER | H3_CONVOLUTION_LAYER | H4_POOLING_LAYER
-#define ACCELERATOR_2     H3_CONVOLUTION_LAYER
-#define ACCELERATOR_3     H5_FULLY_CONNECTED_LAYER | H2_POOLING_LAYER | H4_POOLING_LAYER | H1_CONVOLUTION_LAYER
-//#define ACCELERATOR_4     0
-//#define ACCELERATOR_5     H5_FULLY_CONNECTED_LAYER
-//#define ACCELERATOR_6     HY_OUTPUT_LAYER
-//#define ACCELERATOR_7     H3_CONVOLUTION_LAYER
-/*___________________________________________________________________________*/
-
-
 /************************** Variable Definitions *****************************/
 
 /************************** Function Prototypes ******************************/
@@ -157,9 +156,9 @@ void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
 
 int Accelerator_start(SbSUpdateAccelerator * accelerator);
 
-Result SbsHardware_initialize (void);
+Result SbsPlatform_initialize (SbSHardwareConfig * hardware_config_list, uint32_t list_length);
 
-void SbsHardware_shutdown (void);
+void SbsPlatform_shutdown (void);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

@@ -356,15 +356,27 @@ MatrixTypeID M32BitFormat_getTypeID(uint8_t data_type_size, uint8_t dimensionali
   return type_ID;
 }
 
+typedef enum
+{
+  FLOAT,
+  FIXED_POINT
+} Representation;
+
+typedef struct
+{
+  Representation  representation;
+  uint8_t         size;
+  uint8_t         mantissa_bitlength;
+} Format;
+
 typedef struct
 {
   MemoryBlock * memory_def_parent;
-
-  void *   data;
-  MatrixTypeID type_id;
-  uint8_t  data_type_size;
-  uint8_t  dimensionality;
-  uint16_t dimension_size[1]; /*[0] = rows, [1] = columns, [2] = neurons... [n] = N*/
+  void *        data;
+  MatrixTypeID  type_id;
+  Format        format;
+  uint8_t       dimensionality;
+  uint16_t      dimension_size[1]; /*[0] = rows, [1] = columns, [2] = neurons... [n] = N*/
 } Multivector;
 
 typedef struct
@@ -422,7 +434,7 @@ typedef struct
 
 #pragma pack(pop)   /* restore original alignment from stack */
 
-static Multivector * Multivector_new(MemoryBlock * memory_def, uint8_t data_type_size, uint8_t dimensionality, ...)
+static Multivector * Multivector_new(MemoryBlock * memory_def, Format * format, uint8_t dimensionality, ...)
 {
   Multivector * multivector = NULL;
 
@@ -454,19 +466,19 @@ static Multivector * Multivector_new(MemoryBlock * memory_def, uint8_t data_type
 
       if (memory_def != NULL)
         multivector->data = MemoryBlock_alloc (memory_def,
-                                               data_size * data_type_size);
+                                               data_size * format->size);
       else
-        multivector->data = malloc (data_size * data_type_size);
+        multivector->data = malloc (data_size * format->size);
 
       ASSERT(multivector->data != NULL);
 
       if (multivector->data != NULL)
-        memset(multivector->data, 0x00, data_size * data_type_size);
+        memset(multivector->data, 0x00, data_size * format->size);
 
       multivector->dimensionality = dimensionality;
-      multivector->data_type_size = data_type_size;
+      multivector->format = *format;
 #ifndef MULTIVECTOR_USE_POINTER_ARITHMETICS
-      multivector->type_id = M32BitFormat_getTypeID(data_type_size,
+      multivector->type_id = M32BitFormat_getTypeID(format->size,
                                                     dimensionality,
                                                     multivector->dimension_size);
 #endif
@@ -748,7 +760,7 @@ static Multivector * Multivector_duplicate(MemoryBlock * memory_def,
 
     if (duplicate != NULL)
     {
-      size_t data_size = original->data_type_size;
+      size_t data_size = original->format.size;
       int i;
 
       memcpy (duplicate, original, memory_size);
@@ -783,7 +795,7 @@ static size_t Multivector_dataSize(Multivector * multivector)
   if ((multivector != NULL) && (0 < multivector->dimensionality))
   {
     int i;
-    data_size = multivector->data_type_size;
+    data_size = multivector->format.size;
 
     for (i = 0; i < multivector->dimensionality; i++)
       data_size *= multivector->dimension_size[i];
@@ -798,7 +810,7 @@ static void Multivector_cacheFlush(Multivector * multivector)
 
   if ((multivector != NULL) && (0 < multivector->dimensionality))
   {
-    size_t data_size = multivector->data_type_size;
+    size_t data_size = multivector->format.size;
     int i;
 
     for (i = 0; i < multivector->dimensionality; i++)
@@ -823,19 +835,30 @@ static void Multivector_delete(Multivector ** multivector)
   }
 }
 
-static void Multivector_float2Fixed(Multivector * multivector)
+static void Multivector_float2Fixed(Multivector * multivector, Format * new_format)
 {
   ASSERT(multivector != NULL);
 
   if (multivector != NULL)
   {
-    int size = Multivector_dataSize(multivector) / multivector->data_type_size;
-	  float *     float_ptr = (float *)     multivector->data;
-	  uint32_t *  fixed_ptr = (uint32_t *)  multivector->data;
+    uint32_t  full_scale = (1 << new_format->mantissa_bitlength) - 1;
+    int       size = Multivector_dataSize(multivector) / multivector->format.size;
+	  void *    old_ptr = multivector->data;
+	  void *    new_ptr = multivector->data;
+
     for (int i = 0; i < size; i ++)
     {
-      fixed_ptr[i] = (uint32_t) (float_ptr[i] * H_MAX);
+      switch (multivector->format.size)
+      {
+        case sizeof(float):
+          ((uint32_t*)new_ptr)[i] = (uint32_t) (((float *)old_ptr)[i] * full_scale);
+          break;
+        default:
+          ASSERT(0);
+      }
     }
+
+    multivector->format = *new_format;
   }
 }
 
@@ -863,7 +886,7 @@ static Multivector * Multivector_convert2fixed16(MemoryBlock * memory_def,
 
       memcpy (duplicate, original, memory_size);
 
-      duplicate->data_type_size = sizeof(uint16_t);
+      duplicate->format.size = sizeof(uint16_t);
 
       for (i = 0; i < original->dimensionality; i++)
         matrix_size *= original->dimension_size[i];
@@ -886,7 +909,7 @@ static Multivector * Multivector_convert2fixed16(MemoryBlock * memory_def,
           duplicate_data[i] = (uint16_t)(original_data[i] * (float)(0xFFFF));
 
 #ifndef MULTIVECTOR_USE_POINTER_ARITHMETICS
-        duplicate->type_id = M32BitFormat_getTypeID (duplicate->data_type_size,
+        duplicate->type_id = M32BitFormat_getTypeID (duplicate->format.size,
                                                      duplicate->dimensionality,
                                                      duplicate->dimension_size);
 #endif
@@ -929,13 +952,13 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
     profile->kernelSize = kernel_size * kernel_size;
     profile->epsilon = epsilon;
 
-    profile->stateBufferSize = profile->vectorSize * state_matrix->data_type_size;
+    profile->stateBufferSize = profile->vectorSize * state_matrix->format.size;
 
     /**************************** SPIKE_MODE *********************************/
     profile->rxBuffer[SPIKE_MODE] = spike_matrix->data;
     profile->rxBufferSize[SPIKE_MODE] = Multivector_dataSize(spike_matrix);
     profile->txBufferSize[SPIKE_MODE] = profile->layerSize
-        * (sizeof(Random32) + profile->vectorSize * state_matrix->data_type_size);
+        * (sizeof(Random32) + profile->vectorSize * state_matrix->format.size);
 
     ASSERT (profile->txBuffer[SPIKE_MODE] == NULL);
     profile->txBuffer[SPIKE_MODE] = MemoryBlock_alloc(state_matrix->memory_def_parent, profile->txBufferSize[SPIKE_MODE]);
@@ -946,13 +969,13 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
     {
       ASSERT(weight_matrix->dimension_size[3] == state_matrix->dimension_size[2]);
 
-      profile->weightBufferSize = profile->vectorSize * weight_matrix->data_type_size;
+      profile->weightBufferSize = profile->vectorSize * weight_matrix->format.size;
 
       profile->memory_cmd[UPDATE_MODE] = memory_cmd;
       profile->rxBuffer[UPDATE_MODE] = state_matrix->data;
       profile->rxBufferSize[UPDATE_MODE] = Multivector_dataSize(state_matrix)+ Multivector_dataSize(spike_matrix);
       profile->txBufferSize[UPDATE_MODE] = profile->layerSize
-      * (sizeof(Random32) + profile->vectorSize * state_matrix->data_type_size + profile->kernelSize * profile->vectorSize * weight_matrix->data_type_size);
+      * (sizeof(Random32) + profile->vectorSize * state_matrix->format.size + profile->kernelSize * profile->vectorSize * weight_matrix->format.size);
 
       ASSERT (profile->txBuffer[UPDATE_MODE] == NULL);
       profile->txBuffer[UPDATE_MODE] = MemoryBlock_alloc(state_matrix->memory_def_parent, profile->txBufferSize[UPDATE_MODE]);
@@ -1048,14 +1071,16 @@ static void SbsLayerPartition_delete(SbsLayerPartition ** partition)
   }
 }
 
-static void SbsLayerPartition_initializeIP (NeuronState * state_vector, uint16_t size)
+static void SbsLayerPartition_initializeIP (SbsLayerPartition * partition, NeuronState * state_vector, uint16_t size)
 {
   ASSERT(state_vector != NULL);
   ASSERT(0 < size);
 
   if ((state_vector != NULL) && (0 < size))
   {
-	  NeuronState	initial_value_h = H_MAX / size;
+    Format * data_format = &partition->state_matrix->format;
+    uint32_t full_scale = (1<< data_format->mantissa_bitlength) - 1;
+	  NeuronState	initial_value_h = full_scale / size;
       uint16_t 		neuron;
       for (neuron = 0; neuron < size; neuron ++)
         state_vector[neuron] = initial_value_h;
@@ -1083,7 +1108,9 @@ static void SbsLayerPartition_initialize (SbsLayerPartition * partition,
     if (layerType != HX_INPUT_LAYER)
       for (row = 0; row < rows; row++)
         for (column = 0; column < columns; column++)
-          SbsLayerPartition_initializeIP (Multivector_2DAccess(state_matrix, row, column), neurons);
+          SbsLayerPartition_initializeIP (partition,
+                                          Multivector_2DAccess(state_matrix, row, column),
+                                          neurons);
 
     if (!SbsAcceleratorProfie_isInitialized (&partition->profile))
       SbsAcceleratorProfie_initialize (&partition->profile,
@@ -1324,7 +1351,13 @@ static void SbsBaseLayer_setEpsilon(SbsLayer * layer, float epsilon)
   /*ASSERT(epsilon != 0.0f);*/ /* 0.0 is allowed? */
 
   if (layer != NULL)
-    ((SbsBaseLayer *)layer)->epsilon = (Epsilon) (epsilon * H_MAX);
+  {
+    SbsBaseLayer * base_layer = ((SbsBaseLayer *)layer);
+    Format * data_format = &base_layer->partition_array[0]->state_matrix->format;
+    uint32_t full_scale = (1<< data_format->mantissa_bitlength) - 1;
+
+    base_layer->epsilon = (Epsilon) (epsilon * full_scale);
+  }
 }
 
 static void SbsBaseLayer_setLearningRule (SbsLayer * layer_ptr, SbsLearningRule rule, double gama, int number_of_patterns)
@@ -1333,6 +1366,7 @@ static void SbsBaseLayer_setLearningRule (SbsLayer * layer_ptr, SbsLearningRule 
   ASSERT (0 < number_of_patterns);
   if ((layer_ptr != NULL) && (0 < number_of_patterns))
   {
+    Format data_format = {.representation = FLOAT, .size = sizeof(double)};
     SbsBaseLayer * layer = (SbsBaseLayer *) layer_ptr;
     layer->learning_data.learning_rule = rule;
     layer->learning_data.number_of_patterns = number_of_patterns;
@@ -1344,7 +1378,7 @@ static void SbsBaseLayer_setLearningRule (SbsLayer * layer_ptr, SbsLearningRule 
     if (layer->learning_data.omega_matrix != NULL)
       Multivector_delete(&layer->learning_data.omega_matrix);
 
-    layer->learning_data.omega_matrix = Multivector_new(NULL, sizeof(double), 2, w_spikes, layer->vector_size);
+    layer->learning_data.omega_matrix = Multivector_new(NULL, &data_format, 2, w_spikes, layer->vector_size);
 
     ASSERT (layer->learning_data.omega_matrix != NULL);
 
@@ -1353,7 +1387,7 @@ static void SbsBaseLayer_setLearningRule (SbsLayer * layer_ptr, SbsLearningRule 
     if (layer->learning_data.a_matrix != NULL)
       Multivector_delete(&layer->learning_data.a_matrix);
 
-    layer->learning_data.a_matrix = Multivector_new(NULL, sizeof(double), 2, w_spikes, layer->vector_size);
+    layer->learning_data.a_matrix = Multivector_new(NULL, &data_format, 2, w_spikes, layer->vector_size);
 
     ASSERT (layer->learning_data.a_matrix != NULL);
 
@@ -1362,7 +1396,7 @@ static void SbsBaseLayer_setLearningRule (SbsLayer * layer_ptr, SbsLearningRule 
     if (layer->learning_data.b_matrix != NULL)
       Multivector_delete(&layer->learning_data.b_matrix);
 
-    layer->learning_data.b_matrix = Multivector_new(NULL, sizeof(double), 2, w_spikes, layer->vector_size);
+    layer->learning_data.b_matrix = Multivector_new(NULL, &data_format, 2, w_spikes, layer->vector_size);
 
     ASSERT (layer->learning_data.b_matrix != NULL);
 
@@ -1405,16 +1439,17 @@ static void SbsBaseLayer_setLearningRule (SbsLayer * layer_ptr, SbsLearningRule 
   }
 }
 
-inline static SpikeID SbsStateVector_generateSpike (NeuronState * state_vector, uint16_t size) __attribute__((always_inline));
+inline static SpikeID SbsLayerPartition_stateVector_generateSpike (SbsLayerPartition * partition, NeuronState * state_vector, uint16_t size) __attribute__((always_inline));
 
-inline static SpikeID SbsStateVector_generateSpike (NeuronState * state_vector, uint16_t size)
+inline static SpikeID SbsLayerPartition_stateVector_generateSpike (SbsLayerPartition * partition, NeuronState * state_vector, uint16_t size)
 {
   ASSERT(state_vector != NULL);
   ASSERT(0 < size);
 
   if ((state_vector != NULL) && (0 < size))
   {
-    NeuronState random_s = ((NeuronState) genrand ()) >> (32 - H_QF);
+    Format * format = &partition->state_matrix->format;
+    NeuronState random_s = ((NeuronState) genrand ()) >> (32 - format->mantissa_bitlength);
     NeuronState sum      = 0;
     SpikeID     spikeID;
 
@@ -1476,7 +1511,7 @@ static void SbsLayerPartition_loadInput(SbsLayerPartition * partition, char * fi
         (*input_label)--;
         good_reading_flag = read_result == sizeof(uint8_t);
 
-        Multivector_float2Fixed(partition->state_matrix);
+        Multivector_float2Fixed(partition->state_matrix, &partition->state_matrix->format);
       }
 
       f_close (&fil);
@@ -1609,7 +1644,7 @@ inline SbsLayerPartition * SbsBaseLayer_getPartition(SbsBaseLayer * layer, uint1
 //          state_vector = Multivector_2DAccess (partition_state_matrix,
 //                                               partition_row,
 //                                               column);
-//          *spike = SbsStateVector_generateSpike (state_vector, neurons);
+//          *spike = SbsLayerPartition_stateVector_generateSpike (partition, layer, state_vector, neurons);
 //        }
 //      }
 //    }

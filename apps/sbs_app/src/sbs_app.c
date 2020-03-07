@@ -27,6 +27,8 @@
 #include "ff.h"
 
 #include "eventlogger.h"
+#include "sbs_processing_unit.h"
+#include "sbs_platform.h"
 
 // FORWARD DECLARATIONS --------------------------------------------------------
 
@@ -59,7 +61,25 @@ static u32 SnnApp_initializeSD(void)
 
 Result SnnApp_initialize(void)
 {
-  SnnApp_initializeSD();
+  Result rc;
+
+  rc = SnnApp_initializeSD();
+
+  if (rc != OK)
+  {
+    printf ("SD card hardware error\n");
+    return rc;
+  }
+
+  rc = SbsPlatform_initialize (SbSHardwareConfig_list,
+                                sizeof(SbSHardwareConfig_list) / sizeof(SbSHardwareConfig));
+
+  if (rc != OK)
+  {
+    printf ("SbS hardware platform error\n");
+    return rc;
+  }
+
   return OK;
 }
 
@@ -71,20 +91,10 @@ Result SnnApp_run (void)
   uint16_t output_vector_size;
   uint8_t input_label;
   uint8_t output_label;
-  Result rc;
 
-  /*********************/
   // ********** Create SBS Neural Network **********
   printf ("\n==========  SbS Neural Network  ===============\n");
   printf ("\n==========  MNIST example  ====================\n");
-
-  rc = SbsHardware_initialize ();
-
-  if (rc != OK)
-  {
-    printf ("Hardware error\n");
-    return rc;
-  }
 
   /*_________________________________________________________________________*/
 
@@ -241,22 +251,22 @@ Result SnnApp_run (void)
 
       network->getOutputVector (network, &output_vector, &output_vector_size);
 
+/*
       while (output_vector_size--)
       {
-        NeuronState h = output_vector[output_vector_size]; /* Ensure data alignment */
+        NeuronState h = output_vector[output_vector_size];  Ensure data alignment
       }
+*/
     }
   }
   network->delete (&network);
 
-  SbsHardware_shutdown ();
-
-  return rc;
+  return OK;
 }
 
 void SnnApp_dispose(void)
 {
-
+  SbsPlatform_shutdown ();
 }
 
 static SnnApp SnnApp_obj = { SnnApp_initialize,
