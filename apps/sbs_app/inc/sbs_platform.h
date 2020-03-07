@@ -26,7 +26,7 @@
 
 // TYPEDEFS AND DEFINES --------------------------------------------------------
 #define H_QF    (21)
-#define W_QF    (21)
+#define W_QF    (16)
 #define H_MAX   (((unsigned long)1 << H_QF) - 1)
 #define W_MAX   (((unsigned long)1 << W_QF) - 1)
 
@@ -43,6 +43,8 @@
 //#define ACCELERATOR_6     HY_OUTPUT_LAYER
 //#define ACCELERATOR_7     H3_CONVOLUTION_LAYER
 /*___________________________________________________________________________*/
+
+#define MT19937_SEED      (666)
 
 
 SbSHardwareConfig SbSHardwareConfig_list[] =

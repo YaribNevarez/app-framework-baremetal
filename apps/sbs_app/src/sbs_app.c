@@ -19,8 +19,8 @@
  */
 //------------------------------------------------------------------------------
 // INCLUDES --------------------------------------------------------------------
-#include "sbs_neural_network.h"
 #include "sbs_app.h"
+#include "sbs_neural_network.h"
 #include "stdio.h"
 
 #include "xstatus.h"
@@ -29,6 +29,7 @@
 #include "eventlogger.h"
 #include "sbs_processing_unit.h"
 #include "sbs_platform.h"
+#include "toolcom.h"
 
 // FORWARD DECLARATIONS --------------------------------------------------------
 
@@ -72,7 +73,8 @@ Result SnnApp_initialize(void)
   }
 
   rc = SbsPlatform_initialize (SbSHardwareConfig_list,
-                                sizeof(SbSHardwareConfig_list) / sizeof(SbSHardwareConfig));
+                                sizeof(SbSHardwareConfig_list) / sizeof(SbSHardwareConfig),
+                                MT19937_SEED);
 
   if (rc != OK)
   {
@@ -244,9 +246,11 @@ Result SnnApp_run (void)
 
       if (output_label == input_label)
       {
+        ToolCom_instance ()->textMsg(0, "PASS");
       }
       else
       {
+        ToolCom_instance ()->textMsg(0, "Misclassification");
       }
 
       network->getOutputVector (network, &output_vector, &output_vector_size);

@@ -156,7 +156,9 @@ void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
 
 int Accelerator_start(SbSUpdateAccelerator * accelerator);
 
-Result SbsPlatform_initialize (SbSHardwareConfig * hardware_config_list, uint32_t list_length);
+Result SbsPlatform_initialize (SbSHardwareConfig * hardware_config_list,
+                               uint32_t list_length,
+                               uint32_t MT19937_seed);
 
 void SbsPlatform_shutdown (void);
 #ifdef __cplusplus

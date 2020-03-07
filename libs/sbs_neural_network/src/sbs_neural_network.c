@@ -381,6 +381,15 @@ typedef struct
 
 typedef struct
 {
+  Format state_matrix_format;
+  Format weight_matrix_format;
+  Format spike_matrix_format;
+  Format learning_matrix_format;
+  Format weight_matrix_format_file_system;
+} SbsSettings;
+
+typedef struct
+{
   SbSUpdateAccelerator *  accelerator;
   SbsAcceleratorProfie    profile;
   uint16_t      x_pos;
@@ -433,6 +442,43 @@ typedef struct
 } SbsBaseNetwork;
 
 #pragma pack(pop)   /* restore original alignment from stack */
+Format state_matrix_format;
+Format weight_matrix_format;
+Format spike_matrix_format;
+
+static SbsSettings SbsSettings_ =
+{
+    .state_matrix_format =
+    {
+        .representation = FIXED_POINT,
+        .size = sizeof(uint32_t),
+        .mantissa_bitlength = 21
+    },
+    .weight_matrix_format =
+    {
+        .representation = FIXED_POINT,
+        .size = sizeof(uint16_t),
+        .mantissa_bitlength = 16
+    },
+    .spike_matrix_format =
+    {
+        .representation = FIXED_POINT,
+        .size = sizeof(uint32_t),
+        .mantissa_bitlength = 21
+    },
+    .learning_matrix_format =
+    {
+        .representation = FLOAT,
+        .size = sizeof(double),
+        .mantissa_bitlength = 0
+    },
+    .weight_matrix_format_file_system =
+    {
+        .representation = FLOAT,
+        .size = sizeof(float),
+        .mantissa_bitlength = 0
+    }
+};
 
 static Multivector * Multivector_new(MemoryBlock * memory_def, Format * format, uint8_t dimensionality, ...)
 {
@@ -863,12 +909,13 @@ static void Multivector_float2Fixed(Multivector * multivector, Format * new_form
 }
 
 static Multivector * Multivector_convert2fixed16(MemoryBlock * memory_def,
-                                                 Multivector * original)
+                                                 Multivector * original,
+                                                 Format * new_format)
 {
   Multivector * duplicate = NULL;
   ASSERT(original != NULL);
   ASSERT(0 < original->dimensionality);
-  ASSERT(original->data_type_size == sizeof(uint32_t));
+  ASSERT(original->format.size == sizeof(uint32_t));
 
   if ((original != NULL)
       && (0 < original->dimensionality))
@@ -886,7 +933,7 @@ static Multivector * Multivector_convert2fixed16(MemoryBlock * memory_def,
 
       memcpy (duplicate, original, memory_size);
 
-      duplicate->format.size = sizeof(uint16_t);
+      duplicate->format = *new_format;
 
       for (i = 0; i < original->dimensionality; i++)
         matrix_size *= original->dimension_size[i];
@@ -1023,7 +1070,7 @@ static SbsLayerPartition * SbsLayerPartition_new (SbSUpdateAccelerator * acceler
     }
 
     /* Instantiate state_matrix */
-    state_matrix = Multivector_new (memory_def, sizeof(NeuronState), 3, rows,
+    state_matrix = Multivector_new (memory_def, &SbsSettings_.state_matrix_format, 3, rows,
                                     columns, vector_size);
 
     ASSERT(state_matrix != NULL);
@@ -1036,7 +1083,7 @@ static SbsLayerPartition * SbsLayerPartition_new (SbSUpdateAccelerator * acceler
     partition->state_matrix = state_matrix;
 
     /* Instantiate spike_matrix */
-    spike_matrix = Multivector_new (memory_def, sizeof(SpikeID), 2, rows, columns);
+    spike_matrix = Multivector_new (memory_def, &SbsSettings_.spike_matrix_format, 2, rows, columns);
 
     ASSERT(spike_matrix != NULL);
     ASSERT(spike_matrix->dimensionality == 2);
@@ -1232,7 +1279,7 @@ static SbsLayer * SbsBaseLayer_new(SbsLayerType layer_type,
 
     if (1 < layer->num_partitions)
     { /* Instantiate spike_matrix */
-      Multivector * spike_matrix = Multivector_new (NULL, sizeof(SpikeID), 2, rows, columns);
+      Multivector * spike_matrix = Multivector_new (NULL, &SbsSettings_.spike_matrix_format, 2, rows, columns);
 
       ASSERT(spike_matrix != NULL);
       ASSERT(spike_matrix->dimensionality == 2);
@@ -1366,7 +1413,6 @@ static void SbsBaseLayer_setLearningRule (SbsLayer * layer_ptr, SbsLearningRule 
   ASSERT (0 < number_of_patterns);
   if ((layer_ptr != NULL) && (0 < number_of_patterns))
   {
-    Format data_format = {.representation = FLOAT, .size = sizeof(double)};
     SbsBaseLayer * layer = (SbsBaseLayer *) layer_ptr;
     layer->learning_data.learning_rule = rule;
     layer->learning_data.number_of_patterns = number_of_patterns;
@@ -1378,7 +1424,11 @@ static void SbsBaseLayer_setLearningRule (SbsLayer * layer_ptr, SbsLearningRule 
     if (layer->learning_data.omega_matrix != NULL)
       Multivector_delete(&layer->learning_data.omega_matrix);
 
-    layer->learning_data.omega_matrix = Multivector_new(NULL, &data_format, 2, w_spikes, layer->vector_size);
+    layer->learning_data.omega_matrix = Multivector_new(NULL,
+                                                        &SbsSettings_.learning_matrix_format,
+                                                        2,
+                                                        w_spikes,
+                                                        layer->vector_size);
 
     ASSERT (layer->learning_data.omega_matrix != NULL);
 
@@ -1387,7 +1437,11 @@ static void SbsBaseLayer_setLearningRule (SbsLayer * layer_ptr, SbsLearningRule 
     if (layer->learning_data.a_matrix != NULL)
       Multivector_delete(&layer->learning_data.a_matrix);
 
-    layer->learning_data.a_matrix = Multivector_new(NULL, &data_format, 2, w_spikes, layer->vector_size);
+    layer->learning_data.a_matrix = Multivector_new(NULL,
+                                                    &SbsSettings_.learning_matrix_format,
+                                                    2,
+                                                    w_spikes,
+                                                    layer->vector_size);
 
     ASSERT (layer->learning_data.a_matrix != NULL);
 
@@ -1396,7 +1450,11 @@ static void SbsBaseLayer_setLearningRule (SbsLayer * layer_ptr, SbsLearningRule 
     if (layer->learning_data.b_matrix != NULL)
       Multivector_delete(&layer->learning_data.b_matrix);
 
-    layer->learning_data.b_matrix = Multivector_new(NULL, &data_format, 2, w_spikes, layer->vector_size);
+    layer->learning_data.b_matrix = Multivector_new(NULL,
+                                                    &SbsSettings_.learning_matrix_format,
+                                                    2,
+                                                    w_spikes,
+                                                    layer->vector_size);
 
     ASSERT (layer->learning_data.b_matrix != NULL);
 
@@ -1453,7 +1511,7 @@ inline static SpikeID SbsLayerPartition_stateVector_generateSpike (SbsLayerParti
     NeuronState sum      = 0;
     SpikeID     spikeID;
 
-    ASSERT(random_s <= H_MAX);
+    ASSERT(random_s <= (1 << partition->state_matrix->format.mantissa_bitlength) - 1);
 
     for (spikeID = 0; spikeID < size; spikeID++)
     {
@@ -1834,8 +1892,6 @@ static SbsNetwork * SbsBaseNetwork_new(void)
     network->vtbl = _SbsNetwork;
     network->input_label = (uint8_t) -1;
     network->inferred_output = (uint8_t) -1;
-
-    sgenrand (666); /*TODO: Create MT19937 object wrapper */
   }
 
   ASSERT(network->size == 0);
@@ -2286,7 +2342,7 @@ static SbsWeightMatrix SbsWeightMatrix_new (uint16_t rows,
 
   if (file_name != NULL)
   {
-    weight_watrix = Multivector_new(NULL, sizeof(float), 4, rows, columns, depth, neurons);
+    weight_watrix = Multivector_new(NULL, &SbsSettings_.weight_matrix_format_file_system, 4, rows, columns, depth, neurons);
 
     ASSERT(weight_watrix != NULL);
     ASSERT(weight_watrix->dimensionality == 4);
@@ -2318,7 +2374,9 @@ static SbsWeightMatrix SbsWeightMatrix_new (uint16_t rows,
         ASSERT((rc == FR_OK) && (read_size == data_size));
         f_close (&fil);
 
-        weight_watrix_16bit = Multivector_convert2fixed16(weight_watrix->memory_def_parent, weight_watrix);
+        weight_watrix_16bit = Multivector_convert2fixed16(weight_watrix->memory_def_parent,
+                                                          weight_watrix,
+                                                          &SbsSettings_.weight_matrix_format);
 
         ASSERT(weight_watrix_16bit != NULL);
 
