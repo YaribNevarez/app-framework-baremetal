@@ -155,6 +155,15 @@ static uint32_t SbsHwUpdateEmulator_InterruptGetStatus (void * instance)
   return 0;
 }
 
+static uint32_t  SbsHwUpdateEmulator_InterruptSetHandler (void *instance,
+                                                          uint32_t ID,
+                                                          ARM_GIC_InterruptHandler handler,
+                                                          void * data)
+{
+
+  return 0;
+}
+
 SbsHardware SbsHardware_HwUpdateEmulator =
 {
   .new =                SbsHwUpdateEmulator_new,
@@ -185,7 +194,9 @@ SbsHardware SbsHardware_HwUpdateEmulator =
   .InterruptDisable =       SbsHwUpdateEmulator_InterruptDisable,
   .InterruptClear =         SbsHwUpdateEmulator_InterruptClear,
   .InterruptGetEnabled =    SbsHwUpdateEmulator_InterruptGetEnabled,
-  .InterruptGetStatus =     SbsHwUpdateEmulator_InterruptGetStatus
+  .InterruptGetStatus =     SbsHwUpdateEmulator_InterruptGetStatus,
+
+  .InterruptSetHandler =    SbsHwUpdateEmulator_InterruptSetHandler
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -302,6 +313,15 @@ static uint32_t SbsHwSpikeEmulator_InterruptGetStatus (void * instance)
   return 0;
 }
 
+static uint32_t  SbsHwSpikeEmulator_InterruptSetHandler (void *instance,
+                                                         uint32_t ID,
+                                                         ARM_GIC_InterruptHandler handler,
+                                                         void * data)
+{
+
+  return 0;
+}
+
 SbsHardware SbsHardware_HwSpikeEmulator =
 {
   .new =                SbsHwSpikeEmulator_new,
@@ -332,7 +352,9 @@ SbsHardware SbsHardware_HwSpikeEmulator =
   .InterruptDisable =       SbsHwSpikeEmulator_InterruptDisable,
   .InterruptClear =         SbsHwSpikeEmulator_InterruptClear,
   .InterruptGetEnabled =    SbsHwSpikeEmulator_InterruptGetEnabled,
-  .InterruptGetStatus =     SbsHwSpikeEmulator_InterruptGetStatus
+  .InterruptGetStatus =     SbsHwSpikeEmulator_InterruptGetStatus,
+
+  .InterruptSetHandler =    SbsHwSpikeEmulator_InterruptSetHandler
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -352,7 +374,39 @@ static void DMAHwEmulator_delete (void ** InstancePtr)
   }
 }
 
-static uint32_t  DMAHwEmulator_Move (void * instance, void * BuffAddr, uint32_t Length, int Direction)
+static int DMAHwEmulator_Initialize (void * instance, uint16_t deviceId)
+{
+
+  return 0;
+}
+
+static uint32_t  DMAHwEmulator_Move (void * instance,
+                                     void * BuffAddr,
+                                     uint32_t Length,
+                                     DMATransferDirection direction)
+{
+
+  return 0;
+}
+
+static void DMAHwEmulator_InterruptEnable (void * instance,
+                                           DMAIRQMask mask,
+                                           DMATransferDirection direction)
+{
+
+}
+
+static void DMAHwEmulator_InterruptDisable (void * instance,
+                                            DMAIRQMask mask,
+                                            DMATransferDirection direction)
+{
+
+}
+
+static uint32_t  DMAHwEmulator_InterruptSetHandler (void *instance,
+                                                    uint32_t ID,
+                                                    ARM_GIC_InterruptHandler handler,
+                                                    void * data)
 {
 
   return 0;
@@ -363,5 +417,10 @@ DMAHardware DMAHardware_HwMoverEmulator =
   .new =    DMAHwEmulator_new,
   .delete = DMAHwEmulator_delete,
 
-  .Move =   DMAHwEmulator_Move
+  .Initialize =           DMAHwEmulator_Initialize,
+  .Move =                 DMAHwEmulator_Move,
+  .InterruptEnable =      DMAHwEmulator_InterruptEnable,
+  .InterruptDisable =     DMAHwEmulator_InterruptDisable,
+  .InterruptSetHandler =  DMAHwEmulator_InterruptSetHandler
 };
+

@@ -16,6 +16,7 @@ extern "C" {
 #include <stddef.h>
 
 #include <result.h>
+#include "gic.h"
 
 #include "xil_types.h"
 /***************** Macros (Inline Functions) Definitions *********************/
@@ -52,6 +53,11 @@ typedef struct
   void      (*InterruptClear)         (void *InstancePtr, uint32_t Mask);
   uint32_t  (*InterruptGetEnabled)    (void *InstancePtr);
   uint32_t  (*InterruptGetStatus)     (void *InstancePtr);
+
+  uint32_t  (*InterruptSetHandler)    (void *InstancePtr,
+                                       uint32_t ID,
+                                       ARM_GIC_InterruptHandler handler,
+                                       void * data);
 } SbsHardware;
 
 /************************** Constant Definitions *****************************/

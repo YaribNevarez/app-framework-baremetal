@@ -6,6 +6,7 @@
  */
 /***************************** Include Files *********************************/
 #include "dma_hardware_mover.h"
+#include "miscellaneous.h"
 #include "stdio.h"
 #include "stdlib.h"
 
@@ -35,10 +36,61 @@ static void DMAHardware_delete (void ** InstancePtr)
   }
 }
 
+static int DMAHardware_Initialize (void * instance, uint16_t deviceId)
+{
+  int status;
+  XAxiDma_Config * dmaConfig = XAxiDma_LookupConfig (deviceId);
+
+  ASSERT(dmaConfig != NULL)
+
+  if (dmaConfig == NULL)
+    return XST_FAILURE;
+
+  status = XAxiDma_CfgInitialize (instance, dmaConfig);
+
+  ASSERT(status == XST_SUCCESS)
+
+  if (status != XST_SUCCESS)
+    return XST_FAILURE;
+
+  if (XAxiDma_HasSg((XAxiDma* )instance))
+    return XST_FAILURE;
+
+  return XST_SUCCESS;
+}
+
+static void DMAHardware_InterruptEnable (void * instance,
+                                         DMAIRQMask mask,
+                                         DMATransferDirection direction)
+{
+  XAxiDma_IntrEnable ((XAxiDma* ) instance, mask, direction);
+}
+
+static void DMAHardware_InterruptDisable (void * instance,
+                                          DMAIRQMask mask,
+                                          DMATransferDirection direction)
+{
+  XAxiDma_IntrDisable ((XAxiDma* ) instance, mask, direction);
+}
+
+static uint32_t  DMAHardware_InterruptSetHandler (void *instance,
+                                                  uint32_t ID,
+                                                  ARM_GIC_InterruptHandler handler,
+                                                  void * data)
+{
+  uint32_t status = ARM_GIC_connect (ID, handler, data);
+  ASSERT (status == XST_SUCCESS);
+  return status;
+}
+
 DMAHardware DMAHardware_mover =
 {
   .new =    DMAHardware_new,
   .delete = DMAHardware_delete,
 
-  .Move = (uint32_t (*) (void *, void *, uint32_t, int)) XAxiDma_SimpleTransfer
+  .Initialize = DMAHardware_Initialize,
+  .Move = (uint32_t (*) (void *, void *, uint32_t, DMATransferDirection)) XAxiDma_SimpleTransfer,
+  .InterruptEnable = DMAHardware_InterruptEnable,
+  .InterruptDisable = DMAHardware_InterruptDisable,
+  .InterruptSetHandler = DMAHardware_InterruptSetHandler
 };

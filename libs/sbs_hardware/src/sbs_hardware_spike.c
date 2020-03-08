@@ -7,6 +7,7 @@
 /***************************** Include Files *********************************/
 #include "sbs_hardware_spike.h"
 #include "stdlib.h"
+#include "miscellaneous.h"
 /***************** Macros (Inline Functions) Definitions *********************/
 
 /**************************** Type Definitions *******************************/
@@ -26,6 +27,16 @@ static void SbsHardware_fixedpoint_spike_delete (void ** InstancePtr)
     free (*InstancePtr);
     *InstancePtr = NULL;
   }
+}
+
+static uint32_t  SbsHardware_fixedpoint_spike_InterruptSetHandler (void *instance,
+                                                                   uint32_t ID,
+                                                                   ARM_GIC_InterruptHandler handler,
+                                                                   void * data)
+{
+  uint32_t status = ARM_GIC_connect (ID, handler, data);
+  ASSERT (status == XST_SUCCESS);
+  return status;
 }
 
 SbsHardware SbsHardware_fixedpoint_spike = {
@@ -58,6 +69,8 @@ SbsHardware SbsHardware_fixedpoint_spike = {
   .InterruptClear = (void (*) (void *, uint32_t )) XSbs_fixedpoint_spike_InterruptClear,
   .InterruptGetEnabled = (uint32_t(*) (void *)) XSbs_fixedpoint_spike_InterruptGetEnabled,
   .InterruptGetStatus = (uint32_t(*) (void *)) XSbs_fixedpoint_spike_InterruptGetStatus,
+
+  .InterruptSetHandler = SbsHardware_fixedpoint_spike_InterruptSetHandler
 };
 /************************** Function Prototypes ******************************/
 

@@ -1507,7 +1507,7 @@ inline static SpikeID SbsLayerPartition_stateVector_generateSpike (SbsLayerParti
   if ((state_vector != NULL) && (0 < size))
   {
     Format * format = &partition->state_matrix->format;
-    NeuronState random_s = ((NeuronState) genrand ()) >> (32 - format->mantissa_bitlength);
+    NeuronState random_s = ((NeuronState) MT19937_genrand()) >> (32 - format->mantissa_bitlength);
     NeuronState sum      = 0;
     SpikeID     spikeID;
 

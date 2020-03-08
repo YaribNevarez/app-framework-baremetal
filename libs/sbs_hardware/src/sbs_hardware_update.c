@@ -9,6 +9,8 @@
 #include "stdio.h"
 #include "stdlib.h"
 
+#include "miscellaneous.h"
+
 /***************** Macros (Inline Functions) Definitions *********************/
 
 /**************************** Type Definitions *******************************/
@@ -34,6 +36,16 @@ static void SbsHardware_fixedpoint_delete (void ** InstancePtr)
 static void * SbsHardware_fixedpoint_new (void)
 {
   return malloc (sizeof(XSbs_fixedpoint));
+}
+
+static uint32_t  SbsHardware_fixedpoint_InterruptSetHandler (void *instance,
+                                                             uint32_t ID,
+                                                             ARM_GIC_InterruptHandler handler,
+                                                             void * data)
+{
+  uint32_t status = ARM_GIC_connect (ID, handler, data);
+  ASSERT (status == XST_SUCCESS);
+  return status;
 }
 
 SbsHardware SbsHardware_fixedpoint =
@@ -66,5 +78,7 @@ SbsHardware SbsHardware_fixedpoint =
   .InterruptDisable =       (void (*) (void *, uint32_t ))  XSbs_fixedpoint_InterruptDisable,
   .InterruptClear =         (void (*) (void *, uint32_t ))  XSbs_fixedpoint_InterruptClear,
   .InterruptGetEnabled =    (uint32_t(*) (void *))          XSbs_fixedpoint_InterruptGetEnabled,
-  .InterruptGetStatus =     (uint32_t(*) (void *))          XSbs_fixedpoint_InterruptGetStatus
+  .InterruptGetStatus =     (uint32_t(*) (void *))          XSbs_fixedpoint_InterruptGetStatus,
+
+  .InterruptSetHandler = SbsHardware_fixedpoint_InterruptSetHandler
 };

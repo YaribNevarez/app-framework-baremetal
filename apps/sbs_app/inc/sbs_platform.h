@@ -22,6 +22,7 @@
 #include "sbs_hardware_spike.h"
 #include "sbs_hardware_update.h"
 #include "dma_hardware_mover.h"
+#include "sbs_hardware_emulator.h"
 // FORWARD DECLARATIONS --------------------------------------------------------
 
 // TYPEDEFS AND DEFINES --------------------------------------------------------

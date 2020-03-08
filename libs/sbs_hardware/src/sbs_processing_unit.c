@@ -11,7 +11,7 @@
 #include "dma_hardware_mover.h"
 #include "miscellaneous.h"
 #include "stdio.h"
-#include "xscugic.h"
+
 #include "mt19937int.h"
 
 /***************** Macros (Inline Functions) Definitions *********************/
@@ -55,7 +55,7 @@ int SbSUpdateAccelerator_getGroupFromList (SbsLayerType layerType, SbSUpdateAcce
 }
 
 
-static XScuGic                 ScuGic = {0};
+
 
 #define ACCELERATOR_DMA_RESET_TIMEOUT 10000
 
@@ -160,8 +160,6 @@ static void Accelerator_hardwareInterruptHandler (void * data)
 int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
                                   SbSHardwareConfig * hardware_config)
 {
-  XScuGic_Config *    IntcConfig;
-  XAxiDma_Config *    dmaConfig;
   int                 status;
 
   ASSERT (accelerator != NULL);
@@ -176,207 +174,52 @@ int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
 
   /******************************* DMA initialization ************************/
 
-  accelerator->dmaHardware = hardware_config->dmaDriver->new();
+  accelerator->dmaHardware = hardware_config->dmaDriver->new ();
 
   ASSERT(accelerator->dmaHardware != NULL);
 
   if (accelerator->dmaHardware == NULL)
-  {
-    xil_printf ("ERROR: DMA instance memory allocation fail\r\n", hardware_config->dmaDeviceID);
-
     return XST_FAILURE;
-  }
 
-  if (hardware_config->mode == HARDWARE)
+
+  status = hardware_config->dmaDriver->Initialize (accelerator->dmaHardware,
+                                                   hardware_config->dmaDeviceID);
+
+  ASSERT(status == XST_SUCCESS);
+
+  if (status != XST_SUCCESS)
+      return status;
+
+  if (hardware_config->dmaTxIntVecID)
   {
-    dmaConfig = XAxiDma_LookupConfig (hardware_config->dmaDeviceID);
-    if (dmaConfig == NULL)
-    {
-      xil_printf ("No configuration found for %d\r\n",
-                  hardware_config->dmaDeviceID);
+    hardware_config->dmaDriver->InterruptEnable (accelerator->dmaHardware,
+                                                 DMA_IRQ_ALL,
+                                                 MEMORY_TO_HARDWARE);
 
-      return XST_FAILURE;
-    }
-
-    status = XAxiDma_CfgInitialize (accelerator->dmaHardware, dmaConfig);
+    status = hardware_config->dmaDriver->InterruptSetHandler (accelerator->dmaHardware,
+                                                              hardware_config->dmaTxIntVecID,
+                                                              Accelerator_txInterruptHandler,
+                                                              accelerator);
+    ASSERT (status != XST_SUCCESS);
     if (status != XST_SUCCESS)
-    {
-      xil_printf ("Initialization failed %d\r\n", status);
-      return XST_FAILURE;
-    }
-
-    if (XAxiDma_HasSg((XAxiDma* )accelerator->dmaHardware))
-    {
-      xil_printf ("Device configured as SG mode \r\n");
-
-      return XST_FAILURE;
-    }
-
-    if (hardware_config->dmaTxIntVecID)
-      XAxiDma_IntrEnable((XAxiDma* )accelerator->dmaHardware,
-                         XAXIDMA_IRQ_ALL_MASK,
-                         XAXIDMA_DMA_TO_DEVICE);
-
-    else
-      XAxiDma_IntrDisable((XAxiDma* )accelerator->dmaHardware,
-                          XAXIDMA_IRQ_ALL_MASK,
-                          XAXIDMA_DMA_TO_DEVICE);
-
-    if (hardware_config->dmaRxIntVecID)
-      XAxiDma_IntrEnable((XAxiDma* )accelerator->dmaHardware,
-                         XAXIDMA_IRQ_ALL_MASK,
-                         XAXIDMA_DEVICE_TO_DMA);
-
-    else
-      XAxiDma_IntrDisable((XAxiDma* )accelerator->dmaHardware,
-                          XAXIDMA_IRQ_ALL_MASK,
-                          XAXIDMA_DEVICE_TO_DMA);
+      return status;
   }
 
-  /***************************************************************************/
-  /**************************** GIC initialization ***************************/
-  if (hardware_config->mode == HARDWARE)
+  if (hardware_config->dmaRxIntVecID)
   {
-    IntcConfig = XScuGic_LookupConfig (XPAR_SCUGIC_SINGLE_DEVICE_ID);
-    ASSERT(NULL != IntcConfig);
-    if (NULL == IntcConfig)
-    {
-      return XST_FAILURE;
-    }
+    hardware_config->dmaDriver->InterruptEnable (accelerator->dmaHardware,
+                                                 DMA_IRQ_ALL,
+                                                 HARDWARE_TO_MEMORY);
 
-    status = XScuGic_CfgInitialize (&ScuGic, IntcConfig,
-                                    IntcConfig->CpuBaseAddress);
-    ASSERT(status == XST_SUCCESS);
+    status = hardware_config->dmaDriver->InterruptSetHandler (accelerator->dmaHardware,
+                                                              hardware_config->dmaRxIntVecID,
+                                                              Accelerator_rxInterruptHandler,
+                                                              accelerator);
+    ASSERT (status == XST_SUCCESS);
     if (status != XST_SUCCESS)
-    {
-      return XST_FAILURE;
-    }
+      return status;
   }
 
-  if (hardware_config->mode == HARDWARE)
-  {
-    if (hardware_config->dmaRxIntVecID)
-    {
-      /***************************************************************************/
-      /*
-       * set timer0 interrupt target cpu
-       */
-
-      int intr_target_reg = XScuGic_DistReadReg(
-          &ScuGic,
-          XSCUGIC_SPI_TARGET_OFFSET_CALC(hardware_config->dmaRxIntVecID));
-
-      intr_target_reg &= ~(0x000000FF << ((hardware_config->dmaRxIntVecID % 4) * 8));
-      intr_target_reg |=  (0x00000001 << ((hardware_config->dmaRxIntVecID % 4) * 8)); //CPU0 ack Timer0
-    //intr_target_reg |=  (0x00000002 << ((XPAR_FABRIC_AXI_TIMER_0_INTERRUPT_INTR%4)*8));//CPU1 ack Timer0
-
-      XScuGic_DistWriteReg(
-          &ScuGic,
-          XSCUGIC_SPI_TARGET_OFFSET_CALC(hardware_config->dmaRxIntVecID),
-          intr_target_reg);
-      /***************************************************************************/
-      XScuGic_SetPriorityTriggerType (&ScuGic,
-                                      hardware_config->dmaRxIntVecID,
-                                      0xA0, 0x3);
-
-      status = XScuGic_Connect (&ScuGic, hardware_config->dmaRxIntVecID,
-                                (Xil_InterruptHandler) Accelerator_rxInterruptHandler,
-                                accelerator);
-      ASSERT (status == XST_SUCCESS);
-      if (status != XST_SUCCESS)
-      {
-        return status;
-      }
-      XScuGic_Enable (&ScuGic, hardware_config->dmaRxIntVecID);
-    }
-
-    if (hardware_config->dmaTxIntVecID)
-    {
-      /***************************************************************************/
-      /*
-       * set timer0 interrupt target cpu
-       */
-
-      int intr_target_reg = XScuGic_DistReadReg(
-          &ScuGic,
-          XSCUGIC_SPI_TARGET_OFFSET_CALC(hardware_config->dmaTxIntVecID));
-
-      intr_target_reg &= ~(0x000000FF
-          << ((hardware_config->dmaTxIntVecID % 4) * 8));
-      intr_target_reg |= (0x00000001
-          << ((hardware_config->dmaTxIntVecID % 4) * 8)); //CPU0 ack Timer0
-    //intr_target_reg |=  (0x00000002 << ((XPAR_FABRIC_AXI_TIMER_0_INTERRUPT_INTR%4)*8));//CPU1 ack Timer0
-
-      XScuGic_DistWriteReg(
-          &ScuGic,
-          XSCUGIC_SPI_TARGET_OFFSET_CALC(hardware_config->dmaTxIntVecID),
-          intr_target_reg);
-      /***************************************************************************/
-      XScuGic_SetPriorityTriggerType (&ScuGic,
-                                      hardware_config->dmaTxIntVecID,
-                                      0xA0, 0x3);
-      status = XScuGic_Connect (&ScuGic, hardware_config->dmaTxIntVecID,
-                                (Xil_InterruptHandler) Accelerator_txInterruptHandler,
-                                accelerator);
-      ASSERT (status == XST_SUCCESS);
-      if (status != XST_SUCCESS)
-      {
-        return status;
-      }
-      XScuGic_Enable (&ScuGic, hardware_config->dmaTxIntVecID);
-    }
-  }
-
-  if (hardware_config->mode == HARDWARE)
-  {
-    if (hardware_config->hwIntVecID)
-    {
-      /***************************************************************************/
-      /*
-       * set timer0 interrupt target cpu
-       */
-
-      int intr_target_reg = XScuGic_DistReadReg(
-          &ScuGic,
-          XSCUGIC_SPI_TARGET_OFFSET_CALC(hardware_config->hwIntVecID));
-
-      intr_target_reg &= ~(0x000000FF
-          << ((hardware_config->hwIntVecID % 4) * 8));
-      intr_target_reg |= (0x00000001
-          << ((hardware_config->hwIntVecID % 4) * 8)); //CPU0 ack Timer0
-    //intr_target_reg |=  (0x00000002 << ((XPAR_FABRIC_AXI_TIMER_0_INTERRUPT_INTR%4)*8));//CPU1 ack Timer0
-
-      XScuGic_DistWriteReg(
-          &ScuGic,
-          XSCUGIC_SPI_TARGET_OFFSET_CALC(hardware_config->hwIntVecID),
-          intr_target_reg);
-      /***************************************************************************/
-      XScuGic_SetPriorityTriggerType (&ScuGic,
-                                      hardware_config->hwIntVecID,
-                                      0xA0, 0x3);
-
-      status = XScuGic_Connect (&ScuGic, hardware_config->hwIntVecID,
-                                (Xil_InterruptHandler) Accelerator_hardwareInterruptHandler,
-                                accelerator);
-      ASSERT (status == XST_SUCCESS);
-      if (status != XST_SUCCESS)
-      {
-        return status;
-      }
-      XScuGic_Enable (&ScuGic, hardware_config->hwIntVecID);
-    }
-  }
-
-  /**************************** initialize ARM Core exception handlers *******/
-  if (hardware_config->mode == HARDWARE)
-  {
-    Xil_ExceptionInit ();
-    Xil_ExceptionRegisterHandler (XIL_EXCEPTION_ID_INT,
-                                  (Xil_ExceptionHandler) XScuGic_InterruptHandler,
-                                  (void *) &ScuGic);
-
-    Xil_ExceptionEnable();
-  }
 
   /***************************************************************************/
   /**************************** Accelerator initialization *******************/
@@ -385,22 +228,28 @@ int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
 
   ASSERT (accelerator->updateHardware != NULL);
 
-  if (hardware_config->mode == HARDWARE)
+  status = hardware_config->hwDriver->Initialize (accelerator->updateHardware,
+                                                  hardware_config->hwDeviceID);
+  ASSERT (status == XST_SUCCESS);
+  if (status != XST_SUCCESS)
   {
-    status = hardware_config->hwDriver->Initialize (accelerator->updateHardware,
-                                                    hardware_config->hwDeviceID);
-    ASSERT (status == XST_SUCCESS);
-    if (status != XST_SUCCESS)
-    {
-      xil_printf ("Sbs update hardware initialization error: %d\r\n", status);
+    xil_printf ("Sbs update hardware initialization error: %d\r\n", status);
 
-      return XST_FAILURE;
-    }
-
-
-    hardware_config->hwDriver->InterruptGlobalEnable (accelerator->updateHardware);
-    hardware_config->hwDriver->InterruptEnable (accelerator->updateHardware, 1);
+    return XST_FAILURE;
   }
+
+
+  hardware_config->hwDriver->InterruptGlobalEnable (accelerator->updateHardware);
+  hardware_config->hwDriver->InterruptEnable (accelerator->updateHardware, 1);
+
+  status = hardware_config->hwDriver->InterruptSetHandler (accelerator->updateHardware,
+                                                           hardware_config->hwIntVecID,
+                                                           Accelerator_hardwareInterruptHandler,
+                                                           accelerator);
+  ASSERT (status == XST_SUCCESS);
+  if (status != XST_SUCCESS)
+    return status;
+
   accelerator->acceleratorReady = 1;
   accelerator->rxDone = 1;
   accelerator->txDone = 1;
@@ -415,14 +264,11 @@ void Accelerator_shutdown(SbSUpdateAccelerator * accelerator)
 
   if ((accelerator != NULL) && (accelerator->hardwareConfig != NULL))
   {
-    if (accelerator->hardwareConfig->dmaTxIntVecID)
-      XScuGic_Disconnect (&ScuGic, accelerator->hardwareConfig->dmaTxIntVecID);
+      ARM_GIC_disconnect (accelerator->hardwareConfig->dmaTxIntVecID);
 
-    if (accelerator->hardwareConfig->dmaRxIntVecID)
-      XScuGic_Disconnect (&ScuGic, accelerator->hardwareConfig->dmaRxIntVecID);
+      ARM_GIC_disconnect (accelerator->hardwareConfig->dmaRxIntVecID);
 
-    if (accelerator->hardwareConfig->hwIntVecID)
-      XScuGic_Disconnect (&ScuGic, accelerator->hardwareConfig->hwIntVecID);
+      ARM_GIC_disconnect (accelerator->hardwareConfig->hwIntVecID);
   }
 }
 
@@ -636,6 +482,13 @@ Result SbsPlatform_initialize (SbSHardwareConfig * hardware_config_list,
 {
   int i;
   Result rc;
+
+  rc = ARM_GIC_initialize ();
+
+  ASSERT (rc == OK);
+
+  if (rc != OK)
+    return rc;
 
   if (SbSUpdateAccelerator_list != NULL)
     free (SbSUpdateAccelerator_list);
