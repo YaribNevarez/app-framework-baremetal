@@ -23,12 +23,18 @@ extern "C" {
 /***************** Macros (Inline Functions) Definitions *********************/
 
 /**************************** Type Definitions *******************************/
+typedef enum
+{
+  MEMORY_TO_HARDWARE = XAXIDMA_DMA_TO_DEVICE,
+  HARDWARE_TO_MEMORY = XAXIDMA_DEVICE_TO_DMA
+} DMATransferDirection;
+
 typedef struct
 {
-  void *    (*new) (void);
+  void *    (*new)    (void);
   void      (*delete) (void ** InstancePtr);
 
-  uint32_t  (*Move) (XAxiDma *InstancePtr, UINTPTR BuffAddr, u32 Length, int Direction);
+  uint32_t  (*Move)   (void * InstancePtr, void * BuffAddr, uint32_t Length, int Direction)
 } DMAHardware;
 /************************** Constant Definitions *****************************/
 

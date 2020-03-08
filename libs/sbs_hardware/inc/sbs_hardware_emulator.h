@@ -12,7 +12,8 @@ extern "C" {
 #endif
 
 /***************************** Include Files *********************************/
-
+#include "sbs_hardware.h"
+#include "dma_hardware.h"
 /***************** Macros (Inline Functions) Definitions *********************/
 
 /**************************** Type Definitions *******************************/
@@ -23,6 +24,9 @@ extern "C" {
 
 /************************** Function Prototypes ******************************/
 
+extern SbsHardware SbsHardware_HwUpdateEmulator;
+extern SbsHardware SbsHardware_HwSpikeEmulator;
+extern DMAHardware DMAHardware_HwMoverEmulator;
 
 #ifdef __cplusplus
 }

@@ -40,5 +40,5 @@ DMAHardware DMAHardware_mover =
   .new =    DMAHardware_new,
   .delete = DMAHardware_delete,
 
-  .Move =   XAxiDma_SimpleTransfer
+  .Move = (uint32_t (*) (void *, void *, uint32_t, int)) XAxiDma_SimpleTransfer
 };
