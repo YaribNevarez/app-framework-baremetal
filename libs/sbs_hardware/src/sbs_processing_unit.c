@@ -455,7 +455,7 @@ int Accelerator_start(SbSUpdateAccelerator * accelerator)
 
   accelerator->txDone = 0;
   status = accelerator->hardwareConfig->dmaDriver->Move (accelerator->dmaHardware,
-                                                         (UINTPTR) accelerator->txBuffer,
+                                                         accelerator->txBuffer,
                                                          accelerator->txBufferSize,
                                                          MEMORY_TO_HARDWARE);
   ASSERT(status == XST_SUCCESS);
@@ -464,7 +464,7 @@ int Accelerator_start(SbSUpdateAccelerator * accelerator)
   {
     accelerator->rxDone = 0;
     status = accelerator->hardwareConfig->dmaDriver->Move (accelerator->dmaHardware,
-                                                           (UINTPTR) accelerator->rxBuffer,
+                                                           accelerator->rxBuffer,
                                                            accelerator->rxBufferSize,
                                                            HARDWARE_TO_MEMORY);
 

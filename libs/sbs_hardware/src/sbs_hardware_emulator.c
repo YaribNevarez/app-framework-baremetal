@@ -12,27 +12,34 @@
 /***************** Macros (Inline Functions) Definitions *********************/
 
 /**************************** Type Definitions *******************************/
+typedef struct
+{
+  uint32_t hwUpdate;
+  uint32_t hwSpike;
+  uint32_t hwDMA;
+} SbsHardwareEmulator;
 
 /************************** Constant Definitions *****************************/
 
 /************************** Variable Definitions *****************************/
-
+SbsHardwareEmulator SbsHardwareEmulator_instance;
 /************************** Function Prototypes ******************************/
 
 /************************** Function Definitions******************************/
 
 static void * SbsHwUpdateEmulator_new (void)
 {
-  return malloc (sizeof(int));
+//  return malloc (sizeof(int));
+  return (void * )&SbsHardwareEmulator_instance.hwUpdate;
 }
 
 static void SbsHwUpdateEmulator_delete (void ** InstancePtr)
 {
-  if (InstancePtr && *InstancePtr)
-  {
-    free (*InstancePtr);
-    *InstancePtr = NULL;
-  }
+//  if (InstancePtr && *InstancePtr)
+//  {
+//    free (*InstancePtr);
+//    *InstancePtr = NULL;
+//  }
 }
 
 static int SbsHwUpdateEmulator_Initialize(void * instance, u16 ID)
@@ -203,16 +210,17 @@ SbsHardware SbsHardware_HwUpdateEmulator =
 
 static void * SbsHwSpikeEmulator_new (void)
 {
-  return malloc (sizeof(int));
+// return malloc (sizeof(int));
+  return (void * )&SbsHardwareEmulator_instance.hwSpike;
 }
 
 static void SbsHwSpikeEmulator_delete (void ** InstancePtr)
 {
-  if (InstancePtr && *InstancePtr)
-  {
-    free (*InstancePtr);
-    *InstancePtr = NULL;
-  }
+//  if (InstancePtr && *InstancePtr)
+//  {
+//    free (*InstancePtr);
+//    *InstancePtr = NULL;
+//  }
 }
 
 static int SbsHwSpikeEmulator_Initialize(void * instance, u16 ID)
@@ -362,16 +370,17 @@ SbsHardware SbsHardware_HwSpikeEmulator =
 
 static void * DMAHwEmulator_new (void)
 {
-  return malloc (sizeof(int));
+//  return malloc (sizeof(int));
+  return (void * )&SbsHardwareEmulator_instance.hwDMA;
 }
 
 static void DMAHwEmulator_delete (void ** InstancePtr)
 {
-  if (InstancePtr && *InstancePtr)
-  {
-    free (*InstancePtr);
-    *InstancePtr = NULL;
-  }
+//  if (InstancePtr && *InstancePtr)
+//  {
+//    free (*InstancePtr);
+//    *InstancePtr = NULL;
+//  }
 }
 
 static int DMAHwEmulator_Initialize (void * instance, uint16_t deviceId)

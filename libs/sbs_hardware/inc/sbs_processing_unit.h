@@ -38,12 +38,6 @@ typedef enum
   HY_OUTPUT_LAYER          = 1<<6
 } SbsLayerType;
 
-typedef enum
-{
-  HARDWARE,
-  SOFTWARE
-} ProcessingMode;
-
 typedef struct
 {
   SbsHardware *       hwDriver;
@@ -55,7 +49,6 @@ typedef struct
   uint32_t            dmaTxIntVecID;
   uint32_t            dmaRxIntVecID;
   MemoryBlock         ddrMem;
-  ProcessingMode      mode;
 } SbSHardwareConfig;
 
 typedef enum
