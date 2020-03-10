@@ -427,7 +427,7 @@ void inline * Multivector_2DAccess(Multivector * multivector, uint16_t row, uint
       && (column <= multivector->dimension_size[1]))
   {
     uint16_t dimensionality = multivector->dimensionality;
-    size_t data_size = multivector->data_type_size;
+    size_t data_size = multivector->format.size;
 
     while (dimensionality-- > 2)
     {
@@ -461,7 +461,7 @@ void inline * Multivector_3DAccess (Multivector * multivector, uint16_t row, uin
       && (position <= multivector->dimension_size[2]))
   {
     uint16_t dimensionality = multivector->dimensionality;
-    size_t data_size = multivector->data_type_size;
+    size_t data_size = multivector->format.size;
 
     while (dimensionality-- > 3)
     {
