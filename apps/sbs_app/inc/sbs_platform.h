@@ -78,8 +78,8 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
       .blockIndex  = 0
     }
   },
-  { .hwDriver      = &SbsHardware_fixedpoint,
-    .dmaDriver     = &DMAHardware_mover,
+  { .hwDriver      = &SbsHardware_HwUpdateEmulator,
+    .dmaDriver     = &DMAHardware_HwMoverEmulator,
     .layerAssign   = ACCELERATOR_2,
     .hwDeviceID    = XPAR_SBS_FIXEDPOINT_1_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXI_DMA_2_DEVICE_ID,

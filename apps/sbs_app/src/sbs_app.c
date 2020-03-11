@@ -73,8 +73,8 @@ Result SnnApp_initialize(void)
   }
 
   rc = SbsPlatform_initialize (SbSHardwareConfig_list,
-                                sizeof(SbSHardwareConfig_list) / sizeof(SbSHardwareConfig),
-                                MT19937_SEED);
+                               sizeof(SbSHardwareConfig_list) / sizeof(SbSHardwareConfig),
+                               MT19937_SEED);
 
   if (rc != OK)
   {

@@ -177,18 +177,14 @@ int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
   accelerator->dmaHardware = hardware_config->dmaDriver->new ();
 
   ASSERT(accelerator->dmaHardware != NULL);
-
-  if (accelerator->dmaHardware == NULL)
-    return XST_FAILURE;
+  if (accelerator->dmaHardware == NULL) return XST_FAILURE;
 
 
   status = hardware_config->dmaDriver->Initialize (accelerator->dmaHardware,
                                                    hardware_config->dmaDeviceID);
 
   ASSERT(status == XST_SUCCESS);
-
-  if (status != XST_SUCCESS)
-      return status;
+  if (status != XST_SUCCESS) return status;
 
   if (hardware_config->dmaTxIntVecID)
   {
@@ -200,9 +196,8 @@ int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
                                                               hardware_config->dmaTxIntVecID,
                                                               Accelerator_txInterruptHandler,
                                                               accelerator);
-    ASSERT (status != XST_SUCCESS);
-    if (status != XST_SUCCESS)
-      return status;
+    ASSERT(status != XST_SUCCESS);
+    if (status != XST_SUCCESS) return status;
   }
 
   if (hardware_config->dmaRxIntVecID)
@@ -215,9 +210,8 @@ int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
                                                               hardware_config->dmaRxIntVecID,
                                                               Accelerator_rxInterruptHandler,
                                                               accelerator);
-    ASSERT (status == XST_SUCCESS);
-    if (status != XST_SUCCESS)
-      return status;
+    ASSERT(status == XST_SUCCESS);
+    if (status != XST_SUCCESS) return status;
   }
 
 
@@ -230,13 +224,9 @@ int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
 
   status = hardware_config->hwDriver->Initialize (accelerator->updateHardware,
                                                   hardware_config->hwDeviceID);
-  ASSERT (status == XST_SUCCESS);
-  if (status != XST_SUCCESS)
-  {
-    xil_printf ("Sbs update hardware initialization error: %d\r\n", status);
+  ASSERT(status == XST_SUCCESS);
+  if (status != XST_SUCCESS) return XST_FAILURE;
 
-    return XST_FAILURE;
-  }
 
 
   hardware_config->hwDriver->InterruptGlobalEnable (accelerator->updateHardware);
@@ -246,9 +236,8 @@ int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
                                                            hardware_config->hwIntVecID,
                                                            Accelerator_hardwareInterruptHandler,
                                                            accelerator);
-  ASSERT (status == XST_SUCCESS);
-  if (status != XST_SUCCESS)
-    return status;
+  ASSERT(status == XST_SUCCESS);
+  if (status != XST_SUCCESS) return status;
 
   accelerator->acceleratorReady = 1;
   accelerator->rxDone = 1;
