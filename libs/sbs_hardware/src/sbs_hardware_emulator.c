@@ -500,7 +500,7 @@ static uint32_t SbsHwUpdateEmulator_InterruptGetEnabled (void * instance)
 static uint32_t SbsHwUpdateEmulator_InterruptGetStatus (void * instance)
 {
 
-  return XST_SUCCESS;
+  return 1;
 }
 
 static uint32_t  SbsHwUpdateEmulator_InterruptSetHandler (void *instance,
@@ -817,6 +817,35 @@ static void DMAHwEmulator_InterruptDisable (void * instance,
   }
 }
 
+static void DMAHwEmulator_InterruptClear(void * instance,
+                                         DMAIRQMask mask,
+                                         DMATransferDirection direction)
+{
+
+}
+
+static DMAIRQMask DMAHwEmulator_InterruptGetEnabled (void * instance,
+                                                   DMATransferDirection direction)
+{
+  return DMA_IRQ_IOC;
+}
+
+static DMAIRQMask DMAHwEmulator_InterruptGetStatus (void * instance,
+                                                  DMATransferDirection direction)
+{
+  return DMA_IRQ_IOC;
+}
+
+void DMAHwEmulator_Reset (void * instance)
+{
+
+}
+
+int DMAHwEmulator_ResetIsDone (void * instance)
+{
+  return 1;
+}
+
 static uint32_t  DMAHwEmulator_InterruptSetHandler (void *instance,
                                                     uint32_t interruptId,
                                                     ARM_GIC_InterruptHandler handler,
@@ -838,13 +867,17 @@ static uint32_t  DMAHwEmulator_InterruptSetHandler (void *instance,
 
 DMAHardware DMAHardware_HwMoverEmulator =
 {
-  .new =    DMAHwEmulator_new,
-  .delete = DMAHwEmulator_delete,
-
+  .new =                  DMAHwEmulator_new,
+  .delete =               DMAHwEmulator_delete,
   .Initialize =           DMAHwEmulator_Initialize,
   .Move =                 DMAHwEmulator_Move,
   .InterruptEnable =      DMAHwEmulator_InterruptEnable,
   .InterruptDisable =     DMAHwEmulator_InterruptDisable,
+  .InterruptClear =       DMAHwEmulator_InterruptClear,
+  .InterruptGetEnabled =  DMAHwEmulator_InterruptGetEnabled,
+  .InterruptGetStatus =   DMAHwEmulator_InterruptGetStatus,
+  .Reset =                DMAHwEmulator_Reset,
+  .ResetIsDone =          DMAHwEmulator_ResetIsDone,
   .InterruptSetHandler =  DMAHwEmulator_InterruptSetHandler
 };
 
