@@ -59,75 +59,65 @@ int SbSUpdateAccelerator_getGroupFromList (SbsLayerType layerType, SbSUpdateAcce
 
 #define ACCELERATOR_DMA_RESET_TIMEOUT 10000
 
-static void Accelerator_txInterruptHandler(void * data)
+static void Accelerator_txInterruptHandler (void * data)
 {
-  XAxiDma *AxiDmaInst = ((SbSUpdateAccelerator *) data)->dmaHardware;
-  uint32_t IrqStatus = XAxiDma_IntrGetIrq(AxiDmaInst, XAXIDMA_DMA_TO_DEVICE);
+  DMAHardware * driver  = ((SbSUpdateAccelerator *) data)->hardwareConfig->dmaDriver;
+  void *        dma     = ((SbSUpdateAccelerator *) data)->dmaHardware;
+  DMAIRQMask irq_status = driver->InterruptGetStatus (dma, MEMORY_TO_HARDWARE);
 
-  XAxiDma_IntrAckIrq(AxiDmaInst, IrqStatus, XAXIDMA_DMA_TO_DEVICE);
+  driver->InterruptClear (dma, irq_status, MEMORY_TO_HARDWARE);
 
-  if (!(IrqStatus & XAXIDMA_IRQ_ALL_MASK))
-  {
-    return;
-  }
+  if (!(irq_status & DMA_IRQ_ALL)) return;
 
-  if ((IrqStatus & XAXIDMA_IRQ_ERROR_MASK))
+  if (irq_status & DMA_IRQ_DELAY) return;
+
+  if (irq_status & DMA_IRQ_ERROR)
   {
     int TimeOut;
 
     ((SbSUpdateAccelerator *) data)->errorFlags |= 0x01;
 
-    XAxiDma_Reset (AxiDmaInst);
+    driver->Reset (dma);
 
     for (TimeOut = ACCELERATOR_DMA_RESET_TIMEOUT; 0 < TimeOut; TimeOut--)
-      if (XAxiDma_ResetIsDone (AxiDmaInst)) break;
+      if (driver->ResetIsDone (dma)) break;
 
-    printf("Possible illegal address access\n");
     ASSERT(0);
     return;
   }
 
-  if (IrqStatus &  XAXIDMA_IRQ_IOC_MASK)
-  {
-    ((SbSUpdateAccelerator *) data)->txDone = 1;
-  }
+  if (irq_status & DMA_IRQ_IOC) ((SbSUpdateAccelerator *) data)->txDone = 1;
 }
 
 static void Accelerator_rxInterruptHandler (void * data)
 {
-  SbSUpdateAccelerator * accelerator = (SbSUpdateAccelerator *) data;
-  XAxiDma *AxiDmaInst = accelerator->dmaHardware;
-  uint32_t IrqStatus = XAxiDma_IntrGetIrq(AxiDmaInst, XAXIDMA_DEVICE_TO_DMA);
+  SbSUpdateAccelerator *  accelerator = (SbSUpdateAccelerator *) data;
+  DMAHardware *           driver      = accelerator->hardwareConfig->dmaDriver;
+  void *                  dma         = accelerator->dmaHardware;
+  DMAIRQMask              irq_status  = driver->InterruptGetStatus (dma, HARDWARE_TO_MEMORY);
 
-  XAxiDma_IntrAckIrq(AxiDmaInst, IrqStatus, XAXIDMA_DEVICE_TO_DMA);
+  driver->InterruptClear (dma, irq_status, HARDWARE_TO_MEMORY);
 
-  if (!(IrqStatus & XAXIDMA_IRQ_ALL_MASK))
-  {
-    return;
-  }
+  if (!(irq_status & DMA_IRQ_ALL)) return;
 
-  if (IrqStatus & XAXIDMA_IRQ_DELAY_MASK)
-  {
-    return;
-  }
+  if (irq_status & DMA_IRQ_DELAY) return;
 
-  if ((IrqStatus & XAXIDMA_IRQ_ERROR_MASK))
+  if (irq_status & DMA_IRQ_ERROR)
   {
     int TimeOut;
 
     ((SbSUpdateAccelerator *) data)->errorFlags |= 0x01;
 
-    XAxiDma_Reset (AxiDmaInst);
+    driver->Reset (dma);
 
     for (TimeOut = ACCELERATOR_DMA_RESET_TIMEOUT; 0 < TimeOut; TimeOut--)
-      if (XAxiDma_ResetIsDone (AxiDmaInst)) break;
+      if (driver->ResetIsDone (dma)) break;
 
-    printf("Possible illegal address access\n");
     ASSERT(0);
     return;
   }
 
-  if ((IrqStatus &  XAXIDMA_IRQ_IOC_MASK))
+  if (irq_status & DMA_IRQ_IOC)
   {
     Xil_DCacheInvalidateRange((INTPTR)accelerator->rxBuffer, accelerator->rxBufferSize);
 

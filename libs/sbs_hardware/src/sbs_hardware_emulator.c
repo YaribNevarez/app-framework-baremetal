@@ -34,9 +34,11 @@ typedef struct
 
   void * txBufferAddres;
   uint32_t txBufferLength;
+  uint32_t txIndex;
 
   void * rxBufferAddres;
   uint32_t rxBufferLength;
+  uint32_t rxIndex;
 
   void *      interruptContextData;
 } DMAHwEmulator;
@@ -72,6 +74,162 @@ SbsHardwareEmulator SbsHardwareEmulator_instance;
 /************************** Function Prototypes ******************************/
 
 /************************** Function Definitions******************************/
+#define H_QF    (21)
+#define W_QF    (16)
+#define H_MAX   (((unsigned long)1 << H_QF) - 1)
+#define W_MAX   (((unsigned long)1 << W_QF) - 1)
+
+#define EPSILON_DIV_SUM_EX_QF (H_QF) // From 0 to H_QF
+#define REV_DIV_EPSILON_EX_QF (H_QF)
+
+
+#define MAX_VECTOR_SIZE       (1024)
+#define MAX_SPIKE_MATRIX_SIZE (60*60)
+
+
+typedef struct
+{
+  uint32_t data;
+  uint32_t last;
+} StreamChannel;
+
+typedef struct
+{
+  StreamChannel (* read)(void);
+  void (* write)(StreamChannel);
+} Stream;
+
+StreamChannel read(void)
+{
+  StreamChannel channel;
+  channel.data = ((uint32_t*)SbsHardwareEmulator_instance.hwDMA.txBufferAddres)[SbsHardwareEmulator_instance.hwDMA.txIndex];
+  SbsHardwareEmulator_instance.hwDMA.txIndex ++;
+  return channel;
+}
+
+void write(StreamChannel channel)
+{
+  ((uint32_t*)SbsHardwareEmulator_instance.hwDMA.rxBufferAddres)[SbsHardwareEmulator_instance.hwDMA.rxIndex] = channel.data;
+  SbsHardwareEmulator_instance.hwDMA.rxIndex ++;
+}
+
+uint64_t wide_div(uint64_t dividend, uint64_t divisor)
+{
+  return dividend / divisor;
+}
+
+void sbs_fixedpoint (Stream stream_in,
+                 Stream stream_out,
+                 unsigned int layerSize,
+                 unsigned int kernelSize,
+                 unsigned int vectorSize,
+                 unsigned int epsilon)
+{
+
+  static unsigned int ip_index;
+  static unsigned int i;
+  static unsigned int batch;
+  static StreamChannel channel;
+  static unsigned int spike_matrix[MAX_SPIKE_MATRIX_SIZE];
+  static unsigned int spike_index;
+  static uint64_t state_vector[MAX_VECTOR_SIZE];
+  static uint64_t temp_data[MAX_VECTOR_SIZE];
+  static uint64_t epsilon_div_sum;
+  static uint64_t random_value;
+  static uint64_t sum;
+  static uint64_t rev_div_epsilon;
+  static uint64_t wide_reg;
+  static uint64_t weigth;
+
+  rev_div_epsilon = wide_div(H_MAX << REV_DIV_EPSILON_EX_QF, (H_MAX + (epsilon)) >> (H_QF - REV_DIV_EPSILON_EX_QF));
+
+  for (ip_index = 0; ip_index < layerSize; ip_index++)
+  {
+#pragma HLS pipeline
+    if (ip_index == 0)
+    {
+      channel = stream_in.read ();
+      random_value = channel.data;
+    }
+    else
+    {
+      random_value = stream_in.read ().data;
+    }
+
+    sum = 0;
+    for (i = 0; i < vectorSize; i++)
+    {
+#pragma HLS pipeline
+      state_vector[i] = stream_in.read ().data;
+      if (sum < random_value)
+      {
+        sum += state_vector[i];
+        if (random_value <= sum || (i == vectorSize - 1))
+        {
+          spike_matrix[ip_index] = i;
+        }
+      }
+    }
+
+    for (batch = 0; batch < kernelSize; batch++)
+    {
+#pragma HLS pipeline
+      sum = 0;
+      i = 0;
+      while (i < vectorSize)
+      {
+#pragma HLS pipeline
+        weigth = stream_in.read ().data;
+
+        temp_data[i] = (weigth & W_MAX) << (H_QF - W_QF);
+        temp_data[i] *= state_vector[i];
+        sum += temp_data[i];
+        i ++;
+
+        temp_data[i] = ((weigth >> W_QF) & W_MAX) << (H_QF - W_QF);
+        temp_data[i] *= state_vector[i];
+        sum += temp_data[i];
+        i ++;
+      }
+
+      sum >>= H_QF - EPSILON_DIV_SUM_EX_QF;
+
+      if (0 < sum)
+      {
+#pragma HLS pipeline
+        epsilon_div_sum = wide_div((uint64_t)epsilon << (H_QF + EPSILON_DIV_SUM_EX_QF), sum);
+
+        for (i = 0; i < vectorSize; i++)
+        {
+#pragma HLS pipeline
+          wide_reg = temp_data[i];
+          wide_reg *= epsilon_div_sum;
+          wide_reg >>= H_QF;
+          wide_reg += (state_vector[i]) << H_QF;
+          wide_reg *= rev_div_epsilon;
+          wide_reg >>= 2 * H_QF;
+          state_vector[i] = wide_reg;
+        }
+      }
+    }
+
+    for (i = 0; i < vectorSize; i++)
+    {
+#pragma HLS pipeline
+      channel.data = state_vector[i];
+      stream_out.write(channel);
+    }
+  }
+
+  for (i = 0; i < layerSize; i++)
+  {
+#pragma HLS pipeline
+    channel.data = spike_matrix[i];
+    channel.last = (i == layerSize - 1);
+    stream_out.write(channel);
+  }
+}
+
 void SbsHardwareEmulator_trigger (SbsHardwareEmulator * instance)
 {
   ASSERT (instance != NULL);
@@ -81,7 +239,23 @@ void SbsHardwareEmulator_trigger (SbsHardwareEmulator * instance)
         && (instance->hwDMA.rxBufferAddres != NULL)
         && (instance->hwDMA.txBufferAddres != NULL))
     {
-      printf("START");
+      Stream stream_in = {read, write};
+      Stream stream_out = {read, write};
+      sbs_fixedpoint (stream_in,
+                      stream_out,
+                      instance->hwUpdate.layerSize,
+                      instance->hwUpdate.kernelSize,
+                      instance->hwUpdate.vectorSize,
+                      instance->hwUpdate.epsilon);
+
+      instance->hwDMA.rxBufferAddres = NULL;
+      instance->hwDMA.txBufferAddres = NULL;
+
+      if (instance->hwDMA.interruptHandler)
+        instance->hwDMA.interruptHandler (instance->hwDMA.interruptContextData);
+
+      if (instance->hwUpdate.interruptHandler)
+        instance->hwUpdate.interruptHandler (instance->hwUpdate.interruptContextData);
     }
   }
 }
@@ -582,15 +756,18 @@ static uint32_t  DMAHwEmulator_Move (void * instance,
   ASSERT(instance != NULL);
   if (instance != NULL)
   {
+    DMAHwEmulator * dma_emulator = (DMAHwEmulator *) instance;
     switch (direction)
     {
       case MEMORY_TO_HARDWARE:
-        ((DMAHwEmulator *) instance)->txBufferAddres = bufferAddres;
-        ((DMAHwEmulator *) instance)->txBufferLength = bufferLength;
+        dma_emulator->txBufferAddres = bufferAddres;
+        dma_emulator->txBufferLength = bufferLength;
+        dma_emulator->txIndex = 0;
         break;
       case HARDWARE_TO_MEMORY:
-        ((DMAHwEmulator *) instance)->rxBufferAddres = bufferAddres;
-        ((DMAHwEmulator *) instance)->rxBufferLength = bufferLength;
+        dma_emulator->rxBufferAddres = bufferAddres;
+        dma_emulator->rxBufferLength = bufferLength;
+        dma_emulator->rxIndex = 0;
         break;
       default: ASSERT(NULL);
     }
