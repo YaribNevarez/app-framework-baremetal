@@ -31,7 +31,9 @@
 static SbSUpdateAccelerator **  SbSUpdateAccelerator_list = NULL;
 static uint8_t SbSUpdateAccelerator_list_length = 0;
 
-int SbSUpdateAccelerator_getGroupFromList (SbsLayerType layerType, SbSUpdateAccelerator ** sub_list, int sub_list_size)
+int SbSUpdateAccelerator_getGroupFromList (SbsLayerType layerType,
+                                           SbSUpdateAccelerator ** sub_list,
+                                           int sub_list_size)
 {
   int sub_list_count = 0;
   int i;
@@ -119,15 +121,16 @@ static void Accelerator_rxInterruptHandler (void * data)
 
   if (irq_status & DMA_IRQ_IOC)
   {
-    Xil_DCacheInvalidateRange((INTPTR)accelerator->rxBuffer, accelerator->rxBufferSize);
+    Xil_DCacheInvalidateRange ((INTPTR) accelerator->rxBuffer,
+                               accelerator->rxBufferSize);
 
     accelerator->txDone = 1;
     accelerator->rxDone = 1;
 
     if (accelerator->memory_cmd.cmdID == MEM_CMD_MOVE)
-      memcpy(accelerator->memory_cmd.dest,
-             accelerator->memory_cmd.src,
-             accelerator->memory_cmd.size);
+      memcpy (accelerator->memory_cmd.dest,
+              accelerator->memory_cmd.src,
+              accelerator->memory_cmd.size);
   }
 }
 
@@ -142,8 +145,8 @@ static void Accelerator_hardwareInterruptHandler (void * data)
   ASSERT (accelerator->hardwareConfig->hwDriver->InterruptGetStatus != NULL);
   ASSERT (accelerator->hardwareConfig->hwDriver->InterruptClear != NULL);
 
-  status = accelerator->hardwareConfig->hwDriver->InterruptGetStatus(accelerator->updateHardware);
-  accelerator->hardwareConfig->hwDriver->InterruptClear(accelerator->updateHardware, status);
+  status = accelerator->hardwareConfig->hwDriver->InterruptGetStatus (accelerator->updateHardware);
+  accelerator->hardwareConfig->hwDriver->InterruptClear (accelerator->updateHardware, status);
   accelerator->acceleratorReady = status & 1;
 }
 
@@ -289,9 +292,9 @@ void Accelerator_delete (SbSUpdateAccelerator ** accelerator)
   }
 }
 
-void Accelerator_setup(SbSUpdateAccelerator * accelerator,
-                              SbsAcceleratorProfie * profile,
-                              AcceleratorMode mode)
+void Accelerator_setup (SbSUpdateAccelerator * accelerator,
+                        SbsAcceleratorProfie * profile,
+                        AcceleratorMode mode)
 {
   ASSERT (accelerator != NULL);
   ASSERT (profile != NULL);
@@ -363,9 +366,9 @@ inline void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
 
   accelerator->txBufferCurrentPtr += sizeof(uint32_t);
 
-  memcpy(accelerator->txBufferCurrentPtr,
-         state_vector,
-         accelerator->profile->stateBufferSize);
+  memcpy (accelerator->txBufferCurrentPtr,
+          state_vector,
+          accelerator->profile->stateBufferSize);
 
   accelerator->txBufferCurrentPtr += accelerator->profile->stateBufferSize;
 
@@ -393,9 +396,9 @@ inline void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
   ASSERT(accelerator->txWeightCounter <= accelerator->profile->kernelSize * accelerator->profile->layerSize);
 #endif
 
-  memcpy(accelerator->txBufferCurrentPtr,
-         weight_vector,
-         accelerator->profile->weightBufferSize);
+  memcpy (accelerator->txBufferCurrentPtr,
+          weight_vector,
+          accelerator->profile->weightBufferSize);
 
   accelerator->txBufferCurrentPtr += accelerator->profile->weightBufferSize;
 

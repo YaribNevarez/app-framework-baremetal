@@ -64,8 +64,8 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
       .blockIndex  = 0
     }
   },
-  { .hwDriver      = &SbsHardware_fixedpoint,
-    .dmaDriver     = &DMAHardware_mover,
+  { .hwDriver      = &SbsHardware_HwUpdateEmulator,
+    .dmaDriver     = &DMAHardware_HwMoverEmulator,
     .layerAssign   = ACCELERATOR_1,
     .hwDeviceID    = XPAR_SBS_FIXEDPOINT_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXI_DMA_1_DEVICE_ID,
@@ -92,8 +92,8 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
       .blockIndex  = 0
     }
   },
-  { .hwDriver      = &SbsHardware_fixedpoint,
-    .dmaDriver     = &DMAHardware_mover,
+  { .hwDriver      = &SbsHardware_HwUpdateEmulator,
+    .dmaDriver     = &DMAHardware_HwMoverEmulator,
     .layerAssign   = ACCELERATOR_3,
     .hwDeviceID    = XPAR_SBS_FIXEDPOINT_2_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXI_DMA_3_DEVICE_ID,

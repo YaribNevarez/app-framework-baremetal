@@ -13,6 +13,7 @@ CMD_SET_VISIBLE   = 0x02
 CMD_SET_STEP_TIME = 0x03
 CMD_SET_TIME      = 0x04
 CMD_TEXT_MSG      = 0x05
+CMD_BYTE_BUFFER   = 0x06
 
 if __name__ == '__main__':
     fig, axs = plt.subplots(2)
@@ -61,6 +62,29 @@ if __name__ == '__main__':
                     pass
                 elif command == CMD_SET_TIME:
                     pass
+                elif command == CMD_BYTE_BUFFER:
+                    bufferSize = int.from_bytes(serial_port.read(), byteorder='big', signed=False)
+                    
+                    plot_y = np.array([])
+                    plot_x = np.array([])
+
+                    x = np.array([1])
+                    y = np.array([1])
+                    
+                    for i in range(bufferSize // 4): # Size of the data
+                        b = serial_port.read(size=4)
+                        y = int.from_bytes(b, byteorder='big', signed=False) / 0x1FFFFF
+                        plot_y = np.append(plot_y, y)
+                        x += 1
+                        plot_x = np.append(plot_x, x)
+
+                    crc = int.from_bytes(serial_port.read(), byteorder='big', signed=False)
+
+                    axs[1].clear()
+                    axs[1].step(plot_x, plot_y, where='mid', label='mid')
+
+                    plt.show()
+
                 elif command == CMD_TEXT_MSG:
                     id = int.from_bytes(serial_port.read(), byteorder='big', signed=False)
                     msgSize = int.from_bytes(serial_port.read(), byteorder='big', signed=False)
