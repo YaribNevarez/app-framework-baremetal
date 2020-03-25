@@ -362,7 +362,7 @@ inline void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
   ASSERT (0 < accelerator->profile->stateBufferSize);
   ASSERT (state_vector != NULL);
 
-  *((uint32_t *)accelerator->txBufferCurrentPtr) = ((uint32_t) MT19937_genrand ()) >> (32 - 21);
+  *((uint32_t *)accelerator->txBufferCurrentPtr) = (uint32_t) MT19937_genrand ();
 
   accelerator->txBufferCurrentPtr += sizeof(uint32_t);
 

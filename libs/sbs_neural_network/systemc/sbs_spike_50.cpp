@@ -11,9 +11,9 @@ typedef union
 typedef ap_axis<32, 2, 5, 6> StreamChannel;
 
 void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
-                 hls::stream<StreamChannel> &stream_out,
-                 int layerSize,
-                 int vectorSize)
+                   hls::stream<StreamChannel> &stream_out,
+                   int layerSize,
+                   int vectorSize)
 {
 #pragma HLS INTERFACE axis      port=stream_in
 #pragma HLS INTERFACE axis      port=stream_out

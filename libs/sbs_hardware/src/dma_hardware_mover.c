@@ -51,7 +51,7 @@ static int DMAHardware_Initialize (void * instance, uint16_t deviceId)
   ASSERT(status == XST_SUCCESS)
 
   if (status != XST_SUCCESS)
-    return XST_FAILURE;
+    return status;
 
   if (XAxiDma_HasSg((XAxiDma* )instance))
     return XST_FAILURE;
