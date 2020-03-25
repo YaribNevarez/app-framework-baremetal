@@ -545,6 +545,8 @@ SbsHardware SbsHardware_HwUpdateEmulator =
   .Get_vectorSize =     SbsHwUpdateEmulator_Get_vectorSize,
   .Set_epsilon =        SbsHwUpdateEmulator_Set_epsilon,
   .Get_epsilon =        SbsHwUpdateEmulator_Get_epsilon,
+  .Set_debug =          NULL,
+  .Get_debug =          NULL,
 
   .InterruptGlobalEnable =  SbsHwUpdateEmulator_InterruptGlobalEnable,
   .InterruptGlobalDisable = SbsHwUpdateEmulator_InterruptGlobalDisable,
@@ -704,6 +706,8 @@ SbsHardware SbsHardware_HwSpikeEmulator =
   .Get_vectorSize =     SbsHwSpikeEmulator_Get_vectorSize,
   .Set_epsilon =        NULL,
   .Get_epsilon =        NULL,
+  .Set_debug =          NULL,
+  .Get_debug =          NULL,
 
   .InterruptGlobalEnable =  SbsHwSpikeEmulator_InterruptGlobalEnable,
   .InterruptGlobalDisable = SbsHwSpikeEmulator_InterruptGlobalDisable,

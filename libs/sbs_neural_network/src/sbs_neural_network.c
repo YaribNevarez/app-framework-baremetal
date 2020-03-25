@@ -367,12 +367,10 @@ static void SbsLayerPartition_initializeIP (SbsLayerPartition * partition,
 
   if ((state_vector != NULL) && (0 < size))
   {
-    Format * data_format = &partition->state_matrix->format;
-    uint32_t full_scale = (1<< data_format->mantissa_bitlength) - 1;
-	  NeuronState	initial_value_h = full_scale / size;
-      uint16_t 		neuron;
-      for (neuron = 0; neuron < size; neuron ++)
-        state_vector[neuron] = initial_value_h;
+	  float	initial_value_h = (1.0 / size);
+    uint16_t 		neuron;
+    for (neuron = 0; neuron < size; neuron ++)
+      state_vector[neuron] = initial_value_h;
   }
 }
 
@@ -642,10 +640,7 @@ static void SbsBaseLayer_setEpsilon(SbsLayer * layer, float epsilon)
   if (layer != NULL)
   {
     SbsBaseLayer * base_layer = ((SbsBaseLayer *)layer);
-    Format * data_format = &base_layer->partition_array[0]->state_matrix->format;
-    uint32_t full_scale = (1<< data_format->mantissa_bitlength) - 1;
-
-    base_layer->epsilon = (Epsilon) (epsilon * full_scale);
+    base_layer->epsilon = *(uint32_t*) (&epsilon);
   }
 }
 
@@ -748,12 +743,11 @@ inline static SpikeID SbsLayerPartition_stateVector_generateSpike (SbsLayerParti
 
   if ((state_vector != NULL) && (0 < size))
   {
-    Format * format = &partition->state_matrix->format;
-    NeuronState random_s = ((NeuronState) MT19937_genrand()) >> (32 - format->mantissa_bitlength);
+    NeuronState random_s = (float)MT19937_genrand () / (float) 0xFFFFFFFF;
     NeuronState sum      = 0;
     SpikeID     spikeID;
 
-    ASSERT(random_s <= (1 << partition->state_matrix->format.mantissa_bitlength) - 1);
+    ASSERT(random_s <= 1.0);
 
     for (spikeID = 0; spikeID < size; spikeID++)
     {

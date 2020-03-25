@@ -266,7 +266,7 @@ Result SnnApp_run (void)
       {
         NeuronState h = output_vector[output_vector_size];  //Ensure data alignment
 
-        sprintf(string_text,"[%d] = %f", output_vector_size, (float)h/0x1FFFFF);
+        sprintf(string_text,"[%d] = %f", output_vector_size, h);
         ToolCom_instance ()->textMsg (0, string_text);
       }
       sprintf(string_text,"Accuracy %f", ((float)correct_inference)/((float)total_inference));

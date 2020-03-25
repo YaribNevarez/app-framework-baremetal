@@ -72,8 +72,7 @@ if __name__ == '__main__':
                     y = np.array([1])
                     
                     for i in range(bufferSize // 4): # Size of the data
-                        b = serial_port.read(size=4)
-                        y = int.from_bytes(b, byteorder='big', signed=False) / 0x1FFFFF
+                        y = struct.unpack('>f', serial_port.read(size=4))[0]
                         plot_y = np.append(plot_y, y)
                         x += 1
                         plot_x = np.append(plot_x, x)

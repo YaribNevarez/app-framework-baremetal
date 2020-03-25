@@ -61,6 +61,8 @@ SbsHardware SbsHardware_fixedpoint_spike = {
   .Get_vectorSize = (uint32_t(*) (void *)) XSbs_spike_50_Get_vectorSize,
   .Set_epsilon = (void (*) (void *, uint32_t )) NULL,
   .Get_epsilon = (uint32_t(*) (void *)) NULL,
+  .Set_debug = (void (*) (void *, uint32_t )) NULL,
+  .Get_debug = (uint32_t(*) (void *)) XSbs_spike_50_Get_debug,
 
   .InterruptGlobalEnable = (void (*) (void *)) XSbs_spike_50_InterruptGlobalEnable,
   .InterruptGlobalDisable = (void (*) (void *)) XSbs_spike_50_InterruptGlobalDisable,
