@@ -108,7 +108,7 @@ static void Accelerator_rxInterruptHandler (void * data)
   {
     int TimeOut;
 
-    ((SbSUpdateAccelerator *) data)->errorFlags |= 0x01;
+    accelerator->errorFlags |= 0x01;
 
     driver->Reset (dma);
 
@@ -144,6 +144,13 @@ static void Accelerator_hardwareInterruptHandler (void * data)
   ASSERT (accelerator->hardwareConfig->hwDriver != NULL);
   ASSERT (accelerator->hardwareConfig->hwDriver->InterruptGetStatus != NULL);
   ASSERT (accelerator->hardwareConfig->hwDriver->InterruptClear != NULL);
+
+#ifdef DEBUG
+  if (accelerator->hardwareConfig->hwDriver->Get_debug)
+  {
+    int debug = accelerator->hardwareConfig->hwDriver->Get_debug(accelerator->updateHardware);
+  }
+#endif
 
   status = accelerator->hardwareConfig->hwDriver->InterruptGetStatus (accelerator->updateHardware);
   accelerator->hardwareConfig->hwDriver->InterruptClear (accelerator->updateHardware, status);
@@ -381,10 +388,10 @@ inline void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
 }
 
 inline void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
-                                          uint16_t * weight_vector) __attribute__((always_inline));
+                                          uint8_t * weight_vector) __attribute__((always_inline));
 
 inline void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
-                                          uint16_t * weight_vector)
+                                          uint8_t * weight_vector)
 {
   ASSERT (accelerator != NULL);
   ASSERT (accelerator->profile != NULL);

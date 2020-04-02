@@ -50,9 +50,9 @@
 #pragma pack(1)     /* set alignment to 1 byte boundary */
 
 
-typedef uint16_t  Weight;
+typedef uint8_t   Weight;
 typedef uint32_t  Random32;
-typedef uint32_t  SpikeID;
+typedef uint16_t  SpikeID;
 
 
 typedef struct
@@ -237,7 +237,7 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
     profile->rxBuffer[SPIKE_MODE] = spike_matrix->data;
     profile->rxBufferSize[SPIKE_MODE] = Multivector_dataSize(spike_matrix);
     profile->txBufferSize[SPIKE_MODE] = profile->layerSize
-        * (state_matrix->format.size + profile->vectorSize * state_matrix->format.size);
+        * (sizeof(float) + profile->vectorSize * state_matrix->format.size);
 
     ASSERT (profile->txBuffer[SPIKE_MODE] == NULL);
     profile->txBuffer[SPIKE_MODE] = MemoryBlock_alloc(state_matrix->memory_def_parent, profile->txBufferSize[SPIKE_MODE]);
@@ -254,7 +254,7 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
       profile->rxBuffer[UPDATE_MODE] = state_matrix->data;
       profile->rxBufferSize[UPDATE_MODE] = Multivector_dataSize(state_matrix) + Multivector_dataSize(spike_matrix);
       profile->txBufferSize[UPDATE_MODE] = profile->layerSize
-      * (state_matrix->format.size + profile->vectorSize * state_matrix->format.size + profile->kernelSize * profile->vectorSize * weight_matrix->format.size);
+      * (sizeof(float) + profile->vectorSize * state_matrix->format.size + profile->kernelSize * profile->vectorSize * weight_matrix->format.size);
 
       ASSERT (profile->txBuffer[UPDATE_MODE] == NULL);
       profile->txBuffer[UPDATE_MODE] = MemoryBlock_alloc(state_matrix->memory_def_parent, profile->txBufferSize[UPDATE_MODE]);
@@ -359,6 +359,7 @@ static void SbsLayerPartition_delete(SbsLayerPartition ** partition)
 }
 
 static void SbsLayerPartition_initializeIP (SbsLayerPartition * partition,
+                                            Multivector * state_matrix,
                                             NeuronState * state_vector,
                                             uint16_t size)
 {
@@ -370,7 +371,21 @@ static void SbsLayerPartition_initializeIP (SbsLayerPartition * partition,
 	  float	initial_value_h = (1.0 / size);
     uint16_t 		neuron;
     for (neuron = 0; neuron < size; neuron ++)
-      state_vector[neuron] = initial_value_h;
+    {
+      switch (state_matrix->format.size)
+      {
+        case sizeof(uint32_t):
+          ((uint32_t*) state_vector)[neuron] =
+              (*(uint32_t *) (&initial_value_h)) >> (23 - state_matrix->format.mantissa_bitlength);
+            break;
+        case sizeof(uint16_t):
+          ((uint16_t*) state_vector)[neuron] =
+              (*(uint32_t *) (&initial_value_h)) >> (23 - state_matrix->format.mantissa_bitlength);
+            break;
+        default:
+          ASSERT (0);
+      }
+    }
   }
 }
 
@@ -396,6 +411,7 @@ static void SbsLayerPartition_initialize (SbsLayerPartition * partition,
       for (row = 0; row < rows; row++)
         for (column = 0; column < columns; column++)
           SbsLayerPartition_initializeIP (partition,
+                                          state_matrix,
                                           Multivector_2DAccess(state_matrix, row, column),
                                           neurons);
 
@@ -856,9 +872,11 @@ static void SbsBaseLayer_loadInput (SbsBaseLayer * layer, char * file_name,
   }
 }
 
+#define DATA16_TO_FLOAT32(d)   (0x30000000 | (((unsigned int)(0xFFFF & (d))) << 12))
+
 static void SbsBaseLayer_getOutputVector(SbsBaseLayer * layer,
-                                         NeuronState ** output_vector,
-                                         uint16_t * output_vector_size)
+                                         float *  output_vector,
+                                         uint16_t output_vector_size)
 {
   ASSERT(layer != NULL);
   ASSERT(0 < layer->num_partitions);
@@ -866,12 +884,13 @@ static void SbsBaseLayer_getOutputVector(SbsBaseLayer * layer,
   ASSERT(layer->partition_array[layer->num_partitions - 1] != NULL);
 
   ASSERT(output_vector != NULL);
-  ASSERT(output_vector_size != NULL);
+  ASSERT(output_vector_size != 0);
 
   if ((layer != NULL) && (0 < layer->num_partitions)
       && (layer->layer_type == HY_OUTPUT_LAYER)
       && (layer->partition_array[layer->num_partitions - 1] != NULL)
-      && (output_vector != NULL) && (output_vector_size != NULL))
+      && (output_vector != NULL)
+      && (output_vector_size != 0))
   {
     SbsLayerPartition *  partition = layer->partition_array[layer->num_partitions - 1];
     Multivector * output_state_matrix = partition->state_matrix;
@@ -882,8 +901,20 @@ static void SbsBaseLayer_getOutputVector(SbsBaseLayer * layer,
     ASSERT(output_state_matrix->dimension_size[1] == 1);
     ASSERT(0 < output_state_matrix->dimension_size[2]);
 
-    * output_vector = output_state_matrix->data;
-    * output_vector_size = output_state_matrix->dimension_size[2];
+    for (int i = 0;
+        (i < output_vector_size) && (i < output_state_matrix->dimension_size[2]);
+        i++)
+      switch (output_state_matrix->format.size)
+      {
+        case sizeof(uint16_t):
+          ((uint32_t*) output_vector)[i] = DATA16_TO_FLOAT32(((uint16_t* )output_state_matrix->data)[i]);
+          break;
+        case sizeof(uint32_t):
+          ((uint32_t*) output_vector)[i] = ((float*) output_state_matrix->data)[i];
+          break;
+        default:
+          ASSERT(0);
+      }
   }
 }
 
@@ -1045,6 +1076,7 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
 
     WeightShift layer_weight_shift = layer->weight_shift;
 
+    while (!spike_layer->partition_array[0]->accelerator->rxDone);
 
     kernel_row_pos = 0, layer_row = 0;
     for (i = 0; i < layer->num_partitions; i ++)
@@ -1191,16 +1223,16 @@ static void SbsBaseNetwork_giveLayer(SbsNetwork * network_ptr, SbsLayer * layer)
 
     ASSERT(size < 0xFF);
 
-    layer_array = realloc(layer_array, (size + 1) * sizeof(SbsBaseLayer *));
+    layer_array = realloc (layer_array, (size + 1) * sizeof(SbsBaseLayer *));
 
     ASSERT(layer_array != NULL);
 
     if (layer_array != NULL)
     {
-        layer_array[size] = (SbsBaseLayer *)layer;
+      layer_array[size] = (SbsBaseLayer *) layer;
 
-        network->layer_array = layer_array;
-        network->size ++;
+      network->layer_array = layer_array;
+      network->size++;
     }
   }
 }
@@ -1216,10 +1248,12 @@ static void SbsBaseNetwork_loadInput(SbsNetwork * network_ptr, char * file_name)
 
   if ((network != NULL)
       && (1 <= network->size)
-      && (network->layer_array != NULL) && (*network->layer_array != NULL)
+      && (network->layer_array != NULL)
+      && (*network->layer_array != NULL)
       && (file_name != NULL))
   {
-    SbsBaseLayer_loadInput (network->layer_array[0], file_name,
+    SbsBaseLayer_loadInput (network->layer_array[0],
+                            file_name,
                             &network->input_label);
   }
 }
@@ -1228,6 +1262,8 @@ static void SbsBaseNetwork_loadInput(SbsNetwork * network_ptr, char * file_name)
 
 static void SbsBaseLayer_learningDeltaMSE(SbsBaseLayer * layer, SbsBaseLayer * prev_layer)
 {
+  return;// TODO: Update algorithm for custom floating point
+
   ASSERT (layer != NULL);
   ASSERT (layer->partition_array != NULL);
   ASSERT (layer->partition_array[0] != NULL);
@@ -1385,21 +1421,24 @@ static void SbsBaseNetwork_updateInferredOutput(SbsBaseNetwork * network)
 
   if (network != NULL)
   {
-    NeuronState max_value = 0;
+    float max_value = 0;
     SbsBaseLayer * output_layer = network->layer_array[network->size - 1];
-    NeuronState * output_state_vector = NULL;
-    uint16_t output_vector_size = 0;
+    float output_state_vector[10] = {0};
+    uint16_t output_vector_size = 10;
+    float h;
     int i;
 
-    SbsBaseLayer_getOutputVector (output_layer, &output_state_vector,
-                                  &output_vector_size);
+    SbsBaseLayer_getOutputVector (output_layer,
+                                  output_state_vector,
+                                  output_vector_size);
 
     ASSERT (output_state_vector != NULL);
     ASSERT (0 < output_vector_size);
 
     for (i = 0; i < output_vector_size; i++)
     {
-      NeuronState h = output_state_vector[i]; /* Ensure data alignment */
+      h = output_state_vector[i];
+
       if (max_value < h)
       {
         network->inferred_output = i;
@@ -1489,8 +1528,8 @@ static uint8_t SbsBaseNetwork_getInputLabel(SbsNetwork * network)
 }
 
 static void SbsBaseNetwork_getOutputVector(SbsNetwork * network_ptr,
-                                           NeuronState ** output_vector,
-                                           uint16_t * output_vector_size)
+                                           float * output_vector,
+                                           uint16_t output_vector_size)
 {
   SbsBaseNetwork * network = (SbsBaseNetwork *) network_ptr;
   ASSERT(network != NULL);
@@ -1499,17 +1538,18 @@ static void SbsBaseNetwork_getOutputVector(SbsNetwork * network_ptr,
   ASSERT(network->layer_array[network->size - 1] != NULL);
 
   ASSERT(output_vector != NULL);
-  ASSERT(output_vector_size != NULL);
+  ASSERT(output_vector_size != 0);
 
   if ((network != NULL)
       && (0 < network->size)
       && (network->layer_array != NULL)
       && (network->layer_array[network->size - 1] != NULL)
       && (output_vector != NULL)
-      && (output_vector_size != NULL))
+      && (output_vector_size != 0))
   {
     SbsBaseLayer_getOutputVector (network->layer_array[network->size - 1],
-                                  output_vector, output_vector_size);
+                                  output_vector,
+                                  output_vector_size);
   }
 }
 

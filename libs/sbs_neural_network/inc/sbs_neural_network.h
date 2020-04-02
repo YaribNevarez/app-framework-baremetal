@@ -49,7 +49,10 @@ struct SbsLayer_VTable
                             WeightShift weight_shift);
   void       (*delete)     (SbsLayer ** layer);
   void       (*setEpsilon) (SbsLayer * layer, float epsilon);
-  void       (*setLearningRule) (SbsLayer * layer, SbsLearningRule rule, double gama, int number_of_patterns);
+  void       (*setLearningRule) (SbsLayer * layer,
+                                 SbsLearningRule rule,
+                                 double gama,
+                                 int number_of_patterns);
   void       (*giveWeights)(SbsLayer * layer, SbsWeightMatrix weight_matrix);
 };
 extern struct SbsLayer_VTable _SbsLayer;
@@ -65,8 +68,11 @@ struct SbsNetwork_VTable
   void         (*updateCycle)       (SbsNetwork * network, uint16_t cycles);
   uint8_t      (*getInferredOutput) (SbsNetwork * network);
   uint8_t      (*getInputLabel)     (SbsNetwork * network);
-  /* Note: 'NeuronState ** output_vector' must use intermediate variables to support unaligned accesses in ARM architectures */
-  void         (*getOutputVector)   (SbsNetwork * network, NeuronState ** output_vector, uint16_t * output_vector_size);
+  /* Note: 'NeuronState ** output_vector' must use intermediate variables
+   *  to support unaligned accesses in ARM architectures */
+  void         (*getOutputVector)   (SbsNetwork * network,
+                                     float * output_vector,
+                                     uint16_t output_vector_size);
   void         (*printStatistics)   (SbsNetwork * network);
 };
 extern struct SbsNetwork_VTable _SbsNetwork;
@@ -83,7 +89,11 @@ typedef struct
                              uint16_t kernel_stride,
                              WeightShift weight_shift);
 
-  SbsWeightMatrix (*WeightMatrix)(uint16_t rows, uint16_t columns, uint16_t spikes, uint16_t neurons, char * file_name);
+  SbsWeightMatrix (*WeightMatrix)(uint16_t rows,
+                                  uint16_t columns,
+                                  uint16_t spikes,
+                                  uint16_t neurons,
+                                  char * file_name);
 
   SbsLayer *      (*InputLayer)  (SbsLayerType layer_type,
                                   uint16_t rows,

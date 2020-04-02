@@ -89,8 +89,8 @@ Result SnnApp_run (void)
 {
   int pattern_index;
   char string_text[128];
-  NeuronState * output_vector;
-  uint16_t output_vector_size;
+  float output_vector[10];
+  uint16_t output_vector_size = 10;
   uint8_t input_label;
   uint8_t output_label;
   int total_inference = 0;
@@ -258,9 +258,10 @@ Result SnnApp_run (void)
         ToolCom_instance ()->textMsg (0, "Misclassification");
       }
 
-      network->getOutputVector (network, &output_vector, &output_vector_size);
+      output_vector_size = sizeof(output_vector) / sizeof(float);
+      network->getOutputVector (network, output_vector, output_vector_size);
 
-      ToolCom_instance ()->sendByteBuffer (output_vector, sizeof(NeuronState) * output_vector_size);
+      ToolCom_instance ()->sendByteBuffer (output_vector, sizeof(float) * output_vector_size);
 
       while (output_vector_size--)
       {

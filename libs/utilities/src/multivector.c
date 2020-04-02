@@ -265,9 +265,12 @@ M32BitFormat M32BitFormat_list[] =
     }
 };
 
-const unsigned M32BitFormat_list_length = (sizeof(M32BitFormat_list) / sizeof (M32BitFormat));
+const unsigned M32BitFormat_list_length = (sizeof(M32BitFormat_list)
+                                         / sizeof (M32BitFormat));
 
-MatrixTypeID M32BitFormat_getTypeID(uint8_t data_type_size, uint8_t dimensionality, uint16_t * dimension_size)
+MatrixTypeID M32BitFormat_getTypeID (uint8_t data_type_size,
+                                     uint8_t dimensionality,
+                                     uint16_t * dimension_size)
 {
   int i;
   MatrixTypeID type_ID = M32BIT_TYPE_END;
@@ -293,7 +296,10 @@ MatrixTypeID M32BitFormat_getTypeID(uint8_t data_type_size, uint8_t dimensionali
 
 /************************** Function Definitions******************************/
 
-Multivector * Multivector_new(MemoryBlock * memory_def, Format * format, uint8_t dimensionality, ...)
+Multivector * Multivector_new (MemoryBlock * memory_def,
+                               Format * format,
+                               uint8_t dimensionality,
+                               ...)
 {
   Multivector * multivector = NULL;
 
@@ -310,6 +316,7 @@ Multivector * Multivector_new(MemoryBlock * memory_def, Format * format, uint8_t
     {
       int arg;
       size_t data_size;
+      size_t alignment_padding;
       va_list argument_list;
 
       memset (multivector, 0x00, memory_size);
@@ -321,18 +328,27 @@ Multivector * Multivector_new(MemoryBlock * memory_def, Format * format, uint8_t
 
       va_end(argument_list);
 
+      data_size *= format->size;
+
       multivector->memory_def_parent = memory_def;
 
+      // Ensure word alignment
+      alignment_padding = data_size % sizeof(uint32_t);
+      if (alignment_padding)
+      {
+        data_size += sizeof(uint32_t) - alignment_padding;
+      }
+      multivector->data_size = data_size;
+
       if (memory_def != NULL)
-        multivector->data = MemoryBlock_alloc (memory_def,
-                                               data_size * format->size);
+        multivector->data = MemoryBlock_alloc (memory_def, data_size);
       else
-        multivector->data = malloc (data_size * format->size);
+        multivector->data = malloc (data_size);
 
       ASSERT(multivector->data != NULL);
 
       if (multivector->data != NULL)
-        memset(multivector->data, 0x00, data_size * format->size);
+        memset(multivector->data, 0x00, data_size);
 
       multivector->dimensionality = dimensionality;
       multivector->format = *format;
@@ -409,7 +425,9 @@ void inline * Multivector_3DAccess (Multivector * multivector,
 
 #ifdef MULTIVECTOR_USE_POINTER_ARITHMETICS
 
-void inline * Multivector_2DAccess(Multivector * multivector, uint16_t row, uint16_t column)
+void inline * Multivector_2DAccess (Multivector * multivector,
+                                    uint16_t row,
+                                    uint16_t column)
 {
   void * data = NULL;
   ASSERT (multivector != NULL);
@@ -441,7 +459,10 @@ void inline * Multivector_2DAccess(Multivector * multivector, uint16_t row, uint
   return data;
 }
 
-void inline * Multivector_3DAccess (Multivector * multivector, uint16_t row, uint16_t column, uint16_t position)
+void inline * Multivector_3DAccess (Multivector * multivector,
+                                    uint16_t row,
+                                    uint16_t column,
+                                    uint16_t position)
 {
   void * data = NULL;
   ASSERT (multivector != NULL);
@@ -601,8 +622,8 @@ void inline * Multivector_3DAccess (Multivector * multivector, uint16_t row, uin
 }
 #endif
 
-Multivector * Multivector_duplicate(MemoryBlock * memory_def,
-                                           Multivector * original)
+Multivector * Multivector_duplicate (MemoryBlock * memory_def,
+                                     Multivector * original)
 {
   Multivector * duplicate = NULL;
   ASSERT(original != NULL);
@@ -619,25 +640,19 @@ Multivector * Multivector_duplicate(MemoryBlock * memory_def,
 
     if (duplicate != NULL)
     {
-      size_t data_size = original->format.size;
-      int i;
-
       memcpy (duplicate, original, memory_size);
-
-      for (i = 0; i < original->dimensionality; i++)
-        data_size *= original->dimension_size[i];
 
       duplicate->memory_def_parent = memory_def;
 
       if (memory_def != NULL)
-        duplicate->data = MemoryBlock_alloc (memory_def, data_size);
+        duplicate->data = MemoryBlock_alloc (memory_def, original->data_size);
       else
-        duplicate->data = malloc (data_size);
+        duplicate->data = malloc (original->data_size);
 
       ASSERT(duplicate->data != NULL);
 
       if (duplicate->data != NULL)
-        memcpy (duplicate->data, original->data, data_size);
+        memcpy (duplicate->data, original->data, original->data_size);
       else
         return NULL;
     }
@@ -645,7 +660,7 @@ Multivector * Multivector_duplicate(MemoryBlock * memory_def,
   return duplicate;
 }
 
-size_t Multivector_dataSize(Multivector * multivector)
+size_t Multivector_dataSize (Multivector * multivector)
 {
   size_t data_size = 0;
   ASSERT(multivector != NULL);
@@ -653,33 +668,23 @@ size_t Multivector_dataSize(Multivector * multivector)
 
   if ((multivector != NULL) && (0 < multivector->dimensionality))
   {
-    int i;
-    data_size = multivector->format.size;
-
-    for (i = 0; i < multivector->dimensionality; i++)
-      data_size *= multivector->dimension_size[i];
+    data_size = multivector->data_size;
   }
   return data_size;
 }
 
-void Multivector_cacheFlush(Multivector * multivector)
+void Multivector_cacheFlush (Multivector * multivector)
 {
   ASSERT(multivector != NULL);
   ASSERT(0 < multivector->dimensionality);
 
   if ((multivector != NULL) && (0 < multivector->dimensionality))
   {
-    size_t data_size = multivector->format.size;
-    int i;
-
-    for (i = 0; i < multivector->dimensionality; i++)
-      data_size *= multivector->dimension_size[i];
-
-    Xil_DCacheFlushRange ((UINTPTR) multivector->data, data_size);
+    Xil_DCacheFlushRange ((UINTPTR) multivector->data, multivector->data_size);
   }
 }
 
-void Multivector_delete(Multivector ** multivector)
+void Multivector_delete (Multivector ** multivector)
 {
   ASSERT(multivector != NULL);
   ASSERT(*multivector != NULL);
@@ -694,32 +699,32 @@ void Multivector_delete(Multivector ** multivector)
   }
 }
 
-void Multivector_float2Fixed(Multivector * multivector, Format * new_format)
-{
-  ASSERT(multivector != NULL);
-
-  if (multivector != NULL)
-  {
-    uint32_t  full_scale = (1 << new_format->mantissa_bitlength) - 1;
-    int       size = Multivector_dataSize(multivector) / multivector->format.size;
-    void *    old_ptr = multivector->data;
-    void *    new_ptr = multivector->data;
-
-    for (int i = 0; i < size; i ++)
-    {
-      switch (multivector->format.size)
-      {
-        case sizeof(float):
-          ((uint32_t*)new_ptr)[i] = (uint32_t) (((float *)old_ptr)[i] * full_scale);
-          break;
-        default:
-          ASSERT(0);
-      }
-    }
-
-    multivector->format = *new_format;
-  }
-}
+//void Multivector_float2Fixed (Multivector * multivector, Format * new_format)
+//{
+//  ASSERT(multivector != NULL);
+//
+//  if (multivector != NULL)
+//  {
+//    uint32_t  full_scale = (1 << new_format->mantissa_bitlength) - 1;
+//    int       size = Multivector_dataSize(multivector) / multivector->format.size;
+//    void *    old_ptr = multivector->data;
+//    void *    new_ptr = multivector->data;
+//
+//    for (int i = 0; i < size; i ++)
+//    {
+//      switch (multivector->format.size)
+//      {
+//        case sizeof(float):
+//          ((uint32_t*)new_ptr)[i] = (uint32_t) (((float *)old_ptr)[i] * full_scale);
+//          break;
+//        default:
+//          ASSERT(0);
+//      }
+//    }
+//
+//    multivector->format = *new_format;
+//  }
+//}
 
 Multivector * Multivector_reformat (MemoryBlock * memory_def,
                                     Multivector * original,
@@ -742,6 +747,8 @@ Multivector * Multivector_reformat (MemoryBlock * memory_def,
     if (duplicate != NULL)
     {
       size_t matrix_size = 1;
+      size_t data_size;
+      size_t alignment_padding;
       int i;
 
       memcpy (duplicate, original, memory_size);
@@ -751,12 +758,21 @@ Multivector * Multivector_reformat (MemoryBlock * memory_def,
       for (i = 0; i < original->dimensionality; i++)
         matrix_size *= original->dimension_size[i];
 
+      data_size = new_format->size * matrix_size;
+
+      // Ensure word alignment
+      alignment_padding = data_size % sizeof(uint32_t);
+      if (alignment_padding)
+      {
+        data_size += sizeof(uint32_t) - alignment_padding;
+      }
+
       duplicate->memory_def_parent = memory_def;
 
       if (memory_def != NULL)
-        duplicate->data = MemoryBlock_alloc (memory_def, matrix_size * sizeof(uint16_t));
+        duplicate->data = MemoryBlock_alloc (memory_def, data_size);
       else
-        duplicate->data = malloc (matrix_size * sizeof(uint16_t));
+        duplicate->data = malloc (data_size);
 
       ASSERT(duplicate->data != NULL);
 
@@ -797,10 +813,10 @@ Multivector * Multivector_reformat (MemoryBlock * memory_def,
           switch (new_format->size)
           {
             case sizeof(uint8_t):
-                ((uint8_t *) duplicate_data)[i] = (uint8_t) data;
+                ((uint8_t *) duplicate_data)[i] = (uint8_t) (0xFF & data);
               break;
             case sizeof(uint16_t):
-                ((uint16_t *) duplicate_data)[i] = (uint16_t) data;
+                ((uint16_t *) duplicate_data)[i] = (uint16_t) (0xFFFF & data);
               break;
             default:
               ASSERT (0);

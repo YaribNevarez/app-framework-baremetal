@@ -101,53 +101,55 @@ typedef struct
   SbsAcceleratorProfie *  profile;
 
 #ifdef DEBUG
-  uint16_t            txStateCounter;
-  uint16_t            txWeightCounter;
+  uint16_t    txStateCounter;
+  uint16_t    txWeightCounter;
 #endif
 
-  void *            txBufferCurrentPtr;
-  void *            txBuffer;
-  size_t            txBufferSize;
+  void *      txBufferCurrentPtr;
+  void *      txBuffer;
+  size_t      txBufferSize;
 
-  void *            rxBuffer;
-  size_t            rxBufferSize;
+  void *      rxBuffer;
+  size_t      rxBufferSize;
 
-  AcceleratorMode   mode;
+  AcceleratorMode mode;
 
   /*Below used by hardware interruption*/
-  uint8_t           errorFlags;
-  uint8_t           txDone;
-  uint8_t           rxDone;
-  uint8_t           acceleratorReady;
-  MemoryCmd         memory_cmd;
+  uint8_t     errorFlags;
+  uint8_t     txDone;
+  uint8_t     rxDone;
+  uint8_t     acceleratorReady;
+  MemoryCmd   memory_cmd;
 } SbSUpdateAccelerator;
 /************************** Constant Definitions *****************************/
 
 /************************** Variable Definitions *****************************/
 
 /************************** Function Prototypes ******************************/
-int SbSUpdateAccelerator_getGroupFromList (SbsLayerType layerType, SbSUpdateAccelerator ** sub_list, int sub_list_size);
+int SbSUpdateAccelerator_getGroupFromList (SbsLayerType layerType,
+                                           SbSUpdateAccelerator ** sub_list,
+                                           int sub_list_size);
 
-int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
-                                  SbSHardwareConfig * hardware_config);
+int Accelerator_initialize (SbSUpdateAccelerator * accelerator,
+                            SbSHardwareConfig * hardware_config);
 
-void Accelerator_shutdown(SbSUpdateAccelerator * accelerator);
+void Accelerator_shutdown (SbSUpdateAccelerator * accelerator);
 
-SbSUpdateAccelerator * Accelerator_new(SbSHardwareConfig * hardware_config);
+SbSUpdateAccelerator * Accelerator_new (SbSHardwareConfig * hardware_config);
 
 void Accelerator_delete (SbSUpdateAccelerator ** accelerator);
 
-void Accelerator_setup(SbSUpdateAccelerator * accelerator,
-                              SbsAcceleratorProfie * profile,
-                              AcceleratorMode mode);
+void Accelerator_setup (SbSUpdateAccelerator * accelerator,
+                        SbsAcceleratorProfie * profile,
+                        AcceleratorMode mode);
 
 void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
-                                         uint32_t * state_vector);
+                                  uint32_t * state_vector);
 
 void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
-                                          uint16_t * weight_vector);
+                                   uint8_t * weight_vector);
 
-int Accelerator_start(SbSUpdateAccelerator * accelerator);
+int Accelerator_start (SbSUpdateAccelerator * accelerator);
 
 Result SbsPlatform_initialize (SbSHardwareConfig * hardware_config_list,
                                uint32_t list_length,

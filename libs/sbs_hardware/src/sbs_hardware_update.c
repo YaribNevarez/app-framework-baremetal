@@ -72,7 +72,7 @@ SbsHardware SbsHardware_fixedpoint =
   .Set_epsilon =    (void (*) (void *, uint32_t ))  XSbs_accelerator_Set_epsilon,
   .Get_epsilon =    (uint32_t(*) (void *))          XSbs_accelerator_Get_epsilon,
   .Set_debug =      (void (*) (void *, uint32_t ))  NULL,
-  .Get_debug =      (uint32_t(*) (void *))          NULL,
+  .Get_debug =      (uint32_t(*) (void *))          XSbs_accelerator_Get_debug,
 
   .InterruptGlobalEnable =  (void (*) (void *))             XSbs_accelerator_InterruptGlobalEnable,
   .InterruptGlobalDisable = (void (*) (void *))             XSbs_accelerator_InterruptGlobalDisable,

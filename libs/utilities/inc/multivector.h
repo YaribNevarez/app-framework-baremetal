@@ -55,28 +55,28 @@ typedef enum
   M32BIT_TYPE_END = (unsigned)-1
 } MatrixTypeID;
 /**************************** Type Definitions *******************************/
-  typedef enum
-  {
-    FLOAT,
-    FIXED_POINT
-  } Representation;
+typedef enum
+{
+  FLOAT, FIXED_POINT
+} Representation;
 
-  typedef struct
-  {
-    Representation  representation;
-    uint8_t         size;
-    uint8_t         mantissa_bitlength;
-  } Format;
+typedef struct
+{
+  Representation representation;
+  uint8_t size;
+  uint8_t mantissa_bitlength;
+} Format;
 
-  typedef struct
-  {
-    MemoryBlock * memory_def_parent;
-    void *        data;
-    MatrixTypeID  type_id;
-    Format        format;
-    uint8_t       dimensionality;
-    uint16_t      dimension_size[1]; /*[0] = rows, [1] = columns, [2] = neurons... [n] = N*/
-  } Multivector;
+typedef struct
+{
+  MemoryBlock * memory_def_parent;
+  void * data;
+  size_t data_size;
+  MatrixTypeID type_id;
+  Format format;
+  uint8_t dimensionality;
+  uint16_t dimension_size[1]; /*[0] = rows, [1] = columns, [2] = neurons... [n] = N*/
+} Multivector;
 /************************** Constant Definitions *****************************/
 
 /************************** Variable Definitions *****************************/
