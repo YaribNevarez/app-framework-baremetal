@@ -1076,7 +1076,7 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
 
     WeightShift layer_weight_shift = layer->weight_shift;
 
-    //while (!spike_layer->partition_array[0]->accelerator->rxDone);
+    while (!spike_layer->partition_array[0]->accelerator->rxDone);
 
     kernel_row_pos = 0, layer_row = 0;
     for (i = 0; i < layer->num_partitions; i ++)
@@ -1480,10 +1480,6 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
 
       for (i = 1; i <= network->size - 1; i++)
       {
-        if (cycles == 817 && i == 4)
-        {
-          printf ("Deviation");
-        }
         SbsBaseLayer_update (network->layer_array[i],
                              network->layer_array[i - 1]);
       }

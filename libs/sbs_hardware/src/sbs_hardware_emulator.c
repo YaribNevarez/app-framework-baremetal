@@ -52,6 +52,7 @@ typedef struct
   ARM_GIC_InterruptHandler interruptHandler;
   void *      interruptContextData;
 
+  uint32_t debug;
   uint32_t layerSize;
   uint32_t kernelSize;
   uint32_t vectorSize;
@@ -82,6 +83,12 @@ SbsHardwareEmulator SbsHardwareEmulator_instance;
 #define EPSILON_DIV_SUM_EX_QF (H_QF) // From 0 to H_QF
 #define REV_DIV_EPSILON_EX_QF (H_QF)
 
+
+typedef union
+{
+  unsigned int    u32;
+  float           f32;
+} Data32;
 
 #define MAX_VECTOR_SIZE       (1024)
 #define MAX_SPIKE_MATRIX_SIZE (60*60)
@@ -118,30 +125,70 @@ uint64_t wide_div(uint64_t dividend, uint64_t divisor)
   return dividend / divisor;
 }
 
-void sbs_fixedpoint (Stream stream_in,
-                 Stream stream_out,
-                 unsigned int layerSize,
-                 unsigned int kernelSize,
-                 unsigned int vectorSize,
-                 unsigned int epsilon)
+#define DATA16_TO_FLOAT32(d)  ((0x30000000 | (((unsigned int)(0xFFFF & (d))) << 12)))
+#define DATA8_TO_FLOAT32(d)   ((0x38000000 | (((unsigned int)(0x00FF & (d))) << 19)))
+
+#define FLOAT32_TO_DATA16(d)  (0x0000FFFF & (((unsigned int)(d)) >> 12))
+#define FLOAT32_TO_DATA8(d)   (0x000000FF & (((unsigned int)(d)) >> 19))
+
+#define NEGLECTING_CONSTANT   ((float)1e-20)
+
+static int debug_flags;
+
+void sbs_accelerator (Stream stream_in,
+                      Stream stream_out,
+                      int * debug,
+                      unsigned int layerSize,
+                      unsigned int kernelSize,
+                      unsigned int vectorSize,
+                      unsigned int epsilon)
 {
+#pragma HLS INTERFACE axis      port=stream_in
+#pragma HLS INTERFACE axis      port=stream_out
+#pragma HLS INTERFACE s_axilite port=debug       bundle=CRTL_BUS
+#pragma HLS INTERFACE s_axilite port=layerSize   bundle=CRTL_BUS
+#pragma HLS INTERFACE s_axilite port=kernelSize  bundle=CRTL_BUS
+#pragma HLS INTERFACE s_axilite port=vectorSize  bundle=CRTL_BUS
+#pragma HLS INTERFACE s_axilite port=epsilon     bundle=CRTL_BUS
+#pragma HLS INTERFACE s_axilite port=return      bundle=CRTL_BUS
 
-  static unsigned int ip_index;
-  static unsigned int i;
-  static unsigned int batch;
+  static unsigned int index;
+  static unsigned int index_channel;
+
+  static int ip_index;
+  static unsigned short spikeID;
+  static int i;
+  static int batch;
   static StreamChannel channel;
-  static unsigned int spike_matrix[MAX_SPIKE_MATRIX_SIZE];
-  static unsigned int spike_index;
-  static uint64_t state_vector[MAX_VECTOR_SIZE];
-  static uint64_t temp_data[MAX_VECTOR_SIZE];
-  static uint64_t epsilon_div_sum;
-  static uint64_t random_value;
-  static uint64_t sum;
-  static uint64_t rev_div_epsilon;
-  static uint64_t wide_reg;
-  static uint64_t weigth;
 
-  rev_div_epsilon = wide_div(H_MAX << REV_DIV_EPSILON_EX_QF, (H_MAX + (epsilon)) >> (H_QF - REV_DIV_EPSILON_EX_QF));
+  static unsigned short spike_matrix[MAX_SPIKE_MATRIX_SIZE];
+#pragma HLS array_partition variable=spike_matrix block factor=4
+
+  static int spike_index;
+
+  static float state_vector[MAX_VECTOR_SIZE];
+#pragma HLS array_partition variable=state_vector block factor=246
+
+  static float weight_vector[MAX_VECTOR_SIZE];
+#pragma HLS array_partition variable=weight_vector block factor=246
+
+  static float temp_data[MAX_VECTOR_SIZE];
+#pragma HLS array_partition variable=temp_data block factor=246
+
+  static float epsion_over_sum;
+  static float random_value;
+
+  static unsigned int temp;
+
+  static Data32 register_A;
+  static Data32 register_B;
+
+  float reverse_epsilon = 1.0f / (1.0f + epsilon);
+  static float sum;
+
+  temp = 0;
+  index_channel = 0;
+  debug_flags = 1;
 
   for (ip_index = 0; ip_index < layerSize; ip_index++)
   {
@@ -149,24 +196,43 @@ void sbs_fixedpoint (Stream stream_in,
     if (ip_index == 0)
     {
       channel = stream_in.read ();
-      random_value = channel.data;
+      register_A.u32 = channel.data;
     }
     else
     {
-      random_value = stream_in.read ().data;
+      register_A.u32 = stream_in.read ().data;
     }
+    random_value = register_A.f32;
 
-    sum = 0;
-    for (i = 0; i < vectorSize; i++)
+    index = 0;
+    while (index < vectorSize)
     {
 #pragma HLS pipeline
-      state_vector[i] = stream_in.read ().data;
+      i = stream_in.read ().data;
+
+      register_B.u32 = DATA16_TO_FLOAT32(i >> 0);
+      state_vector[index] = register_B.f32;
+      index ++;
+
+      if (index < vectorSize)
+      {
+        register_B.u32 = DATA16_TO_FLOAT32(i >> 16);
+        state_vector[index] = register_B.f32;
+        index++;
+      }
+    }
+
+    sum = 0.0f;
+    for (spikeID = 0; spikeID < vectorSize; spikeID++)
+    {
+#pragma HLS pipeline
       if (sum < random_value)
       {
-        sum += state_vector[i];
-        if (random_value <= sum || (i == vectorSize - 1))
+        sum += state_vector[spikeID];
+
+        if (random_value <= sum || (spikeID == vectorSize - 1))
         {
-          spike_matrix[ip_index] = i;
+          spike_matrix[ip_index] = spikeID;
         }
       }
     }
@@ -174,59 +240,97 @@ void sbs_fixedpoint (Stream stream_in,
     for (batch = 0; batch < kernelSize; batch++)
     {
 #pragma HLS pipeline
-      sum = 0;
-      i = 0;
-      while (i < vectorSize)
+      index = 0;
+      while (index < vectorSize)
       {
-#pragma HLS pipeline
-        weigth = stream_in.read ().data;
+  #pragma HLS pipeline
+        i = stream_in.read ().data;
 
-        temp_data[i] = (weigth & W_MAX) << (H_QF - W_QF);
-        temp_data[i] *= state_vector[i];
-        sum += temp_data[i];
-        i ++;
+        register_B.u32 = DATA8_TO_FLOAT32(i >> 0);
+        weight_vector[index] = register_B.f32;
+        index++;
 
-        temp_data[i] = ((weigth >> W_QF) & W_MAX) << (H_QF - W_QF);
-        temp_data[i] *= state_vector[i];
-        sum += temp_data[i];
-        i ++;
+        if (index < vectorSize)
+        {
+          register_B.u32 = DATA8_TO_FLOAT32(i >> 8);
+          weight_vector[index] = register_B.f32;
+          index++;
+        }
+
+        if (index < vectorSize)
+        {
+          register_B.u32 = DATA8_TO_FLOAT32(i >> 16);
+          weight_vector[index] = register_B.f32;
+          index++;
+        }
+
+        if (index < vectorSize)
+        {
+          register_B.u32 = DATA8_TO_FLOAT32(i >> 24);
+          weight_vector[index] = register_B.f32;
+          index++;
+        }
       }
 
-      sum >>= H_QF - EPSILON_DIV_SUM_EX_QF;
-
-      if (0 < sum)
+      sum = 0.0f;
+      for (i = 0; i < vectorSize; i++)
       {
 #pragma HLS pipeline
-        epsilon_div_sum = wide_div((uint64_t)epsilon << (H_QF + EPSILON_DIV_SUM_EX_QF), sum);
+        temp_data[i] = state_vector[i] * weight_vector[i];
+        sum += temp_data[i];
+      }
 
+      if (NEGLECTING_CONSTANT < sum)
+      {
+        epsion_over_sum = epsilon / sum;
         for (i = 0; i < vectorSize; i++)
         {
 #pragma HLS pipeline
-          wide_reg = temp_data[i];
-          wide_reg *= epsilon_div_sum;
-          wide_reg >>= H_QF;
-          wide_reg += (state_vector[i]) << H_QF;
-          wide_reg *= rev_div_epsilon;
-          wide_reg >>= 2 * H_QF;
-          state_vector[i] = wide_reg;
+          state_vector[i] = reverse_epsilon
+              * (state_vector[i] + temp_data[i] * epsion_over_sum);
         }
       }
     }
 
+
     for (i = 0; i < vectorSize; i++)
     {
 #pragma HLS pipeline
-      channel.data = state_vector[i];
-      stream_out.write(channel);
+      register_A.f32 = state_vector[i];
+
+      if ((register_A.u32 & 0xf0000000) == 0x30000000)
+      {
+        temp |= (FLOAT32_TO_DATA16(register_A.u32)) << (16 * index_channel);
+      }
+
+      index_channel ++;
+
+      if (index_channel == 2)
+      {
+        channel.data = temp;
+        stream_out.write (channel);
+        index_channel = 0;
+        temp = 0;
+      }
     }
   }
 
+  index_channel = 0;
+  temp = 0;
   for (i = 0; i < layerSize; i++)
   {
 #pragma HLS pipeline
-    channel.data = spike_matrix[i];
-    channel.last = (i == layerSize - 1);
-    stream_out.write(channel);
+    temp |= ((unsigned int)spike_matrix[i]) << (16 * index_channel);
+    index_channel ++;
+
+    if ((index_channel == 2) || (i == layerSize - 1))
+    {
+      channel.data = temp;
+      channel.last = (i == layerSize - 1);
+      stream_out.write (channel);
+      index_channel = 0;
+      temp = 0;
+    }
   }
 }
 
@@ -241,12 +345,13 @@ void SbsHardwareEmulator_trigger (SbsHardwareEmulator * instance)
     {
       Stream stream_in = {read, write};
       Stream stream_out = {read, write};
-      sbs_fixedpoint (stream_in,
-                      stream_out,
-                      instance->hwUpdate.layerSize,
-                      instance->hwUpdate.kernelSize,
-                      instance->hwUpdate.vectorSize,
-                      instance->hwUpdate.epsilon);
+      sbs_accelerator (stream_in,
+                       stream_out,
+                       &instance->hwUpdate.debug,
+                       instance->hwUpdate.layerSize,
+                       instance->hwUpdate.kernelSize,
+                       instance->hwUpdate.vectorSize,
+                       instance->hwUpdate.epsilon);
 
       instance->hwDMA.rxBufferAddres = NULL;
       instance->hwDMA.txBufferAddres = NULL;
