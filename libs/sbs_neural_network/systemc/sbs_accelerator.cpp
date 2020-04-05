@@ -12,8 +12,8 @@ typedef union
 #define MAX_SPIKE_MATRIX_SIZE (60*60)
 
 //static Data32 _d32;
-#define DATA16_TO_FLOAT32(d)  (0x30000000 | (((unsigned int)(0xFFFF & (d))) << 12))
-#define DATA8_TO_FLOAT32(d)   (0x38000000 | (((unsigned int)(0x00FF & (d))) << 19))
+#define DATA16_TO_FLOAT32(d)  ((0x30000000 | (((unsigned int)(0xFFFF & (d))) << 12)))
+#define DATA8_TO_FLOAT32(d)   ((0x38000000 | (((unsigned int)(0x00FF & (d))) << 19)))
 
 #define FLOAT32_TO_DATA16(d)  (0x0000FFFF & (((unsigned int)(d)) >> 12))
 #define FLOAT32_TO_DATA8(d)   (0x000000FF & (((unsigned int)(d)) >> 19))
@@ -50,11 +50,21 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
   static int i;
   static int batch;
   static StreamChannel channel;
+
   static unsigned short spike_matrix[MAX_SPIKE_MATRIX_SIZE];
+#pragma HLS array_partition variable=spike_matrix block factor=4
+
   static int spike_index;
+
   static float state_vector[MAX_VECTOR_SIZE];
+#pragma HLS array_partition variable=state_vector block factor=246
+
   static float weight_vector[MAX_VECTOR_SIZE];
+#pragma HLS array_partition variable=weight_vector block factor=246
+
   static float temp_data[MAX_VECTOR_SIZE];
+#pragma HLS array_partition variable=temp_data block factor=246
+
   static float epsion_over_sum;
   static float random_value;
 
@@ -178,10 +188,14 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
 #pragma HLS pipeline
       register_A.f32 = state_vector[i];
 
-      temp |= (FLOAT32_TO_DATA16(register_A.u32)) << (16 * index_channel);
+      if ((register_A.u32 & 0xf0000000) == 0x30000000)
+      {
+        temp |= (FLOAT32_TO_DATA16(register_A.u32)) << (16 * index_channel);
+      }
+
       index_channel ++;
 
-      if ((index_channel == 2) || (i == layerSize - 1))
+      if (index_channel == 2)
       {
         channel.data = temp;
         stream_out.write (channel);

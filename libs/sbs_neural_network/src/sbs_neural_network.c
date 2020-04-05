@@ -910,7 +910,7 @@ static void SbsBaseLayer_getOutputVector(SbsBaseLayer * layer,
           ((uint32_t*) output_vector)[i] = DATA16_TO_FLOAT32(((uint16_t* )output_state_matrix->data)[i]);
           break;
         case sizeof(uint32_t):
-          ((uint32_t*) output_vector)[i] = ((float*) output_state_matrix->data)[i];
+          ((uint32_t*) output_vector)[i] = ((uint32_t*) output_state_matrix->data)[i];
           break;
         default:
           ASSERT(0);
@@ -1076,7 +1076,7 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
 
     WeightShift layer_weight_shift = layer->weight_shift;
 
-    while (!spike_layer->partition_array[0]->accelerator->rxDone);
+    //while (!spike_layer->partition_array[0]->accelerator->rxDone);
 
     kernel_row_pos = 0, layer_row = 0;
     for (i = 0; i < layer->num_partitions; i ++)
@@ -1480,6 +1480,10 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
 
       for (i = 1; i <= network->size - 1; i++)
       {
+        if (cycles == 817 && i == 4)
+        {
+          printf ("Deviation");
+        }
         SbsBaseLayer_update (network->layer_array[i],
                              network->layer_array[i - 1]);
       }

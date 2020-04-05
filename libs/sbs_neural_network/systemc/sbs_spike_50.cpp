@@ -35,6 +35,8 @@ void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
 #pragma HLS INTERFACE s_axilite port=return      bundle=CRTL_BUS
 
   static float data[MAX_VECTOR_SIZE];
+#pragma HLS array_partition variable=data complete
+
   static unsigned int index;
   unsigned char index_spike;
   unsigned int debug_flags;
@@ -52,8 +54,6 @@ void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
 
   index_spike = 0;
   temp = 0;
-
-  debug_flags = 0;
 
   for (ip_index = 0; ip_index < layerSize; ip_index++)
   {
@@ -96,9 +96,6 @@ void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
         sum += data[spikeID];
         if ((random_value <= sum) || (spikeID == vectorSize - 1))
         {
-          debug_flags ++;
-          *debug = debug_flags;
-
           temp |= ((unsigned int)spikeID) << (16 * index_spike);
           index_spike ++;
 
@@ -106,6 +103,7 @@ void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
           {
             channel.last = (ip_index == layerSize - 1);
             channel.data = temp;
+
             stream_out.write (channel);
 
             index_spike = 0;

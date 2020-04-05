@@ -148,7 +148,8 @@ static void Accelerator_hardwareInterruptHandler (void * data)
 #ifdef DEBUG
   if (accelerator->hardwareConfig->hwDriver->Get_debug)
   {
-    int debug = accelerator->hardwareConfig->hwDriver->Get_debug(accelerator->updateHardware);
+    //int debug = accelerator->hardwareConfig->hwDriver->Get_debug(accelerator->updateHardware);
+    //printf ("\nHW interrupt = 0x%X\n", debug);
   }
 #endif
 
@@ -369,8 +370,31 @@ inline void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
   ASSERT (0 < accelerator->profile->stateBufferSize);
   ASSERT (state_vector != NULL);
 
-  *((float *) accelerator->txBufferCurrentPtr) =
-      ((float) MT19937_genrand ()) * (1.0 / (float) 0xFFFFFFFF);
+  {
+    float values[1024];
+
+    for (int i = 0; i < accelerator->profile->vectorSize; i++)
+    {
+#define DATA16_TO_FLOAT32(d)  ((0x30000000 | (((unsigned int)(0xFFFF & (d))) << 12)))
+
+      ((uint32_t*) values)[i] = DATA16_TO_FLOAT32(((uint16_t * ) state_vector)[i]);
+
+      if (1.0 <= values[i])
+      {
+        printf ("Divergence");
+      }
+    }
+  }
+
+  if (accelerator->profile->vectorSize == 10)
+  {
+    *((float *) accelerator->txBufferCurrentPtr) = 0.0;
+  }
+  else
+  {
+    *((float *) accelerator->txBufferCurrentPtr) =
+        ((float) MT19937_genrand ()) * (1.0 / (float) 0xFFFFFFFF);
+  }
 
   accelerator->txBufferCurrentPtr += sizeof(float);
 
@@ -415,6 +439,12 @@ inline void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
 #endif
 }
 
+typedef union
+{
+  unsigned int    u32;
+  float           f32;
+} Data32;
+
 int Accelerator_start(SbSUpdateAccelerator * accelerator)
 {
   int status;
@@ -433,32 +463,209 @@ int Accelerator_start(SbSUpdateAccelerator * accelerator)
 
   Xil_DCacheFlushRange ((UINTPTR) accelerator->txBuffer, accelerator->txBufferSize);
 
-  while (accelerator->acceleratorReady == 0);
-  while (accelerator->txDone == 0);
-  while (accelerator->rxDone == 0);
-
-  accelerator->memory_cmd = accelerator->profile->memory_cmd[accelerator->mode];
-
-  accelerator->acceleratorReady = 0;
-  accelerator->hardwareConfig->hwDriver->Start (accelerator->updateHardware);
-
-
-  accelerator->txDone = 0;
-  status = accelerator->hardwareConfig->dmaDriver->Move (accelerator->dmaHardware,
-                                                         accelerator->txBuffer,
-                                                         accelerator->txBufferSize,
-                                                         MEMORY_TO_HARDWARE);
-  ASSERT(status == XST_SUCCESS);
-
-  if (status == XST_SUCCESS)
+  if (accelerator->mode == SPIKE_MODE)
   {
-    accelerator->rxDone = 0;
-    status = accelerator->hardwareConfig->dmaDriver->Move (accelerator->dmaHardware,
-                                                           accelerator->rxBuffer,
-                                                           accelerator->rxBufferSize,
-                                                           HARDWARE_TO_MEMORY);
+    while (accelerator->acceleratorReady == 0);
+    while (accelerator->txDone == 0);
+    while (accelerator->rxDone == 0);
 
+    accelerator->memory_cmd = accelerator->profile->memory_cmd[accelerator->mode];
+
+    accelerator->acceleratorReady = 0;
+    accelerator->hardwareConfig->hwDriver->Start (accelerator->updateHardware);
+
+
+    accelerator->txDone = 0;
+    status = accelerator->hardwareConfig->dmaDriver->Move (accelerator->dmaHardware,
+                                                           accelerator->txBuffer,
+                                                           accelerator->txBufferSize,
+                                                           MEMORY_TO_HARDWARE);
     ASSERT(status == XST_SUCCESS);
+
+    if (status == XST_SUCCESS)
+    {
+      accelerator->rxDone = 0;
+      status = accelerator->hardwareConfig->dmaDriver->Move (accelerator->dmaHardware,
+                                                             accelerator->rxBuffer,
+                                                             accelerator->rxBufferSize,
+                                                             HARDWARE_TO_MEMORY);
+
+      ASSERT(status == XST_SUCCESS);
+    }
+  }
+  else
+  {
+#define MAX_VECTOR_SIZE       (1024)
+#define MAX_SPIKE_MATRIX_SIZE (60*60)
+#define DATA16_TO_FLOAT32(d)  ((0x30000000 | (((unsigned int)(0xFFFF & (d))) << 12)))
+#define DATA8_TO_FLOAT32(d)   ((0x38000000 | (((unsigned int)(0x00FF & (d))) << 19)))
+#define FLOAT32_TO_DATA16(d)  (0x0000FFFF & (((unsigned int)(d)) >> 12))
+#define FLOAT32_TO_DATA8(d)   (0x000000FF & (((unsigned int)(d)) >> 19))
+#define NEGLECTING_CONSTANT   ((float)1e-20)
+
+    SbsAcceleratorProfie * profile = accelerator->profile;
+    int index;
+    float random_value;
+    int last;
+    Data32 register_A;
+    Data32 register_B;
+    uint32_t * stream_in = (uint32_t *) accelerator->txBuffer;
+    uint32_t * stream_out = (uint32_t *) accelerator->rxBuffer;
+    int i;
+
+    int layerSize = profile->layerSize;
+    int vectorSize = profile->vectorSize;
+    int kernelSize = profile->kernelSize;
+    float sum;
+    unsigned short spikeID;
+    int batch;
+    unsigned int temp;
+    unsigned int index_channel;
+
+    float epsion_over_sum;
+    float epsilon = *((float*) (&profile->epsilon));
+    float reverse_epsilon = 1.0f / (1.0f + epsilon);
+
+    float state_vector[MAX_VECTOR_SIZE];
+    unsigned short spike_matrix[MAX_SPIKE_MATRIX_SIZE];
+    float weight_vector[MAX_VECTOR_SIZE];
+    float temp_data[MAX_VECTOR_SIZE];
+
+    temp = 0;
+    index_channel = 0;
+
+    for (int ip_index = 0; ip_index < layerSize; ip_index++)
+    {
+      register_A.u32 = *(stream_in++);
+      random_value = register_A.f32;
+      ASSERT (random_value <= 1.0);
+
+      index = 0;
+      while (index < vectorSize)
+      {
+        i = *(stream_in++);
+
+        register_B.u32 = DATA16_TO_FLOAT32(i >> 0);
+        state_vector[index] = register_B.f32;
+        index ++;
+
+        if (index < vectorSize)
+        {
+          register_B.u32 = DATA16_TO_FLOAT32(i >> 16);
+          state_vector[index] = register_B.f32;
+          index++;
+        }
+      }
+
+      sum = 0.0f;
+      for (spikeID = 0; spikeID < vectorSize; spikeID++)
+      {
+        if (sum < random_value)
+        {
+          sum += state_vector[spikeID];
+
+          if (random_value <= sum || (spikeID == vectorSize - 1))
+          {
+            spike_matrix[ip_index] = spikeID;
+          }
+        }
+      }
+
+      for (batch = 0; batch < kernelSize; batch++)
+      {
+        index = 0;
+        while (index < vectorSize)
+        {
+          i = *(stream_in++);
+
+          register_B.u32 = DATA8_TO_FLOAT32(i >> 0);
+          weight_vector[index] = register_B.f32;
+          index++;
+
+          if (index < vectorSize)
+          {
+            register_B.u32 = DATA8_TO_FLOAT32(i >> 8);
+            weight_vector[index] = register_B.f32;
+            index++;
+          }
+
+          if (index < vectorSize)
+          {
+            register_B.u32 = DATA8_TO_FLOAT32(i >> 16);
+            weight_vector[index] = register_B.f32;
+            index++;
+          }
+
+          if (index < vectorSize)
+          {
+            register_B.u32 = DATA8_TO_FLOAT32(i >> 24);
+            weight_vector[index] = register_B.f32;
+            index++;
+          }
+        }
+
+        sum = 0.0f;
+        for (i = 0; i < vectorSize; i++)
+        {
+          temp_data[i] = state_vector[i] * weight_vector[i];
+          sum += temp_data[i];
+        }
+
+        if (NEGLECTING_CONSTANT < sum)
+        {
+          epsion_over_sum = epsilon / sum;
+          for (i = 0; i < vectorSize; i++)
+          {
+            state_vector[i] = reverse_epsilon
+                * (state_vector[i] + temp_data[i] * epsion_over_sum);
+          }
+        }
+      }
+
+      for (i = 0; i < vectorSize; i++)
+      {
+        register_A.f32 = state_vector[i];
+
+        if (1.0 <= register_A.f32)
+        {
+          printf("Divergence");
+        }
+
+        if ((register_A.u32 & 0xf0000000) == 0x30000000)
+        {
+          temp |= (FLOAT32_TO_DATA16(register_A.u32)) << (16 * index_channel);
+        }
+
+        index_channel ++;
+
+        if (index_channel == 2)
+        {
+          *(stream_out ++) = temp;
+          index_channel = 0;
+          temp = 0;
+        }
+      }
+    }
+
+    index_channel = 0;
+    temp = 0;
+    for (i = 0; i < layerSize; i++)
+    {
+      temp |= ((unsigned int)spike_matrix[i]) << (16 * index_channel);
+      index_channel ++;
+
+      if ((index_channel == 2) || (i == layerSize - 1))
+      {
+        if (i == layerSize - 1)
+        {
+          last = 1;
+          status = 0;
+        }
+        *(stream_out++) = temp;
+        index_channel = 0;
+        temp = 0;
+      }
+    }
   }
 
   return status;
