@@ -78,6 +78,12 @@ M32BitFormat M32BitFormat_list[] =
         .dimension_size = {24, 24, 0, 0}
     },
     {
+        .type_id = M16BIT_24_24_ID,
+        .data_type_size = sizeof(uint16_t),
+        .dimensionality = 2,
+        .dimension_size = {24, 24, 0, 0}
+    },
+    {
         .type_id = M32BIT_12_24_ID,
         .data_type_size = sizeof(uint32_t),
         .dimensionality = 2,
@@ -90,8 +96,20 @@ M32BitFormat M32BitFormat_list[] =
         .dimension_size = {24, 24, 50, 0}
     },
     {
+        .type_id = M16BIT_24_24_50_ID,
+        .data_type_size = sizeof(uint16_t),
+        .dimensionality = 3,
+        .dimension_size = {24, 24, 50, 0}
+    },
+    {
         .type_id = M32BIT_24_24_32_ID,
         .data_type_size = sizeof(uint32_t),
+        .dimensionality = 3,
+        .dimension_size = {24, 24, 32, 0}
+    },
+    {
+        .type_id = M16BIT_24_24_32_ID,
+        .data_type_size = sizeof(uint16_t),
         .dimensionality = 3,
         .dimension_size = {24, 24, 32, 0}
     },
@@ -104,6 +122,12 @@ M32BitFormat M32BitFormat_list[] =
     {
         .type_id = M32BIT_1_1_50_32_ID,
         .data_type_size = sizeof(float),
+        .dimensionality = 4,
+        .dimension_size = {1, 1, 50, 32}
+    },
+    {
+        .type_id = M8BIT_1_1_50_32_ID,
+        .data_type_size = sizeof(uint8_t),
         .dimensionality = 4,
         .dimension_size = {1, 1, 50, 32}
     },
