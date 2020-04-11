@@ -124,7 +124,7 @@ Format weight_matrix_format;
 Format spike_matrix_format;
 
 static SbsSettings SbsSettings_ =
-#ifdef CUSTOM_FLOATINGPOINT
+#ifndef STANDARD_FLOATINGPOINT
 {
     .state_matrix_format =
     {

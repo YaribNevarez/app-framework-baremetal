@@ -17,123 +17,13 @@
 #ifndef SBS_PLATFORM_H_
 #define SBS_PLATFORM_H_
 
-// INCLUDES --------------------------------------------------------------------
-#include "sbs_processing_unit.h"
-#include "sbs_hardware_spike.h"
-#include "sbs_hardware_update.h"
-#include "dma_hardware_mover.h"
-#include "sbs_hardware_emulator.h"
-// FORWARD DECLARATIONS --------------------------------------------------------
-
-// TYPEDEFS AND DEFINES --------------------------------------------------------
-#define H_QF    (21)
-#define W_QF    (16)
-#define H_MAX   (((unsigned long)1 << H_QF) - 1)
-#define W_MAX   (((unsigned long)1 << W_QF) - 1)
-
-/*___________________________________________________________________________*/
-/* TODO: Implement nicely                                                    */
 
 #define ACCELERATOR_0     HX_INPUT_LAYER
-#define ACCELERATOR_1     H1_CONVOLUTION_LAYER | HY_OUTPUT_LAYER
-#define ACCELERATOR_2     H2_POOLING_LAYER | H4_POOLING_LAYER
-#define ACCELERATOR_3     H3_CONVOLUTION_LAYER
-#define ACCELERATOR_4     H3_CONVOLUTION_LAYER
-#define ACCELERATOR_5     H5_FULLY_CONNECTED_LAYER
+#define ACCELERATOR_1     H1_CONVOLUTION_LAYER | H2_POOLING_LAYER | H3_CONVOLUTION_LAYER | H4_POOLING_LAYER | H5_FULLY_CONNECTED_LAYER | HY_OUTPUT_LAYER
 
-//#define ACCELERATOR_6     HY_OUTPUT_LAYER
-//#define ACCELERATOR_7     H3_CONVOLUTION_LAYER
 /*___________________________________________________________________________*/
 
 #define MT19937_SEED      (666)
 
-
-SbSHardwareConfig SbSHardwareConfig_list[] =
-{
-  { .hwDriver      = &SbsHardware_fixedpoint_spike,
-    .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = ACCELERATOR_0,
-    .hwDeviceID    = XPAR_SBS_SPIKE_50_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_0_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_SPIKE_50_0_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_0_S2MM_INTROUT_INTR,
-    .ddrMem =
-    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x24000000,
-      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x27FFFFFF,
-      .blockIndex  = 0
-    }
-  },
-  { .hwDriver      = &SbsHardware_fixedpoint,
-    .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = ACCELERATOR_1,
-    .hwDeviceID    = XPAR_SBS_ACCELERATOR_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_1_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_0_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_1_S2MM_INTROUT_INTR,
-    .ddrMem =
-    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x28000000,
-      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2BFFFFFF,
-      .blockIndex  = 0
-    }
-  },
-  { .hwDriver      = &SbsHardware_fixedpoint,
-    .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = ACCELERATOR_2,
-    .hwDeviceID    = XPAR_SBS_ACCELERATOR_1_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_2_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_1_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_2_S2MM_INTROUT_INTR,
-    .ddrMem =
-    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2C000000,
-      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2FFFFFFF,
-      .blockIndex  = 0
-    }
-  },
-  { .hwDriver      = &SbsHardware_fixedpoint,
-    .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = ACCELERATOR_3,
-    .hwDeviceID    = XPAR_SBS_ACCELERATOR_2_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_3_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_2_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_3_S2MM_INTROUT_INTR,
-    .ddrMem =
-    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x30000000,
-      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x33FFFFFF,
-      .blockIndex  = 0
-    }
-  },
-  { .hwDriver      = &SbsHardware_fixedpoint,
-    .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = ACCELERATOR_4,
-    .hwDeviceID    = XPAR_SBS_ACCELERATOR_3_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_4_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_3_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_4_S2MM_INTROUT_INTR,
-    .ddrMem =
-    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x34000000,
-      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x37FFFFFF,
-      .blockIndex  = 0
-    }
-  },
-  { .hwDriver      = &SbsHardware_fixedpoint,
-    .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = ACCELERATOR_5,
-    .hwDeviceID    = XPAR_SBS_ACCELERATOR_4_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_5_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_4_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_5_S2MM_INTROUT_INTR,
-    .ddrMem =
-    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x38000000,
-      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3BFFFFFF,
-      .blockIndex  = 0
-    }
-  }
-};
 
 #endif /* SBS_PLATFORM_H_ */
