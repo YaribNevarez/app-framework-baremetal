@@ -55,6 +55,8 @@ if __name__ == '__main__':
                     axs[trace].clear()
                     axs[trace].plot(plot_x, plot_y)
 
+                    print (plot_x[2] - plot_x[1]);
+
                     plt.show()
                 elif command == CMD_SET_VISIBLE:
                     pass

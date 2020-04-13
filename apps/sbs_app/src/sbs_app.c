@@ -27,16 +27,10 @@
 #include "ff.h"
 
 #include "eventlogger.h"
-#include "sbs_processing_unit.h"
 #include "sbs_platform.h"
 #include "toolcom.h"
 
 // INCLUDES --------------------------------------------------------------------
-#include "sbs_processing_unit.h"
-#include "sbs_hardware_spike.h"
-#include "sbs_hardware_update.h"
-#include "dma_hardware_mover.h"
-#include "sbs_hardware_emulator.h"
 
 // FORWARD DECLARATIONS --------------------------------------------------------
 
@@ -49,107 +43,6 @@
 // STRUCTS AND NAMESPACES ------------------------------------------------------
 
 // DEFINITIONs -----------------------------------------------------------------
-
-SbSHardwareConfig SbSHardwareConfig_list[] =
-{
-#ifdef ACCELERATOR_0
-  { .hwDriver      = &SbsHardware_fixedpoint_spike,
-    .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = ACCELERATOR_0,
-    .hwDeviceID    = XPAR_SBS_SPIKE_50_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_0_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_SPIKE_50_0_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_0_S2MM_INTROUT_INTR,
-    .ddrMem =
-    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x24000000,
-      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x27FFFFFF,
-      .blockIndex  = 0
-    }
-  },
-#endif
-#ifdef ACCELERATOR_1
-  { .hwDriver      = &SbsHardware_fixedpoint,
-    .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = ACCELERATOR_1,
-    .hwDeviceID    = XPAR_SBS_ACCELERATOR_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_1_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_0_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_1_S2MM_INTROUT_INTR,
-    .ddrMem =
-    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x28000000,
-      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2BFFFFFF,
-      .blockIndex  = 0
-    }
-  },
-#endif
-#ifdef ACCELERATOR_2
-  { .hwDriver      = &SbsHardware_fixedpoint,
-    .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = ACCELERATOR_2,
-    .hwDeviceID    = XPAR_SBS_ACCELERATOR_1_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_2_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_1_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_2_S2MM_INTROUT_INTR,
-    .ddrMem =
-    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2C000000,
-      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2FFFFFFF,
-      .blockIndex  = 0
-    }
-  },
-#endif
-#ifdef ACCELERATOR_3
-  { .hwDriver      = &SbsHardware_fixedpoint,
-    .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = ACCELERATOR_3,
-    .hwDeviceID    = XPAR_SBS_ACCELERATOR_2_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_3_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_2_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_3_S2MM_INTROUT_INTR,
-    .ddrMem =
-    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x30000000,
-      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x33FFFFFF,
-      .blockIndex  = 0
-    }
-  },
-#endif
-#ifdef ACCELERATOR_4
-  { .hwDriver      = &SbsHardware_fixedpoint,
-    .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = ACCELERATOR_4,
-    .hwDeviceID    = XPAR_SBS_ACCELERATOR_3_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_4_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_3_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_4_S2MM_INTROUT_INTR,
-    .ddrMem =
-    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x34000000,
-      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x37FFFFFF,
-      .blockIndex  = 0
-    }
-  },
-#endif
-#ifdef ACCELERATOR_5
-  { .hwDriver      = &SbsHardware_fixedpoint,
-    .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = ACCELERATOR_5,
-    .hwDeviceID    = XPAR_SBS_ACCELERATOR_4_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_5_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_4_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_5_S2MM_INTROUT_INTR,
-    .ddrMem =
-    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x38000000,
-      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3BFFFFFF,
-      .blockIndex  = 0
-    }
-  }
-#endif
-};
-
 
 static FATFS fatfs;
 static u32 SnnApp_initializeSD(void)
@@ -179,16 +72,6 @@ Result SnnApp_initialize(void)
   if (rc != OK)
   {
     printf ("SD card hardware error\n");
-    return rc;
-  }
-
-  rc = SbsPlatform_initialize (SbSHardwareConfig_list,
-                               sizeof(SbSHardwareConfig_list) / sizeof(SbSHardwareConfig),
-                               MT19937_SEED);
-
-  if (rc != OK)
-  {
-    printf ("SbS hardware platform error\n");
     return rc;
   }
 
@@ -391,7 +274,7 @@ Result SnnApp_run (void)
 
 void SnnApp_dispose(void)
 {
-  SbsPlatform_shutdown ();
+
 }
 
 static SnnApp SnnApp_obj = { SnnApp_initialize,

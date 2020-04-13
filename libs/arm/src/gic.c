@@ -25,7 +25,7 @@
 static XScuGic          ARM_GIC_ScuGic      = {0};
 static XScuGic_Config * ARM_GIC_IntcConfig  = NULL;
 
-int ARM_GIC_initialize(void)
+int ARM_GIC_initialize (void)
 {
   int status;
 

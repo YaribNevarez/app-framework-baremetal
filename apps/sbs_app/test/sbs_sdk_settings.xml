@@ -9,14 +9,13 @@
 <includepath>/home/yarib/work/app-framework-baremetal/apps/sbs_app/inc</includepath>
 <includepath>/home/yarib/work/app-framework-baremetal/libs/utilities/inc</includepath>
 <includepath>/home/yarib/work/app-framework-baremetal/libs/sbs_neural_network/inc</includepath>
-<includepath>/home/yarib/work/app-framework-baremetal/libs/sbs_hardware/inc</includepath>
 <includepath>/home/yarib/work/app-framework-baremetal/libs/arm/inc</includepath>
 
 </language>
-<language name="ld">
+<language name="Object File">
 
 </language>
-<language name="Object File">
+<language name="ld">
 
 </language>
 </section>
@@ -36,10 +35,10 @@
 </macro>
 
 </language>
-<language name="ld">
+<language name="Object File">
 
 </language>
-<language name="Object File">
+<language name="ld">
 
 </language>
 </section>
