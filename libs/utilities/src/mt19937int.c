@@ -35,6 +35,18 @@
 #include "stdio.h"
 #include "mt19937int.h"
 
+static unsigned int MT19937_flags_ = 0;
+
+typedef enum
+{
+  INITIALIZED = 1 << 0
+} MT19937Flags;
+
+unsigned int MT19937_initialized ()
+{
+  return MT19937_flags_ & INITIALIZED;
+}
+
 /* Period parameters */
 #define N 624
 #define M 397
@@ -63,6 +75,8 @@ void MT19937_sgenrand(unsigned int seed)
     mt[0]= seed & 0xffffffff;
     for (mti=1; mti<N; mti++)
         mt[mti] = (69069 * mt[mti-1]) & 0xffffffff;
+
+    MT19937_flags_ |= INITIALIZED;
 }
 
 unsigned int MT19937_genrand()

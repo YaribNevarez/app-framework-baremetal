@@ -43,9 +43,9 @@ typedef enum
   COLUMN_SHIFT
 } WeightShift;
 
-typedef float     	NeuronState;
-typedef uint32_t    Epsilon;
-typedef void * 		  SbsWeightMatrix;
+typedef float NeuronState;
+typedef float Epsilon;
+typedef void * SbsWeightMatrix;
 
 typedef struct SbsLayer_VTable SbsLayer;
 struct SbsLayer_VTable

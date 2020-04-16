@@ -22,7 +22,7 @@ if __name__ == '__main__':
     
     fig.suptitle('SbS platform')
 
-    port = '/dev/ttyUSB1'
+    port = '/dev/ttyUSB2'
     serial_port = serial.Serial(port=port, baudrate=115200, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, bytesize=serial.EIGHTBITS)
     
     while True:
