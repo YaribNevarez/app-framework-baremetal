@@ -16,6 +16,7 @@ extern "C" {
 #include <stddef.h>
 
 #include <result.h>
+#include "mt19937int.h"
 #include "sbs_hardware.h"
 #include "dma_hardware.h"
 
@@ -100,6 +101,8 @@ typedef struct
   void *                  dmaHardware;
   SbsAcceleratorProfie *  profile;
 
+  MT19937     mt19937;
+
 #ifdef DEBUG
   uint16_t    txStateCounter;
   uint16_t    txWeightCounter;
@@ -152,8 +155,7 @@ void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
 int Accelerator_start (SbSUpdateAccelerator * accelerator);
 
 Result SbsPlatform_initialize (SbSHardwareConfig * hardware_config_list,
-                               uint32_t list_length,
-                               uint32_t MT19937_seed);
+                               uint32_t list_length);
 
 void SbsPlatform_shutdown (void);
 #ifdef __cplusplus

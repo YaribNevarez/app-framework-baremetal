@@ -377,7 +377,7 @@ inline void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
   else
   {
     *((float *) accelerator->txBufferCurrentPtr) =
-        ((float) MT19937_genrand ()) * (1.0 / (float) 0xFFFFFFFF);
+        ((float) MT19937_rand (accelerator->mt19937)) * (1.0 / (float) 0xFFFFFFFF);
   }
 
   accelerator->txBufferCurrentPtr += sizeof(float);
@@ -481,8 +481,7 @@ int Accelerator_start(SbSUpdateAccelerator * accelerator)
 /*****************************************************************************/
 
 Result SbsPlatform_initialize (SbSHardwareConfig * hardware_config_list,
-                               uint32_t list_length,
-                               uint32_t MT19937_seed)
+                               uint32_t list_length)
 {
   int i;
   Result rc;
@@ -514,8 +513,8 @@ Result SbsPlatform_initialize (SbSHardwareConfig * hardware_config_list,
     rc = SbSUpdateAccelerator_list[i] != NULL ? OK : ERROR;
   }
 
-  if (MT19937_seed)
-    MT19937_sgenrand (MT19937_seed);
+//  if (MT19937_seed)
+//    MT19937_sgenrand (MT19937_seed);
 
   return rc;
 }
