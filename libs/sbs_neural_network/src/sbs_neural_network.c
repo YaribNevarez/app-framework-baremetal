@@ -795,6 +795,274 @@ inline SbsLayerPartition * SbsBaseLayer_getPartition(SbsBaseLayer * layer, uint1
   return partition;
 }
 
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+void * rxBuffer_ = NULL;
+unsigned int txBuffer_[10*1024*1024]={0};
+void * txBufferCurrentPtr_ = NULL;
+unsigned int txStateCounter_;
+unsigned int layerSize_;
+unsigned int kernelSize_;
+unsigned int vectorSize_;
+float epsilon_;
+
+unsigned int txWeightCounter_;
+void Accelerator_setup (SbsBaseLayer * layer)
+{
+  txBufferCurrentPtr_ = txBuffer_;
+  txStateCounter_ = 0;
+  layerSize_ = layer->rows * layer->columns;
+  kernelSize_ = layer->kernel_size * layer->kernel_size;
+  vectorSize_ = layer->vector_size;
+  epsilon_ = layer->epsilon;
+  rxBuffer_ = layer->partition_array[0]->state_matrix->data;
+  txWeightCounter_ = 0;
+}
+
+void Accelerator_giveStateVector (uint32_t * state_vector)
+{
+  {
+    float values[1024];
+
+    for (int i = 0; i < vectorSize_; i++)
+    {
+#define DATA16_TO_FLOAT32(d)  ((0x30000000 | (((unsigned int)(0xFFFF & (d))) << 12)))
+
+      ((uint32_t*) values)[i] = DATA16_TO_FLOAT32(((uint16_t * ) state_vector)[i]);
+
+      if (1.0 <= values[i])
+      {
+        printf ("Divergence");
+      }
+    }
+  }
+
+  if (vectorSize_ == 10)
+  {
+    *((float *) txBufferCurrentPtr_) = 0.0;
+  }
+  else
+  {
+    *((float *) txBufferCurrentPtr_) =
+        ((float) MT19937_genrand ()) * (1.0 / (float) 0xFFFFFFFF);
+  }
+
+  txBufferCurrentPtr_ += sizeof(float);
+
+  memcpy (txBufferCurrentPtr_,
+          state_vector,
+          vectorSize_ * sizeof(unsigned short));
+
+  txBufferCurrentPtr_ += vectorSize_ * sizeof(unsigned short);
+
+#ifdef DEBUG
+  ASSERT(txStateCounter_ <= layerSize_);
+
+  txStateCounter_ ++;
+#endif
+}
+
+
+void Accelerator_giveWeightVector (uint8_t * weight_vector)
+{
+
+#ifdef DEBUG
+  ASSERT(txWeightCounter_ <= kernelSize_ * layerSize_);
+#endif
+
+  memcpy (txBufferCurrentPtr_,
+          weight_vector,
+          sizeof(unsigned char) * vectorSize_);
+
+  txBufferCurrentPtr_ += sizeof(unsigned char) * vectorSize_;
+
+#ifdef DEBUG
+  txWeightCounter_ ++;
+#endif
+}
+
+typedef union
+{
+  unsigned int    u32;
+  float           f32;
+} Data32;
+
+int Accelerator_start()
+{
+  int status;
+
+#define MAX_VECTOR_SIZE       (1024)
+#define MAX_SPIKE_MATRIX_SIZE (60*60)
+#define DATA16_TO_FLOAT32(d)  ((0x30000000 | (((unsigned int)(0xFFFF & (d))) << 12)))
+#define DATA8_TO_FLOAT32(d)   ((0x38000000 | (((unsigned int)(0x00FF & (d))) << 19)))
+#define FLOAT32_TO_DATA16(d)  (0x0000FFFF & (((unsigned int)(d)) >> 12))
+#define FLOAT32_TO_DATA8(d)   (0x000000FF & (((unsigned int)(d)) >> 19))
+#define NEGLECTING_CONSTANT   ((float)1e-20)
+
+    int index;
+    float random_value;
+    int last;
+    Data32 register_A;
+    Data32 register_B;
+    uint32_t * stream_in = (uint32_t *) txBuffer_;
+    uint32_t * stream_out = (uint32_t *) rxBuffer_;
+    int i;
+
+    float sum;
+    unsigned short spikeID;
+    int batch;
+    unsigned int temp;
+    unsigned int index_channel;
+
+    float epsion_over_sum;
+    float reverse_epsilon = 1.0f / (1.0f + epsilon_);
+
+    float state_vector[MAX_VECTOR_SIZE];
+    unsigned short spike_matrix[MAX_SPIKE_MATRIX_SIZE];
+    float weight_vector[MAX_VECTOR_SIZE];
+    float temp_data[MAX_VECTOR_SIZE];
+
+    temp = 0;
+    index_channel = 0;
+
+    for (int ip_index = 0; ip_index < layerSize_; ip_index++)
+    {
+      register_A.u32 = *(stream_in++);
+      random_value = register_A.f32;
+      ASSERT (random_value <= 1.0);
+
+      index = 0;
+      while (index < vectorSize_)
+      {
+        i = *(stream_in++);
+
+        register_B.u32 = DATA16_TO_FLOAT32(i >> 0);
+        state_vector[index] = register_B.f32;
+        index ++;
+
+        if (index < vectorSize_)
+        {
+          register_B.u32 = DATA16_TO_FLOAT32(i >> 16);
+          state_vector[index] = register_B.f32;
+          index++;
+        }
+      }
+
+      sum = 0.0f;
+      for (spikeID = 0; spikeID < vectorSize_; spikeID++)
+      {
+        if (sum < random_value)
+        {
+          sum += state_vector[spikeID];
+
+          if (random_value <= sum || (spikeID == vectorSize_ - 1))
+          {
+            spike_matrix[ip_index] = spikeID;
+          }
+        }
+      }
+
+      for (batch = 0; batch < kernelSize_; batch++)
+      {
+        index = 0;
+        while (index < vectorSize_)
+        {
+          i = *(stream_in++);
+
+          register_B.u32 = DATA8_TO_FLOAT32(i >> 0);
+          weight_vector[index] = register_B.f32;
+          index++;
+
+          if (index < vectorSize_)
+          {
+            register_B.u32 = DATA8_TO_FLOAT32(i >> 8);
+            weight_vector[index] = register_B.f32;
+            index++;
+          }
+
+          if (index < vectorSize_)
+          {
+            register_B.u32 = DATA8_TO_FLOAT32(i >> 16);
+            weight_vector[index] = register_B.f32;
+            index++;
+          }
+
+          if (index < vectorSize_)
+          {
+            register_B.u32 = DATA8_TO_FLOAT32(i >> 24);
+            weight_vector[index] = register_B.f32;
+            index++;
+          }
+        }
+
+        sum = 0.0f;
+        for (i = 0; i < vectorSize_; i++)
+        {
+          temp_data[i] = state_vector[i] * weight_vector[i];
+          sum += temp_data[i];
+        }
+
+        if (NEGLECTING_CONSTANT < sum)
+        {
+          epsion_over_sum = epsilon_ / sum;
+          for (i = 0; i < vectorSize_; i++)
+          {
+            state_vector[i] = reverse_epsilon
+                * (state_vector[i] + temp_data[i] * epsion_over_sum);
+          }
+        }
+      }
+
+      for (i = 0; i < vectorSize_; i++)
+      {
+        register_A.f32 = state_vector[i];
+
+        if (1.0 <= register_A.f32)
+        {
+          printf("Divergence");
+        }
+
+        if ((register_A.u32 & 0xf0000000) == 0x30000000)
+        {
+          temp |= (FLOAT32_TO_DATA16(register_A.u32)) << (16 * index_channel);
+        }
+
+        index_channel ++;
+
+        if (index_channel == 2)
+        {
+          *(stream_out ++) = temp;
+          index_channel = 0;
+          temp = 0;
+        }
+      }
+    }
+
+    index_channel = 0;
+    temp = 0;
+    for (i = 0; i < layerSize_; i++)
+    {
+      temp |= ((unsigned int)spike_matrix[i]) << (16 * index_channel);
+      index_channel ++;
+
+      if ((index_channel == 2) || (i == layerSize_ - 1))
+      {
+        if (i == layerSize_ - 1)
+        {
+          last = 1;
+          status = 0;
+        }
+        *(stream_out++) = temp;
+        index_channel = 0;
+        temp = 0;
+      }
+    }
+
+  return status;
+}
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+
 //#define ACCELERATOR
 
 #ifdef ACCELERATOR
@@ -845,12 +1113,6 @@ void spike_master_hw_initialize (SbsBaseLayer * layer)
 #define DATA8_TO_FLOAT32(d)   ((0x38000000 | (((unsigned int)(0x00FF & (d))) << 19)))
 
 #define FLOAT32_TO_DATA16(d)  (0xFFFF & (((unsigned int)(d)) >> 12))
-
-typedef union
-{
-  unsigned int    u32;
-  float           f32;
-} Data32;
 
 static unsigned short SbsBaseLayer_generateSpikeIP(unsigned short * state_vector_mem, uint16_t size)
 {
@@ -1210,6 +1472,8 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
       update_partition_state_matrix = update_partition->state_matrix;
       update_partition_rows = update_partition_state_matrix->dimension_size[0];
 
+      Accelerator_setup(layer);
+
       /* Update begins */
       for (update_partition_row = 0;
            update_partition_row < update_partition_rows;
@@ -1222,8 +1486,7 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
         {
           state_vector = Multivector_2DAccess(update_partition_state_matrix, update_partition_row, layer_column);
 
-          if (layer->layer_type != HY_OUTPUT_LAYER)
-            *(unsigned short *) Multivector_2DAccess(layer->spike_matrix, update_partition_row, layer_column) = SbsBaseLayer_generateSpikeIP(state_vector, layer->vector_size);
+          Accelerator_giveStateVector (state_vector);
 
           for (kernel_row = 0; kernel_row < kernel_size; kernel_row++)
           {
@@ -1242,11 +1505,12 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
                 weight_vector = Multivector_3DAccess (update_partition_weight_matrix, kernel_column, kernel_row, spikeID);
               }
 
-              SbsBaseLayer_updateIP (state_vector, weight_vector, layer->vector_size, layer->epsilon);
+              Accelerator_giveWeightVector(weight_vector);
             }
           }
         }
       }
+      Accelerator_start();
       /* Update ends */
     }
   }
