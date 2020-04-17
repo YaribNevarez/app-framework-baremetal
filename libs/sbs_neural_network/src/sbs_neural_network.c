@@ -656,7 +656,7 @@ static void SbsBaseLayer_setEpsilon(SbsLayer * layer, float epsilon)
   if (layer != NULL)
   {
     SbsBaseLayer * base_layer = ((SbsBaseLayer *)layer);
-    base_layer->epsilon = *(uint32_t*) (&epsilon);
+    base_layer->epsilon = epsilon;
   }
 }
 
@@ -1002,6 +1002,29 @@ inline SbsLayerPartition * SbsBaseLayer_getPartition(SbsBaseLayer * layer, uint1
 //  }
 //}
 
+static unsigned short SbsBaseLayer_generateSpikeIP(unsigned short * state_vector_mem, uint16_t size)
+{
+  float state_vector[1024] = { 0 };
+  float random_s = ((float) MT19937_genrand ()) / ((float) 0xFFFFFFFF);
+  float sum = 0.0f;
+  unsigned short spikeID;
+
+  for (int i = 0; i < size; i++)
+  {
+    *((unsigned int *) &state_vector[i]) = DATA16_TO_FLOAT32(state_vector_mem[i]);
+  }
+
+  for (spikeID = 0; spikeID < size; spikeID++)
+  {
+    sum += state_vector[spikeID];
+
+    if (random_s <= sum)
+      return spikeID;
+  }
+
+  return size - 1;
+}
+
 static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
 {
   ASSERT(layer != NULL);
@@ -1015,8 +1038,10 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
   {
     SbsLayerPartition * partition     = layer->partition_array[0];
     Multivector *       state_matrix  = partition->state_matrix;
+    Multivector *       spike_matrix  = partition->spike_matrix;
     uint16_t            columns       = layer->columns;
     uint16_t            rows          = layer->rows;
+    uint16_t            vector_size   = layer->vector_size;
     uint16_t            row;
     uint16_t            column;
 
@@ -1026,14 +1051,77 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
     ASSERT (rows == state_matrix->dimension_size[0]);
     ASSERT (columns == state_matrix->dimension_size[1]);
 
-    Accelerator_setup (partition->accelerator, &partition->profile, SPIKE_MODE);
-
     for (row = 0; row < rows; row++)
       for (column = 0; column < columns; column++)
-        Accelerator_giveStateVector (partition->accelerator,
-                                     Multivector_2DAccess (state_matrix, row, column));
+        *(unsigned short *) Multivector_2DAccess (spike_matrix, row, column) =
+            SbsBaseLayer_generateSpikeIP (Multivector_2DAccess (state_matrix, row, column), vector_size);
 
-    Accelerator_start (partition->accelerator);
+  }
+}
+
+#define DATA16_TO_FLOAT32(d)  ((0x30000000 | (((unsigned int)(0xFFFF & (d))) << 12)))
+#define DATA8_TO_FLOAT32(d)   ((0x38000000 | (((unsigned int)(0x00FF & (d))) << 19)))
+
+#define FLOAT32_TO_DATA16(d)  (0xFFFF & (((unsigned int)(d)) >> 12))
+
+static void SbsBaseLayer_updateIP(unsigned short * state_vector_mem, unsigned char * weight_vector_mem, unsigned int size, float epsilon)
+{
+  float state_vector[1024];
+  float weight_vector[1024];
+
+  for (int i = 0; i < size; i ++)
+  {
+    *((unsigned int *) &state_vector[i]) = DATA16_TO_FLOAT32(state_vector_mem[i]);
+    *((unsigned int *) &weight_vector[i]) = DATA8_TO_FLOAT32(weight_vector_mem[i]);
+  }
+
+  float temp_data[1024] = { 0 };
+
+  float sum = 0.0f;
+  float reverse_epsilon = 1.0f / (1.0f + epsilon);
+  float epsion_over_sum = 0.0f;
+  uint16_t neuron;
+
+
+  float h;
+  float p;
+  float h_p;
+  float h_new;
+
+  for (neuron = 0; neuron < size; neuron++)
+  {
+    h = state_vector[neuron];
+    p = weight_vector[neuron];
+    h_p = h * p;
+
+    temp_data[neuron] = h_p;
+    sum += h_p;
+  }
+
+  if (sum < 1e-20) // TODO: DEFINE constant
+    return;
+
+  epsion_over_sum = epsilon / sum;
+
+  for (neuron = 0; neuron < size; neuron++)
+  {
+    h_p = temp_data[neuron];
+    h = state_vector[neuron];
+
+    h_new = reverse_epsilon * (h + h_p * epsion_over_sum);
+    state_vector[neuron] = h_new;
+  }
+
+  for (neuron = 0; neuron < size; neuron ++)
+  {
+    if ((*((unsigned int *)&state_vector[neuron]) & 0x30000000) == 0x30000000)
+    {
+      state_vector_mem[neuron] = FLOAT32_TO_DATA16(*((unsigned int * )&state_vector[neuron]));
+    }
+    else
+    {
+      state_vector_mem[neuron] = 0;
+    }
   }
 }
 
@@ -1049,6 +1137,8 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
     uint16_t             update_partition_rows;
     uint16_t             update_partition_row;
     Multivector * spike_layer_spike_matrix = spike_layer->spike_matrix;
+    Multivector * update_partition_spike_matrix;
+    uint16_t             vector_size = layer->vector_size;
 
 #ifdef DEBUG
     SpikeID   spikeID       = 0;
@@ -1076,7 +1166,7 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
 
     WeightShift layer_weight_shift = layer->weight_shift;
 
-    while (!spike_layer->partition_array[0]->accelerator->rxDone);
+    //while (!spike_layer->partition_array[0]->accelerator->rxDone);
 
     kernel_row_pos = 0, layer_row = 0;
     for (i = 0; i < layer->num_partitions; i ++)
@@ -1089,9 +1179,9 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
       update_partition_state_matrix = update_partition->state_matrix;
       update_partition_rows = update_partition_state_matrix->dimension_size[0];
 
-      Accelerator_setup (update_partition_accelerator,
-                         &update_partition->profile,
-                         UPDATE_MODE);
+      update_partition_spike_matrix = update_partition->spike_matrix;
+
+
 
       /* Update begins */
       for (update_partition_row = 0;
@@ -1139,7 +1229,11 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
 #else
           state_vector = Multivector_2DAccess(update_partition_state_matrix, update_partition_row, layer_column);
 
-          Accelerator_giveStateVector (update_partition_accelerator, state_vector);
+          if (layer->layer_type != HY_OUTPUT_LAYER)
+          {
+          *(unsigned short *) Multivector_2DAccess (layer->spike_matrix, update_partition_row, layer_column) =
+                      SbsBaseLayer_generateSpikeIP (state_vector, vector_size);
+          }
 
           for (kernel_row = 0; kernel_row < kernel_size; kernel_row++)
           {
@@ -1158,14 +1252,14 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
                 weight_vector = Multivector_3DAccess (update_partition_weight_matrix, kernel_column, kernel_row, spikeID);
               }
 
-              Accelerator_giveWeightVector (update_partition_accelerator, weight_vector);
+              SbsBaseLayer_updateIP (state_vector, weight_vector, layer->vector_size, layer->epsilon);
             }
           }
 #endif
         }
       }
       /* Update ends */
-      Accelerator_start (update_partition_accelerator);
+
     }
   }
 }
