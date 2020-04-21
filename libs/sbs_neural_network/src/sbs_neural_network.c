@@ -1720,6 +1720,7 @@ void spike_master_hw_initialize (SbsBaseLayer * layer)
     XSbs_spike_master_Initialize (&InstancePtr, XPAR_SBS_SPIKE_MASTER_0_DEVICE_ID);
     XSbs_spike_master_InterruptGlobalEnable (&InstancePtr);
     XSbs_spike_master_InterruptEnable (&InstancePtr, 1);
+    ARM_GIC_initialize ();
     ARM_GIC_connect (XPAR_FABRIC_SBS_SPIKE_MASTER_0_INTERRUPT_INTR, spike_master_InterruptHandler, &InstancePtr);
 
     XSbs_spike_master_Set_spike_matrix_mem (&InstancePtr, (unsigned int) layer->spike_matrix->data);
@@ -1795,7 +1796,6 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
     /************************ Begins Update cycle ****************************/
     while (cycles--)
     {
-      //SbsBaseLayer_generateSpikes_hw (input_layer);
       SbsBaseLayer_generateSpikes (input_layer);
 
       i = 1;
