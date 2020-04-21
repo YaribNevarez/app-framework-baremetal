@@ -108,6 +108,8 @@ size_t Multivector_dataSize (Multivector * multivector);
 
 void Multivector_cacheFlush (Multivector * multivector);
 
+void Multivector_cacheInvalidate (Multivector * multivector);
+
 void Multivector_delete (Multivector ** multivector);
 
 void Multivector_float2Fixed (Multivector * multivector, Format * new_format);

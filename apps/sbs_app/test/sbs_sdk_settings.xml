@@ -8,8 +8,8 @@
 <includepath>../bsp/ps7_cortexa9_0/include</includepath>
 <includepath>/home/yarib/work/app-framework-baremetal/apps/sbs_app/inc</includepath>
 <includepath>/home/yarib/work/app-framework-baremetal/libs/utilities/inc</includepath>
-<includepath>/home/yarib/work/app-framework-baremetal/libs/sbs_neural_network/inc</includepath>
 <includepath>/home/yarib/work/app-framework-baremetal/libs/sbs_hardware/inc</includepath>
+<includepath>/home/yarib/work/app-framework-baremetal/libs/sbs_neural_network/inc</includepath>
 <includepath>/home/yarib/work/app-framework-baremetal/libs/arm/inc</includepath>
 
 </language>
@@ -29,10 +29,13 @@
 <name>USE_XILINX</name><value/>
 </macro>
 <macro>
-<name>DEBUG</name><value/>
+<name>MULTIVECTOR_USE_POINTER_ARITHMETICS</name><value/>
 </macro>
 <macro>
-<name>MULTIVECTOR_USE_POINTER_ARITHMETICS</name><value/>
+<name>CUSTOM_FLOATINGPOINT</name><value/>
+</macro>
+<macro>
+<name>DEBUG</name><value/>
 </macro>
 
 </language>

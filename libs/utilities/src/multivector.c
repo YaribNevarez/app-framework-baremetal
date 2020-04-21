@@ -708,6 +708,17 @@ void Multivector_cacheFlush (Multivector * multivector)
   }
 }
 
+void Multivector_cacheInvalidate (Multivector * multivector)
+{
+  ASSERT(multivector != NULL);
+  ASSERT(0 < multivector->dimensionality);
+
+  if ((multivector != NULL) && (0 < multivector->dimensionality))
+  {
+    Xil_DCacheInvalidateRange ((UINTPTR) multivector->data, multivector->data_size);
+  }
+}
+
 void Multivector_delete (Multivector ** multivector)
 {
   ASSERT(multivector != NULL);
