@@ -300,6 +300,99 @@ void Accelerator_delete (SbSUpdateAccelerator ** accelerator)
   }
 }
 
+#include "xsbs_dma.h"
+
+XSbs_dma SbsDMA_instance = { 0 };
+
+unsigned int SbsDMA_initialized = 0;
+
+void SbsDMA_InterruptHandler (void *data)
+{
+  uint32_t status;
+  XSbs_dma * update_master = (XSbs_dma *) data;
+  status = XSbs_dma_InterruptGetStatus (update_master);
+  XSbs_dma_InterruptClear (update_master, status);
+}
+
+void Accelerator_DMA_setup (unsigned int * state_matrix_data,
+                            unsigned int * weight_matrix_data,
+                            unsigned int * input_spike_matrix_data,
+                            unsigned int * output_spike_matrix_data,
+                            unsigned int weight_spikes,
+                            unsigned int rows,
+                            unsigned int input_spike_matrix_columns,
+                            unsigned int input_spike_matrix_rows,
+                            unsigned int kernel_row_pos,
+                            unsigned int columns,
+                            unsigned int vector_size,
+                            unsigned int kernel_stride,
+                            unsigned int kernel_size,
+                            unsigned int layer_weight_shift,
+                            unsigned int mt19937,
+                            float epsilon)
+{
+
+  if (!SbsDMA_initialized)
+  {
+    int status = XSbs_dma_Initialize (&SbsDMA_instance,
+                                      XPAR_SBS_DMA_0_DEVICE_ID);
+
+    ASSERT(status == OK);
+
+    ARM_GIC_initialize ();
+
+    XSbs_dma_InterruptGlobalEnable (&SbsDMA_instance);
+    XSbs_dma_InterruptEnable (&SbsDMA_instance, 1);
+    ARM_GIC_connect (XPAR_FABRIC_SBS_UPDATE_MASTER_0_INTERRUPT_INTR,
+                     SbsDMA_InterruptHandler, &SbsDMA_instance);
+  }
+
+  XSbs_dma_Set_state_matrix_data (&SbsDMA_instance, (unsigned int) state_matrix_data);
+
+  XSbs_dma_Set_weight_matrix_data (&SbsDMA_instance, (unsigned int) weight_matrix_data);
+
+  XSbs_dma_Set_input_spike_matrix_data (&SbsDMA_instance,
+                                        (unsigned int) input_spike_matrix_data);
+
+  XSbs_dma_Set_output_spike_matrix_data (&SbsDMA_instance,
+                                         (unsigned int) output_spike_matrix_data);
+
+  XSbs_dma_Set_weight_spikes (&SbsDMA_instance, weight_spikes);
+
+  XSbs_dma_Set_rows (&SbsDMA_instance, rows);
+
+  XSbs_dma_Set_input_spike_matrix_columns (&SbsDMA_instance, input_spike_matrix_columns);
+
+  XSbs_dma_Set_input_spike_matrix_rows (&SbsDMA_instance,
+                                                  input_spike_matrix_rows);
+
+  XSbs_dma_Set_kernel_row_pos (&SbsDMA_instance, kernel_row_pos);
+
+  XSbs_dma_Set_columns (&SbsDMA_instance, columns);
+
+  XSbs_dma_Set_vector_size (&SbsDMA_instance, vector_size);
+
+  XSbs_dma_Set_kernel_stride (&SbsDMA_instance, kernel_stride);
+
+  XSbs_dma_Set_kernel_size (&SbsDMA_instance, kernel_size);
+
+  XSbs_dma_Set_layer_weight_shift (&SbsDMA_instance, layer_weight_shift);
+
+  XSbs_dma_Set_mt19937 (&SbsDMA_instance, mt19937);
+
+  XSbs_dma_Set_epsilon (&SbsDMA_instance, epsilon);
+}
+
+void Accelerator_DMA_start ()
+{
+  XSbs_dma_Start (&SbsDMA_instance);
+}
+
+unsigned int Accelerator_DMA_isDone ()
+{
+  return XSbs_dma_IsDone (&SbsDMA_instance);
+}
+
 void Accelerator_setup (SbSUpdateAccelerator * accelerator,
                         SbsAcceleratorProfie * profile,
                         AcceleratorMode mode)
@@ -439,10 +532,10 @@ int Accelerator_start(SbSUpdateAccelerator * accelerator)
   ASSERT (accelerator->mode == SPIKE_MODE || 0 < accelerator->profile->weightBufferSize);
   ASSERT (0 < accelerator->profile->layerSize);
 
-  ASSERT ((size_t)accelerator->txBufferCurrentPtr == (size_t)accelerator->txBuffer + accelerator->txBufferSize);
+  //ASSERT ((size_t)accelerator->txBufferCurrentPtr == (size_t)accelerator->txBuffer + accelerator->txBufferSize);
 
 #ifdef DEBUG
-  ASSERT (accelerator->profile->layerSize == accelerator->txStateCounter);
+  //ASSERT (accelerator->profile->layerSize == accelerator->txStateCounter);
 #endif
 
   Xil_DCacheFlushRange ((UINTPTR) accelerator->txBuffer, accelerator->txBufferSize);
