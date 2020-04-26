@@ -142,7 +142,7 @@ void sbs_spike_master(unsigned int * spike_matrix_mem,
       spike_matrix_offset = row * columns + column;
       ip_index  = spike_matrix_offset * vector_size;
 
-      memcpy (ip_vector, &state_matrix_mem[ip_index], sizeof(unsigned short) * vector_size);
+      memcpy (ip_vector, &state_matrix_mem[ip_index >> 1], sizeof(unsigned short) * vector_size);
 
       random    = MT19937_genrand ();
       random_s  = random / ((float) 0xFFFFFFFF);

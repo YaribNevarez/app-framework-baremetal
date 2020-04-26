@@ -307,6 +307,19 @@ static void SbsLayerPartition_cacheFlush (SbsLayerPartition * partition)
   }
 }
 
+static void SbsLayerPartition_cacheInvalidate (SbsLayerPartition * partition)
+{
+  ASSERT(partition != NULL);
+
+  if (partition != NULL)
+  {
+    Multivector_cacheInvalidate (partition->state_matrix);
+
+    if (partition->weight_matrix != NULL)
+      Multivector_cacheInvalidate (partition->weight_matrix);
+  }
+}
+
 static void SbsLayerPartition_setWeights (SbsLayerPartition * partition,
                                           SbsWeightMatrix weight_matrix)
 {
@@ -483,6 +496,22 @@ static void SbsBaseLayer_cacheFlush(SbsBaseLayer * layer)
     int i;
     for (i = 0; i < layer->num_partitions; i++)
       SbsLayerPartition_cacheFlush(layer->partition_array[i]);
+  }
+}
+
+static void SbsBaseLayer_cacheInvalidate(SbsBaseLayer * layer)
+{
+  ASSERT(layer != NULL);
+  ASSERT(layer->partition_array != NULL);
+  ASSERT(0 < layer->num_partitions);
+
+  if ((layer != NULL)
+      && (layer->partition_array != NULL)
+      && (0 < layer->num_partitions))
+  {
+    int i;
+    for (i = 0; i < layer->num_partitions; i++)
+      SbsLayerPartition_cacheInvalidate (layer->partition_array[i]);
   }
 }
 
@@ -847,6 +876,85 @@ static unsigned short SbsBaseLayer_generateSpikeIP(float * state_vector_buffer, 
 }
 
 
+static unsigned int MT19937_flags_ = 0;
+
+typedef enum
+{
+  INITIALIZED = 1 << 0
+} MT19937Flags;
+
+static unsigned int MT19937_initialized ()
+{
+  return MT19937_flags_ & INITIALIZED;
+}
+
+/* Period parameters */
+#define N 624
+#define M 397
+#define MATRIX_A 0x9908b0df   /* constant vector a */
+#define UPPER_MASK 0x80000000 /* most significant w-r bits */
+#define LOWER_MASK 0x7fffffff /* least significant r bits */
+
+/* Tempering parameters */
+#define TEMPERING_MASK_B 0x9d2c5680
+#define TEMPERING_MASK_C 0xefc60000
+#define TEMPERING_SHIFT_U(y)  (y >> 11)
+#define TEMPERING_SHIFT_S(y)  (y << 7)
+#define TEMPERING_SHIFT_T(y)  (y << 15)
+#define TEMPERING_SHIFT_L(y)  (y >> 18)
+
+static unsigned int mt[N]; /* the array for the state vector  */
+static unsigned int mti=N+1; /* mti==N+1 means mt[N] is not initialized */
+
+/* initializing the array with a NONZERO seed */
+static void MT19937_sgenrand (unsigned int seed)
+{
+    /* setting initial seeds to mt[N] using         */
+    /* the generator Line 25 of Table 1 in          */
+    /* [KNUTH 1981, The Art of Computer Programming */
+    /*    Vol. 2 (2nd Ed.), pp102]                  */
+    mt[0]= seed & 0xffffffff;
+    for (mti=1; mti<N; mti++)
+        mt[mti] = (69069 * mt[mti-1]) & 0xffffffff;
+
+    MT19937_flags_ |= INITIALIZED;
+}
+
+static unsigned int MT19937_genrand ()
+{
+    unsigned int y;
+    static unsigned int mag01[2]={0x0, MATRIX_A};
+    /* mag01[x] = x * MATRIX_A  for x=0,1 */
+
+    if (mti >= N) { /* generate N words at one time */
+        int kk;
+
+        if (mti == N+1)   /* if sgenrand() has not been called, */
+          MT19937_sgenrand(4357); /* a default initial seed is used   */
+
+        for (kk=0;kk<N-M;kk++) {
+            y = (mt[kk]&UPPER_MASK)|(mt[kk+1]&LOWER_MASK);
+            mt[kk] = mt[kk+M] ^ (y >> 1) ^ mag01[y & 0x1];
+        }
+        for (;kk<N-1;kk++) {
+            y = (mt[kk]&UPPER_MASK)|(mt[kk+1]&LOWER_MASK);
+            mt[kk] = mt[kk+(M-N)] ^ (y >> 1) ^ mag01[y & 0x1];
+        }
+        y = (mt[N-1]&UPPER_MASK)|(mt[0]&LOWER_MASK);
+        mt[N-1] = mt[M-1] ^ (y >> 1) ^ mag01[y & 0x1];
+
+        mti = 0;
+    }
+
+    y = mt[mti++];
+    y ^= TEMPERING_SHIFT_U(y);
+    y ^= TEMPERING_SHIFT_S(y) & TEMPERING_MASK_B;
+    y ^= TEMPERING_SHIFT_T(y) & TEMPERING_MASK_C;
+    y ^= TEMPERING_SHIFT_L(y);
+
+    return y;
+}
+
 #define DATA16_TO_FLOAT32(d)  ((0x30000000 | (((unsigned int)(0xFFFF & (d))) << 12)))
 #define DATA8_TO_FLOAT32(d)   ((0x38000000 | (((unsigned int)(0x00FF & (d))) << 19)))
 
@@ -858,6 +966,103 @@ typedef union
   unsigned int    u32;
   float           f32;
 } Data32;
+
+void sbs_spike_master (unsigned int * spike_matrix_mem,
+                       unsigned int * state_matrix_mem,
+                       unsigned int rows,
+                       unsigned int columns,
+                       unsigned int vector_size,
+                       unsigned int seed,
+                       unsigned int * debug_mem)
+{
+#pragma HLS INTERFACE m_axi port=spike_matrix_mem offset=slave bundle=gmem0
+#pragma HLS INTERFACE m_axi port=state_matrix_mem offset=slave bundle=gmem0
+#pragma HLS INTERFACE m_axi port=debug_mem        offset=slave bundle=gmem_debug
+
+#pragma HLS INTERFACE s_axilite port=spike_matrix_mem bundle=control
+#pragma HLS INTERFACE s_axilite port=state_matrix_mem bundle=control
+#pragma HLS INTERFACE s_axilite port=debug_mem        bundle=control
+#pragma HLS INTERFACE s_axilite port=rows             bundle=control
+#pragma HLS INTERFACE s_axilite port=columns          bundle=control
+#pragma HLS INTERFACE s_axilite port=vector_size      bundle=control
+#pragma HLS INTERFACE s_axilite port=seed             bundle=control
+#pragma HLS INTERFACE s_axilite port=return           bundle=control
+
+  unsigned int   row;
+  unsigned int   column;
+  unsigned int   spike_matrix_offset;
+
+  unsigned int   ip_index;
+  Data32         h;
+  unsigned short i;
+
+  unsigned int  ip_vector[50] = { 0 };
+#pragma HLS ARRAY_PARTITION variable=ip_vector complete dim=1
+  float state_vector[50] = { 0 };
+#pragma HLS ARRAY_PARTITION variable=state_vector complete dim=1
+  unsigned int  spike_vector[32 * 32] = { 0 };
+
+  if (!MT19937_initialized ())
+  {
+    MT19937_sgenrand (666);
+  }
+
+  for (row = 0; row < rows; row++)
+  {
+    for (column = 0; column < columns; column++)
+    {
+      spike_matrix_offset = row * columns + column;
+      ip_index  = spike_matrix_offset * vector_size;
+
+      memcpy (ip_vector, &state_matrix_mem[ip_index >> 1], sizeof(unsigned short) * vector_size);
+
+      for (i = 0; i < vector_size; i++)
+      {
+#pragma HLS PIPELINE
+          h.u32 = DATA16_TO_FLOAT32(ip_vector[i >> 1] >> ((i & 1) * 16));
+          state_vector[i] = h.f32;
+      }
+
+      spike_vector[spike_matrix_offset >> 1] |= SbsBaseLayer_generateSpikeIP (state_vector, vector_size, (MT19937) seed) << ((spike_matrix_offset & 1) * 16);
+    }
+  }
+
+  memcpy (spike_matrix_mem, spike_vector, rows * columns * sizeof(unsigned short));
+}
+
+static void SbsBaseLayer_generateSpikes_sw (SbsBaseLayer * layer)
+{
+  ASSERT(layer != NULL);
+  ASSERT(layer->partition_array != NULL);
+  ASSERT(1 == layer->num_partitions);
+  ASSERT(layer->layer_type == HX_INPUT_LAYER);
+
+  if ((layer != NULL)
+      && (layer->partition_array != NULL)
+      && (1 == layer->num_partitions))
+  {
+    SbsLayerPartition * partition     = layer->partition_array[0];
+    Multivector *       state_matrix  = partition->state_matrix;
+    Multivector *       spike_matrix  = partition->spike_matrix;
+    uint16_t            columns       = layer->columns;
+    uint16_t            rows          = layer->rows;
+    uint16_t            vector_size   = layer->vector_size;
+
+    ASSERT (layer->partition_array[0] != NULL);
+    ASSERT (layer->partition_array[0]->state_matrix != NULL);
+    ASSERT (layer->partition_array[0]->spike_matrix != NULL);
+    ASSERT (rows == state_matrix->dimension_size[0]);
+    ASSERT (columns == state_matrix->dimension_size[1]);
+
+    sbs_spike_master ((unsigned int *) spike_matrix->data,
+                      (unsigned int *) state_matrix->data,
+                      rows,
+                      columns,
+                      vector_size,
+                      (unsigned int) layer->mt19937,
+                      NULL);
+  }
+}
 
 static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
 {
@@ -996,6 +1201,9 @@ typedef struct
   unsigned int flags;
 } SbsLayerDescriptor;
 
+#define MASTER_UPDATE 1
+
+#if MASTER_UPDATE
 #include "xsbs_update_master.h"
 #include "gic.h"
 
@@ -1099,7 +1307,7 @@ void sbs_update_master_hw (unsigned int * state_matrix_data,
   //u32 XSbs_update_master_InterruptGetEnabled(&instance);
   //u32 XSbs_update_master_InterruptGetStatus(&instance);
 }
-
+#endif
 
 void sbs_update_master (unsigned int * state_matrix_data,
                         unsigned int * weight_matrix_data,
@@ -1796,7 +2004,9 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
     /************************ Begins Update cycle ****************************/
     while (cycles--)
     {
-      SbsBaseLayer_generateSpikes (input_layer);
+      //SbsBaseLayer_generateSpikes (input_layer);
+      SbsBaseLayer_generateSpikes_sw (input_layer);
+      //SbsBaseLayer_generateSpikes_hw (input_layer);
 
       i = 1;
       for (; i <= network->size - 1; i++)
@@ -1806,23 +2016,29 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
         intput_spike_matrix = network->layer_array[i - 1]->spike_matrix;
 
 
-        sbs_update_master (partition->state_matrix->data,
-                           partition->weight_matrix->data,
-                           intput_spike_matrix->data,
-                           partition->spike_matrix->data,
-                           partition->weight_matrix->dimension_size[2],
-                           partition->state_matrix->dimension_size[0],
-                           intput_spike_matrix->dimension_size[1],
-                           intput_spike_matrix->dimension_size[0],
-                           0,
-                           layer->columns,
-                           layer->vector_size,
-                           layer->kernel_stride,
-                           layer->kernel_size,
-                           layer->weight_shift,
-                           layer->mt19937,
-                           layer->epsilon);
+        sbs_update_master_hw (partition->state_matrix->data,
+                              partition->weight_matrix->data,
+                              intput_spike_matrix->data,
+                              partition->spike_matrix->data,
+                              partition->weight_matrix->dimension_size[2],
+                              partition->state_matrix->dimension_size[0],
+                              intput_spike_matrix->dimension_size[1],
+                              intput_spike_matrix->dimension_size[0],
+                              0,
+                              layer->columns,
+                              layer->vector_size,
+                              layer->kernel_stride,
+                              layer->kernel_size,
+                              layer->weight_shift,
+                              layer->mt19937,
+                              layer->epsilon);
       }
+    }
+
+    for (i = 0; i < network->size; i++)
+    {
+      ASSERT(network->layer_array[i] != NULL);
+      SbsBaseLayer_cacheInvalidate(network->layer_array[i]);
     }
     /************************ Ends Update cycle ******************************/
 
