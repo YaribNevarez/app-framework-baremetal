@@ -1201,7 +1201,7 @@ typedef struct
   unsigned int flags;
 } SbsLayerDescriptor;
 
-#define MASTER_UPDATE 1
+#define MASTER_UPDATE 0
 
 #if MASTER_UPDATE
 #include "xsbs_update_master.h"
@@ -1309,22 +1309,22 @@ void sbs_update_master_hw (unsigned int * state_matrix_data,
 }
 #endif
 
-void sbs_update_master (unsigned int * state_matrix_data,
-                        unsigned int * weight_matrix_data,
-                        unsigned int * input_spike_matrix_data,
-                        unsigned int * output_spike_matrix_data,
-                        unsigned int weight_spikes,
-                        unsigned int rows,
-                        unsigned int input_spike_matrix_columns,
-                        unsigned int input_spike_matrix_rows,
-                        unsigned int kernel_row_pos,
-                        unsigned int columns,
-                        unsigned int vector_size,
-                        unsigned int kernel_stride,
-                        unsigned int kernel_size,
-                        unsigned int layer_weight_shift,
-                        unsigned int mt19937,
-                        float epsilon)
+void sbs_update_master_sw (unsigned int * state_matrix_data,
+                           unsigned int * weight_matrix_data,
+                           unsigned int * input_spike_matrix_data,
+                           unsigned int * output_spike_matrix_data,
+                           unsigned int weight_spikes,
+                           unsigned int rows,
+                           unsigned int input_spike_matrix_columns,
+                           unsigned int input_spike_matrix_rows,
+                           unsigned int kernel_row_pos,
+                           unsigned int columns,
+                           unsigned int vector_size,
+                           unsigned int kernel_stride,
+                           unsigned int kernel_size,
+                           unsigned int layer_weight_shift,
+                           unsigned int mt19937,
+                           float epsilon)
 {
 #pragma HLS INTERFACE m_axi port=state_matrix_data        offset=slave bundle=gmem
 #pragma HLS INTERFACE m_axi port=weight_matrix_data       offset=slave bundle=gmem
@@ -1902,6 +1902,9 @@ static void SbsBaseNetwork_updateInferredOutput(SbsBaseNetwork * network)
   }
 }
 
+#define MASTER_SPIKE 0
+
+#if MASTER_SPIKE
 #include "xsbs_spike_master.h"
 
 XSbs_spike_master InstancePtr;
@@ -1970,6 +1973,249 @@ static void SbsBaseLayer_generateSpikes_hw (SbsBaseLayer * layer)
     Multivector_cacheInvalidate (layer->spike_matrix);
   }
 }
+#endif
+
+
+#define MASTER_DMA 1
+
+#if MASTER_DMA
+
+#include "xsbs_dma.h"
+
+XSbs_dma SbsDMA_instance = { 0 };
+
+unsigned int SbsDMA_initialized = 0;
+
+void SbsDMA_InterruptHandler (void *data)
+{
+  uint32_t status;
+  XSbs_dma * update_master = (XSbs_dma *) data;
+  status = XSbs_dma_InterruptGetStatus (update_master);
+  XSbs_dma_InterruptClear (update_master, status);
+}
+
+void Accelerator_DMA_setup (unsigned int * state_matrix_data,
+                            unsigned int * weight_matrix_data,
+                            unsigned int * input_spike_matrix_data,
+                            unsigned int * output_spike_matrix_data,
+                            unsigned int weight_spikes,
+                            unsigned int rows,
+                            unsigned int input_spike_matrix_columns,
+                            unsigned int input_spike_matrix_rows,
+                            unsigned int kernel_row_pos,
+                            unsigned int columns,
+                            unsigned int vector_size,
+                            unsigned int kernel_stride,
+                            unsigned int kernel_size,
+                            unsigned int layer_weight_shift,
+                            unsigned int mt19937,
+                            float epsilon)
+{
+
+  if (!SbsDMA_initialized)
+  {
+    int status = XSbs_dma_Initialize (&SbsDMA_instance,
+                                      XPAR_SBS_DMA_0_DEVICE_ID);
+
+    ASSERT(status == OK);
+
+    ARM_GIC_initialize ();
+
+    XSbs_dma_InterruptGlobalEnable (&SbsDMA_instance);
+    XSbs_dma_InterruptEnable (&SbsDMA_instance, 1);
+    ARM_GIC_connect (XPAR_FABRIC_SBS_DMA_0_INTERRUPT_INTR,
+                     SbsDMA_InterruptHandler, &SbsDMA_instance);
+  }
+
+  XSbs_dma_Set_state_matrix_data (&SbsDMA_instance, (unsigned int) state_matrix_data);
+
+  XSbs_dma_Set_weight_matrix_data (&SbsDMA_instance, (unsigned int) weight_matrix_data);
+
+  XSbs_dma_Set_input_spike_matrix_data (&SbsDMA_instance,
+                                        (unsigned int) input_spike_matrix_data);
+
+  XSbs_dma_Set_output_spike_matrix_data (&SbsDMA_instance,
+                                         (unsigned int) output_spike_matrix_data);
+
+  XSbs_dma_Set_weight_spikes (&SbsDMA_instance, weight_spikes);
+
+  XSbs_dma_Set_rows (&SbsDMA_instance, rows);
+
+  XSbs_dma_Set_input_spike_matrix_columns (&SbsDMA_instance, input_spike_matrix_columns);
+
+  XSbs_dma_Set_input_spike_matrix_rows (&SbsDMA_instance,
+                                                  input_spike_matrix_rows);
+
+  XSbs_dma_Set_kernel_row_pos (&SbsDMA_instance, kernel_row_pos);
+
+  XSbs_dma_Set_columns (&SbsDMA_instance, columns);
+
+  XSbs_dma_Set_vector_size (&SbsDMA_instance, vector_size);
+
+  XSbs_dma_Set_kernel_stride (&SbsDMA_instance, kernel_stride);
+
+  XSbs_dma_Set_kernel_size (&SbsDMA_instance, kernel_size);
+
+  XSbs_dma_Set_layer_weight_shift (&SbsDMA_instance, layer_weight_shift);
+
+  XSbs_dma_Set_mt19937 (&SbsDMA_instance, mt19937);
+
+  XSbs_dma_Set_epsilon (&SbsDMA_instance, epsilon);
+}
+
+void Accelerator_DMA_start ()
+{
+  XSbs_dma_Start (&SbsDMA_instance);
+}
+
+unsigned int Accelerator_DMA_isDone ()
+{
+  return XSbs_dma_IsDone (&SbsDMA_instance);
+}
+
+#include "xaxidma.h"
+#define ACCELERATOR_DMA_RESET_TIMEOUT 1000
+
+XAxiDma DMAHardware_instance = { 0 };
+
+static unsigned int DMAHardware_rxBbuffer[57600 / sizeof(unsigned int)] = { 0 };
+
+static void DMAHardware_rxInterruptHandler (void * data)
+{
+  XAxiDma * instance = (XAxiDma *) data;
+  int irq_status = XAxiDma_IntrGetIrq(instance, XAXIDMA_DEVICE_TO_DMA);
+
+  XAxiDma_IntrAckIrq (instance, irq_status, XAXIDMA_DEVICE_TO_DMA);
+
+  if (!(irq_status & XAXIDMA_IRQ_ALL_MASK)) return;
+
+  if (irq_status & XAXIDMA_IRQ_DELAY_MASK) return;
+
+  if (irq_status & XAXIDMA_IRQ_ERROR_MASK)
+  {
+    int TimeOut;
+
+    XAxiDma_Reset (instance);
+
+    for (TimeOut = ACCELERATOR_DMA_RESET_TIMEOUT; 0 < TimeOut; TimeOut--)
+      if (XAxiDma_ResetIsDone (instance)) break;
+
+    ASSERT(0);
+    return;
+  }
+
+  if (irq_status & XAXIDMA_IRQ_IOC_MASK)
+  {
+    Xil_DCacheInvalidateRange ((INTPTR) DMAHardware_rxBbuffer,
+                               sizeof(DMAHardware_rxBbuffer));
+  }
+}
+
+static void DMAHardware_txInterruptHandler (void * data)
+{
+  XAxiDma * instance = (XAxiDma *) data;
+  int irq_status = XAxiDma_IntrGetIrq(instance, XAXIDMA_DMA_TO_DEVICE);
+
+  XAxiDma_IntrAckIrq (instance, irq_status, XAXIDMA_DMA_TO_DEVICE);
+
+  if (!(irq_status & XAXIDMA_IRQ_ALL_MASK)) return;
+
+  if (irq_status & XAXIDMA_IRQ_DELAY_MASK) return;
+
+  if (irq_status & XAXIDMA_IRQ_ERROR_MASK)
+  {
+    int TimeOut;
+
+    XAxiDma_Reset (instance);
+
+    for (TimeOut = ACCELERATOR_DMA_RESET_TIMEOUT; 0 < TimeOut; TimeOut--)
+      if (XAxiDma_ResetIsDone (instance)) break;
+
+    ASSERT(0);
+    return;
+  }
+
+  if (irq_status & XAXIDMA_IRQ_IOC_MASK)
+  {
+
+  }
+}
+
+static int DMAHardware_initialized = 0;
+static int DMAHardware_Initialize (XAxiDma * instance, uint16_t deviceId)
+{
+  int status;
+  XAxiDma_Config * dmaConfig = XAxiDma_LookupConfig (deviceId);
+
+  ASSERT(dmaConfig != NULL)
+
+  if (dmaConfig == NULL)
+    return XST_FAILURE;
+
+  status = XAxiDma_CfgInitialize (instance, dmaConfig);
+
+  ASSERT(status == XST_SUCCESS)
+
+  if (status != XST_SUCCESS)
+    return status;
+
+  if (XAxiDma_HasSg((XAxiDma* )instance))
+    return XST_FAILURE;
+
+  ARM_GIC_initialize ();
+
+
+  XAxiDma_IntrEnable (instance,
+                      XAXIDMA_IRQ_ALL_MASK,
+                      XAXIDMA_DEVICE_TO_DMA);
+
+  ARM_GIC_connect (XPAR_FABRIC_AXI_DMA_0_S2MM_INTROUT_INTR,
+                   DMAHardware_rxInterruptHandler,
+                   instance);
+
+  XAxiDma_IntrEnable (instance,
+                      XAXIDMA_IRQ_ALL_MASK,
+                      XAXIDMA_DMA_TO_DEVICE);
+
+  ARM_GIC_connect (XPAR_FABRIC_AXI_DMA_0_MM2S_INTROUT_INTR,
+                   DMAHardware_txInterruptHandler,
+                   instance);
+
+  return XST_SUCCESS;
+}
+
+static void DMAHardware_move (unsigned int ros,
+                              unsigned int columns,
+                              unsigned int vector_size,
+                              unsigned int kernel_size)
+{
+  size_t buffer_size = 0;
+  int status = 0;
+
+  if (!DMAHardware_initialized)
+  {
+    DMAHardware_Initialize (&DMAHardware_instance, XPAR_SBS_DMA_0_DEVICE_ID);
+    DMAHardware_initialized = 1;
+  }
+
+  buffer_size = ros * columns
+      * (sizeof(unsigned int) + vector_size * sizeof(Neuron)
+          + kernel_size * kernel_size * vector_size * sizeof(Weight));
+
+  status = XAxiDma_SimpleTransfer (&DMAHardware_instance,
+                                   (UINTPTR) &status,
+                                   sizeof(status),
+                                   XAXIDMA_DMA_TO_DEVICE);
+
+  status = XAxiDma_SimpleTransfer (&DMAHardware_instance,
+                                   (UINTPTR) DMAHardware_rxBbuffer,
+                                   buffer_size,
+                                   XAXIDMA_DEVICE_TO_DMA);
+
+  ASSERT (status == OK);
+}
+
+#endif
 
 
 static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles)
@@ -2004,19 +2250,16 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
     /************************ Begins Update cycle ****************************/
     while (cycles--)
     {
-      //SbsBaseLayer_generateSpikes (input_layer);
       SbsBaseLayer_generateSpikes_sw (input_layer);
-      //SbsBaseLayer_generateSpikes_hw (input_layer);
 
-      i = 1;
-      for (; i <= network->size - 1; i++)
+      for (i = 1; i <= network->size - 1; i++)
       {
         layer = network->layer_array[i];
         partition = layer->partition_array[0];
         intput_spike_matrix = network->layer_array[i - 1]->spike_matrix;
 
-
-        sbs_update_master_hw (partition->state_matrix->data,
+        DMAHardware_move (layer->rows, layer->columns, layer->vector_size, layer->kernel_size);
+        Accelerator_DMA_setup (partition->state_matrix->data,
                               partition->weight_matrix->data,
                               intput_spike_matrix->data,
                               partition->spike_matrix->data,
@@ -2032,6 +2275,30 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
                               layer->weight_shift,
                               layer->mt19937,
                               layer->epsilon);
+
+        Accelerator_DMA_start ();
+
+        while (!Accelerator_DMA_isDone ())
+          ;
+
+/*
+        sbs_update_master_sw (partition->state_matrix->data,
+                              partition->weight_matrix->data,
+                              intput_spike_matrix->data,
+                              partition->spike_matrix->data,
+                              partition->weight_matrix->dimension_size[2],
+                              partition->state_matrix->dimension_size[0],
+                              intput_spike_matrix->dimension_size[1],
+                              intput_spike_matrix->dimension_size[0],
+                              0,
+                              layer->columns,
+                              layer->vector_size,
+                              layer->kernel_stride,
+                              layer->kernel_size,
+                              layer->weight_shift,
+                              layer->mt19937,
+                              layer->epsilon);
+*/
       }
     }
 
