@@ -154,10 +154,12 @@ enum
 
 typedef ap_axis<32, 2, 5, 6> StreamChannel;
 
-void sbs_dma (unsigned int * state_matrix_data,
+unsigned int sbs_dma (unsigned int * state_matrix_data,
               unsigned int * weight_matrix_data,
               unsigned int * input_spike_matrix_data,
               unsigned int * output_spike_matrix_data,
+              unsigned int * debug,
+              unsigned int * buffer,
               hls::stream<StreamChannel> &stream_in,
               hls::stream<StreamChannel> &stream_out,
               unsigned int weight_spikes,
@@ -177,6 +179,8 @@ void sbs_dma (unsigned int * state_matrix_data,
 #pragma HLS INTERFACE m_axi port=weight_matrix_data       offset=slave bundle=gmem
 #pragma HLS INTERFACE m_axi port=input_spike_matrix_data  offset=slave bundle=gmem
 #pragma HLS INTERFACE m_axi port=output_spike_matrix_data offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=debug                    offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=buffer                   offset=slave bundle=gmem
 
 #pragma HLS INTERFACE axis  port=stream_out
 #pragma HLS INTERFACE axis  port=stream_in
@@ -186,6 +190,8 @@ void sbs_dma (unsigned int * state_matrix_data,
 #pragma HLS INTERFACE s_axilite port=weight_matrix_data       bundle=control
 #pragma HLS INTERFACE s_axilite port=input_spike_matrix_data  bundle=control
 #pragma HLS INTERFACE s_axilite port=output_spike_matrix_data bundle=control
+#pragma HLS INTERFACE s_axilite port=debug                    bundle=control
+#pragma HLS INTERFACE s_axilite port=buffer                   bundle=control
 
 #pragma HLS INTERFACE s_axilite port=weight_spikes              bundle=control
 #pragma HLS INTERFACE s_axilite port=rows                       bundle=control
@@ -223,6 +229,8 @@ void sbs_dma (unsigned int * state_matrix_data,
   unsigned int k;
   unsigned int last;
   Data32 data32;
+  unsigned int debug_index = 0;
+  unsigned int buffer_index = 0;
 
   memcpy(input_spike_matrix_buffer, input_spike_matrix_data, sizeof(SpikeID) * input_spike_matrix_rows * input_spike_matrix_columns);
 
@@ -233,6 +241,14 @@ void sbs_dma (unsigned int * state_matrix_data,
 
   channel = stream_in.read ();
   channel.last = 0;
+
+  debug[debug_index++] = channel.data;//0
+  debug[debug_index++] = channel.dest;//0
+  debug[debug_index++] = channel.id;//0
+  debug[debug_index++] = channel.keep;//F
+  debug[debug_index++] = channel.last;//0
+  debug[debug_index++] = channel.strb;//F
+  debug[debug_index++] = channel.user;//0
 
   /* Update begins */
   for (row = 0;
@@ -249,24 +265,19 @@ void sbs_dma (unsigned int * state_matrix_data,
       data32.f32 = ((float) MT19937_rand (mt19937)) / ((float) 0xFFFFFFFF);
 
       channel.data = data32.u32;
+      //channel.data = (0xFFFF & row) << 16 | (0xFFFF & column);
+      //
 
+      buffer[buffer_index++] = channel.data;
       stream_out.write (channel);
 
       memcpy (state_vector_buffer, &state_matrix_data[(vector_size * row_column_index) >> 1], sizeof(unsigned short) * vector_size);
 
-      for (neuron = 0; neuron < vector_size; neuron ++)
+      for (neuron = 0; neuron < vector_size; neuron += 2)
       {
-        if (!(neuron & 1))
-        {
-          channel.data = 0;
-        }
-
-        channel.data |= (0xFFFF & state_vector_buffer[neuron >> 1]) >> (16 * (neuron & 1));
-
-        if (neuron & 1)
-        {
-          stream_out.write (channel);
-        }
+        channel.data = state_vector_buffer[neuron];
+        buffer[buffer_index++] = channel.data;
+        stream_out.write (channel);
       }
 
       for (kernel_row = 0; kernel_row < kernel_size; kernel_row++)
@@ -275,6 +286,7 @@ void sbs_dma (unsigned int * state_matrix_data,
         {
           i = (kernel_row_pos + kernel_row) * input_spike_matrix_columns + (kernel_column_pos + kernel_column);
           spikeID = input_spike_matrix_buffer[i >> 1] >> ((i & 1) * 16);
+          debug[debug_index++] = spikeID;
 
           if (layer_weight_shift == COLUMN_SHIFT)
           {
@@ -298,13 +310,16 @@ void sbs_dma (unsigned int * state_matrix_data,
 
             channel.data |= (0xFF & (weight_matrix_buffer[k >> 2] >> ((k & 3) * 8))) << ((neuron & 3) * 8);
 
-            last = (row == rows - 1) && (column == columns - 1)
+            last = (row == rows - 1)
+                && (column == columns - 1)
                 && (kernel_row == kernel_size - 1)
                 && (kernel_column == kernel_size - 1)
                 && (neuron == vector_size - 1);
+
             if ((neuron & 3) == 3 || last)
             {
               channel.last = last;
+              buffer[buffer_index++] = channel.data;
               stream_out.write (channel);
             }
           }
@@ -313,4 +328,5 @@ void sbs_dma (unsigned int * state_matrix_data,
     }
   }
   /* Update ends */
+  return debug_index;
 }
