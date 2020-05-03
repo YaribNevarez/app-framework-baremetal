@@ -273,7 +273,7 @@ unsigned int sbs_dma (unsigned int * state_matrix_data,
 
       memcpy (state_vector_buffer, &state_matrix_data[(vector_size * row_column_index) >> 1], sizeof(unsigned short) * vector_size);
 
-      for (neuron = 0; neuron < vector_size; neuron += 2)
+      for (neuron = 0; neuron < vector_size >> 1; neuron ++)
       {
         channel.data = state_vector_buffer[neuron];
         buffer[buffer_index++] = channel.data;
