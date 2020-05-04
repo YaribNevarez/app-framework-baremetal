@@ -33,6 +33,8 @@
 /* Vol. 8, No. 1, January 1998, pp 3--30.                          */
 
 #include "stdio.h"
+#include "stdlib.h"
+#include "string.h"
 #include "mt19937int.h"
 
 /* Period parameters */  
@@ -50,32 +52,76 @@
 #define TEMPERING_SHIFT_T(y)  (y << 15)
 #define TEMPERING_SHIFT_L(y)  (y >> 18)
 
-static unsigned int mt[N]; /* the array for the state vector  */
-static unsigned int mti=N+1; /* mti==N+1 means mt[N] is not initialized */
+typedef struct
+{
+  unsigned int mt[N]; /* the array for the state vector  */
+  unsigned int mti; /* mti==N+1 means mt[N] is not initialized */
+  unsigned int mag01[2];
+  unsigned int seed;
+} MT19937Base;
+
+
+MT19937 MT19937_new ()
+{
+  MT19937Base * instance = malloc (sizeof(MT19937Base));
+
+  if (instance)
+  {
+    memset (instance, 0, sizeof(MT19937Base));
+    instance->mti = N + 1; /* mti==N+1 means mt[N] is not initialized */
+  }
+
+  return instance;
+}
+
+void MT19937_delete (MT19937 * instance_ref)
+{
+  if (instance_ref && *instance_ref)
+  {
+    free (*instance_ref);
+    *instance_ref = NULL;
+  }
+}
 
 /* initializing the array with a NONZERO seed */
-void MT19937_sgenrand(unsigned int seed)
+void MT19937_initialize (MT19937 instance_ptr, unsigned int seed)
 {
+  if (instance_ptr)
+  {
+    MT19937Base * instance = instance_ptr;
     /* setting initial seeds to mt[N] using         */
     /* the generator Line 25 of Table 1 in          */
     /* [KNUTH 1981, The Art of Computer Programming */
     /*    Vol. 2 (2nd Ed.), pp102]                  */
-    mt[0]= seed & 0xffffffff;
-    for (mti=1; mti<N; mti++)
-        mt[mti] = (69069 * mt[mti-1]) & 0xffffffff;
+    instance->mt[0]= seed & 0xffffffff;
+    for (instance->mti=1; instance->mti<N; instance->mti++)
+    {
+      instance->mt[instance->mti] = (69069 * instance->mt[instance->mti-1]) & 0xffffffff;
+    }
+
+    instance->mag01[0] = 0x0;
+    instance->mag01[1] = MATRIX_A;
+  }
 }
 
-unsigned int MT19937_genrand()
+unsigned int MT19937_rand (MT19937 instance_ptr)
 {
-    unsigned int y;
-    static unsigned int mag01[2]={0x0, MATRIX_A};
+  unsigned int y = 0;
+
+  if (instance_ptr)
+  {
+    MT19937Base * instance = instance_ptr;
+    unsigned int * mt = instance->mt; /* the array for the state vector  */
+    unsigned int mti = instance->mti; /* mti==N+1 means mt[N] is not initialized */
+    unsigned int *mag01 = instance->mag01;
+
     /* mag01[x] = x * MATRIX_A  for x=0,1 */
 
     if (mti >= N) { /* generate N words at one time */
         int kk;
 
         if (mti == N+1)   /* if sgenrand() has not been called, */
-          MT19937_sgenrand(4357); /* a default initial seed is used   */
+          MT19937_initialize (instance_ptr, 4357); /* a default initial seed is used   */
 
         for (kk=0;kk<N-M;kk++) {
             y = (mt[kk]&UPPER_MASK)|(mt[kk+1]&LOWER_MASK);
@@ -97,20 +143,7 @@ unsigned int MT19937_genrand()
     y ^= TEMPERING_SHIFT_T(y) & TEMPERING_MASK_C;
     y ^= TEMPERING_SHIFT_L(y);
 
-    return y; 
+    instance->mti = mti;
+  }
+  return y;
 }
-
-/* this main() outputs first 1000 generated numbers  */
-/*
-main()
-{ 
-    int j;
-
-    sgenrand(4357);
-    for (j=0; j<1000; j++) {
-        printf("%10lu ", genrand());
-        if (j%8==7) printf("\n");
-    }
-    printf("\n");
-}
-*/

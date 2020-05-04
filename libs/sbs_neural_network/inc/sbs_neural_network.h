@@ -34,7 +34,7 @@ typedef enum
 } WeightShift;
 
 typedef float     	NeuronState;
-typedef uint32_t    Epsilon;
+typedef float       Epsilon;
 typedef void * 		  SbsWeightMatrix;
 
 typedef struct SbsLayer_VTable SbsLayer;

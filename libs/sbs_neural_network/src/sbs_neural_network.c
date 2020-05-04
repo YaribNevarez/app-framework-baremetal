@@ -229,7 +229,7 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
     profile->vectorSize = state_matrix->dimension_size[2];
 
     profile->kernelSize = kernel_size * kernel_size;
-    profile->epsilon = epsilon;
+    profile->epsilon = *(uint32_t *) &epsilon;
 
     profile->stateBufferSize = profile->vectorSize * state_matrix->format.size;
 
@@ -656,7 +656,7 @@ static void SbsBaseLayer_setEpsilon(SbsLayer * layer, float epsilon)
   if (layer != NULL)
   {
     SbsBaseLayer * base_layer = ((SbsBaseLayer *)layer);
-    base_layer->epsilon = *(uint32_t*) (&epsilon);
+    base_layer->epsilon = epsilon;
   }
 }
 
@@ -1092,79 +1092,93 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
       Accelerator_setup (update_partition_accelerator,
                          &update_partition->profile,
                          UPDATE_MODE);
-
-      /* Update begins */
-      for (update_partition_row = 0;
-           update_partition_row < update_partition_rows;
-           update_partition_row ++,
-           kernel_row_pos += kernel_stride, layer_row ++)
+      /////////////////////////////////////////////////////////////////////////
+      if (update_partition_accelerator->dataMoverHardware)
       {
-        for (kernel_column_pos = 0, layer_column = 0;
-            layer_column < layer_columns;
-             kernel_column_pos += kernel_stride, layer_column ++)
-        {
-#ifndef DEBUG
-/*-------------------------- NOT debugging (FAST MODE) ----------------------*/
-          Accelerator_giveStateVector (update_partition_accelerator,
-                                       Multivector_2DAccess(update_partition_state_matrix,
-                                                            update_partition_row,
-                                                            layer_column));
-
-          for (kernel_row = 0; kernel_row < kernel_size; kernel_row++)
-          {
-            for (kernel_column = 0; kernel_column < kernel_size; kernel_column++)
-            {
-              if (layer_weight_shift == COLUMN_SHIFT)
-              {
-                Accelerator_giveWeightVector (update_partition_accelerator,
-                                              Multivector_3DAccess (update_partition_weight_matrix,
-                                                                    kernel_row,
-                                                                    kernel_column,
-                                                                    *(SpikeID *) Multivector_2DAccess(spike_layer_spike_matrix,
-                                                                                                      kernel_row_pos + kernel_row,
-                                                                                                      kernel_column_pos + kernel_column)));
-              }
-              else
-              {
-                Accelerator_giveWeightVector (update_partition_accelerator,
-                                              Multivector_3DAccess (update_partition_weight_matrix,
-                                                                    kernel_column,
-                                                                    kernel_row,
-                                                                    *(SpikeID *) Multivector_2DAccess(spike_layer_spike_matrix,
-                                                                                                      kernel_row_pos + kernel_row,
-                                                                                                      kernel_column_pos + kernel_column)));
-              }
-            }
-          }
-#else
-          state_vector = Multivector_2DAccess(update_partition_state_matrix, update_partition_row, layer_column);
-
-          Accelerator_giveStateVector (update_partition_accelerator, state_vector);
-
-          for (kernel_row = 0; kernel_row < kernel_size; kernel_row++)
-          {
-            for (kernel_column = 0; kernel_column < kernel_size; kernel_column++)
-            {
-              spikeID = *(SpikeID *) Multivector_2DAccess(spike_layer_spike_matrix, kernel_row_pos + kernel_row, kernel_column_pos + kernel_column);
-
-              ASSERT(layer->vector_size == update_partition->weight_matrix->dimension_size[3]);
-
-              if (layer_weight_shift == COLUMN_SHIFT)
-              {
-                weight_vector = Multivector_3DAccess (update_partition_weight_matrix, kernel_row, kernel_column, spikeID);
-              }
-              else
-              {
-                weight_vector = Multivector_3DAccess (update_partition_weight_matrix, kernel_column, kernel_row, spikeID);
-              }
-
-              Accelerator_giveWeightVector (update_partition_accelerator, weight_vector);
-            }
-          }
-#endif
-        }
+        Accelerator_DMA_setup (update_partition_accelerator,
+                               update_partition->state_matrix->data,
+                               update_partition->weight_matrix->data,
+                               spike_layer_spike_matrix->data,
+                              update_partition->spike_matrix->data,
+                              update_partition->weight_matrix->dimension_size[2],
+                              update_partition->state_matrix->dimension_size[0],
+                              spike_layer_spike_matrix->dimension_size[1],
+                              spike_layer_spike_matrix->dimension_size[0],
+                              0,
+                              layer->columns,
+                              layer->vector_size,
+                              layer->kernel_stride,
+                              layer->kernel_size,
+                              layer->weight_shift,
+                              NULL,
+                              layer->epsilon);
       }
-      /* Update ends */
+      else
+      {
+///////////////////////////////////////////////////////////////////////////////
+        /* Update begins */
+        for (update_partition_row = 0;
+             update_partition_row < update_partition_rows;
+             update_partition_row ++,
+             kernel_row_pos += kernel_stride, layer_row ++)
+        {
+          for (kernel_column_pos = 0, layer_column = 0;
+              layer_column < layer_columns;
+               kernel_column_pos += kernel_stride, layer_column ++)
+          {
+            state_vector = Multivector_2DAccess(update_partition_state_matrix, update_partition_row, layer_column);
+
+            Accelerator_giveStateVector (update_partition_accelerator, state_vector);
+
+            for (kernel_row = 0; kernel_row < kernel_size; kernel_row++)
+            {
+              for (kernel_column = 0; kernel_column < kernel_size; kernel_column++)
+              {
+                spikeID = *(SpikeID *) Multivector_2DAccess(spike_layer_spike_matrix, kernel_row_pos + kernel_row, kernel_column_pos + kernel_column);
+
+                ASSERT(layer->vector_size == update_partition->weight_matrix->dimension_size[3]);
+
+                if (layer_weight_shift == COLUMN_SHIFT)
+                {
+                  weight_vector = Multivector_3DAccess (update_partition_weight_matrix, kernel_row, kernel_column, spikeID);
+                }
+                else
+                {
+                  weight_vector = Multivector_3DAccess (update_partition_weight_matrix, kernel_column, kernel_row, spikeID);
+                }
+
+                Accelerator_giveWeightVector (update_partition_accelerator, weight_vector);
+              }
+            }
+          }
+        }
+        /* Update ends */
+///////////////////////////////////////////////////////////////////////////////
+      }
+
+      /////////////////////////////////////////////////////////////////////////
+      /*
+      sbs_dma_emulator (update_partition->state_matrix->data,
+                         update_partition->weight_matrix->data,
+                         spike_layer_spike_matrix->data,
+                         update_partition->spike_matrix->data,
+                         update_partition->weight_matrix->dimension_size[2],
+                         update_partition->state_matrix->dimension_size[0],
+                         spike_layer_spike_matrix->dimension_size[1],
+                         spike_layer_spike_matrix->dimension_size[0],
+                         0,
+                         layer->columns,
+                         layer->vector_size,
+                         layer->kernel_stride,
+                         layer->kernel_size,
+                         layer->weight_shift,
+                         NULL,
+                         layer->epsilon);
+      //
+      compare_buffer (update_partition_accelerator);
+      */
+      /////////////////////////////////////////////////////////////////////////
+
       Accelerator_start (update_partition_accelerator);
     }
   }

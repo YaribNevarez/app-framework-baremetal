@@ -16,8 +16,10 @@ extern "C" {
 #include <stddef.h>
 
 #include <result.h>
+#include "mt19937int.h"
 #include "sbs_hardware.h"
 #include "dma_hardware.h"
+#include "sbs_dma.h"
 
 #include "memory_manager.h"
 
@@ -41,11 +43,14 @@ typedef enum
 typedef struct
 {
   SbsHardware *       hwDriver;
+  SbsDMA *            hwDataMoverDriver;
   DMAHardware *       dmaDriver;
   uint32_t            layerAssign;
   uint32_t            hwDeviceID;
+  uint32_t            hwDataMoverID;
   uint32_t            dmaDeviceID;
   uint32_t            hwIntVecID;
+  uint32_t            hwDataMoverIntVecID;
   uint32_t            dmaTxIntVecID;
   uint32_t            dmaRxIntVecID;
   MemoryBlock         ddrMem;
@@ -97,8 +102,11 @@ typedef struct
 {
   SbSHardwareConfig *     hardwareConfig;
   void *                  updateHardware;
+  void *                  dataMoverHardware;
   void *                  dmaHardware;
   SbsAcceleratorProfie *  profile;
+
+  MT19937     mt19937;
 
 #ifdef DEBUG
   uint16_t    txStateCounter;
@@ -118,6 +126,7 @@ typedef struct
   uint8_t     errorFlags;
   uint8_t     txDone;
   uint8_t     rxDone;
+  uint8_t     dataMoverDone;
   uint8_t     acceleratorReady;
   MemoryCmd   memory_cmd;
 } SbSUpdateAccelerator;
@@ -152,8 +161,7 @@ void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
 int Accelerator_start (SbSUpdateAccelerator * accelerator);
 
 Result SbsPlatform_initialize (SbSHardwareConfig * hardware_config_list,
-                               uint32_t list_length,
-                               uint32_t MT19937_seed);
+                               uint32_t list_length);
 
 void SbsPlatform_shutdown (void);
 #ifdef __cplusplus
