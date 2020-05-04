@@ -440,6 +440,20 @@ static void SbsLayerPartition_cacheFlush (SbsLayerPartition * partition)
   }
 }
 
+static void SbsLayerPartition_cacheInvalidate (SbsLayerPartition * partition)
+{
+  ASSERT(partition != NULL);
+
+  if (partition != NULL)
+  {
+    Multivector_cacheInvalidate (partition->state_matrix);
+
+    if (partition->weight_matrix != NULL)
+      Multivector_cacheInvalidate (partition->weight_matrix);
+  }
+}
+
+
 static void SbsLayerPartition_setWeights (SbsLayerPartition * partition,
                                           SbsWeightMatrix weight_matrix)
 {
@@ -615,7 +629,7 @@ static void SbsBaseLayer_initialize(SbsBaseLayer * layer)
   }
 }
 
-static void SbsBaseLayer_cacheFlush(SbsBaseLayer * layer)
+static void SbsBaseLayer_cacheFlush (SbsBaseLayer * layer)
 {
   ASSERT(layer != NULL);
   ASSERT(layer->partition_array != NULL);
@@ -628,6 +642,26 @@ static void SbsBaseLayer_cacheFlush(SbsBaseLayer * layer)
     int i;
     for (i = 0; i < layer->num_partitions; i++)
       SbsLayerPartition_cacheFlush(layer->partition_array[i]);
+
+    Multivector_cacheFlush (layer->spike_matrix);
+  }
+}
+
+static void SbsBaseLayer_cacheInvalidate (SbsBaseLayer * layer)
+{
+  ASSERT(layer != NULL);
+  ASSERT(layer->partition_array != NULL);
+  ASSERT(0 < layer->num_partitions);
+
+  if ((layer != NULL)
+      && (layer->partition_array != NULL)
+      && (0 < layer->num_partitions))
+  {
+    int i;
+    for (i = 0; i < layer->num_partitions; i++)
+      SbsLayerPartition_cacheInvalidate (layer->partition_array[i]);
+
+    Multivector_cacheInvalidate (layer->spike_matrix);
   }
 }
 
@@ -1050,11 +1084,10 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
     uint16_t             update_partition_row;
     Multivector * spike_layer_spike_matrix = spike_layer->spike_matrix;
 
-#ifdef DEBUG
     SpikeID   spikeID       = 0;
     Weight * weight_vector  = NULL;
     NeuronState* state_vector;
-#endif
+
 
 
     uint16_t kernel_stride  = layer->kernel_stride;
@@ -1076,7 +1109,7 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
 
     WeightShift layer_weight_shift = layer->weight_shift;
 
-    while (!spike_layer->partition_array[0]->accelerator->rxDone);
+    //while (!spike_layer->partition_array[0]->accelerator->rxDone);
 
     kernel_row_pos = 0, layer_row = 0;
     for (i = 0; i < layer->num_partitions; i ++)
@@ -1499,6 +1532,11 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
       }
     }
     /************************ Ends Update cycle ******************************/
+
+    for (i = 1; i <= network->size - 1; i++)
+    {
+      SbsBaseLayer_cacheInvalidate (network->layer_array[i]);
+    }
 
     /************************ Begins Learning cycle **************************/
     for (i = 1; i <= network->size - 1; i++)

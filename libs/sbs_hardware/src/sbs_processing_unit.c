@@ -121,8 +121,8 @@ static void Accelerator_rxInterruptHandler (void * data)
 
   if (irq_status & DMA_IRQ_IOC)
   {
-    Xil_DCacheInvalidateRange ((INTPTR) accelerator->rxBuffer,
-                               accelerator->rxBufferSize);
+//    Xil_DCacheInvalidateRange ((INTPTR) accelerator->rxBuffer,
+//                               accelerator->rxBufferSize);
 
     accelerator->txDone = 1;
     accelerator->rxDone = 1;
@@ -164,7 +164,6 @@ static void Accelerator_hardwareDataMoverInterruptHandler (void * data)
 {
   SbSUpdateAccelerator * accelerator = (SbSUpdateAccelerator *) data;
   uint32_t status;
-  uint32_t hw_return;
 
   ASSERT (accelerator != NULL);
   ASSERT (accelerator->hardwareConfig != NULL);
@@ -175,15 +174,15 @@ static void Accelerator_hardwareDataMoverInterruptHandler (void * data)
 #ifdef DEBUG
   if (accelerator->hardwareConfig->hwDataMoverDriver->Get_debug)
   {
-    //int debug = accelerator->hardwareConfig->hwDriver->Get_debug(accelerator->updateHardware);
-    //printf ("\nHW interrupt = 0x%X\n", debug);
+    /*
+    uint32_t hw_return;
+    hw_return = accelerator->hardwareConfig->hwDataMoverDriver->Get_return (accelerator->dataMoverHardware);
+
+    Xil_DCacheInvalidateRange ((INTPTR) SbsDMA_debugBuffer, sizeof(int) * hw_return);
+    Xil_DCacheInvalidateRange ((INTPTR) SbsDMA_hw_buffer, sizeof(SbsDMA_hw_buffer));
+    */
   }
 #endif
-
-  hw_return = accelerator->hardwareConfig->hwDataMoverDriver->Get_return (accelerator->dataMoverHardware);
-
-  Xil_DCacheInvalidateRange ((INTPTR) SbsDMA_debugBuffer, sizeof(int) * hw_return);
-  Xil_DCacheInvalidateRange ((INTPTR) SbsDMA_hw_buffer, sizeof(SbsDMA_hw_buffer));
 
   status = accelerator->hardwareConfig->hwDataMoverDriver->InterruptGetStatus (accelerator->dataMoverHardware);
   accelerator->hardwareConfig->hwDataMoverDriver->InterruptClear (accelerator->dataMoverHardware, status);
@@ -375,7 +374,7 @@ void Accelerator_delete (SbSUpdateAccelerator ** accelerator)
   }
 }
 
-#define MASTER_DMA 1
+#define MASTER_DMA 0
 
 #if MASTER_DMA
 
@@ -723,6 +722,12 @@ void compare_buffer(SbSUpdateAccelerator * accelerator)
       printf ("x");
     }
 }
+#endif
+
+typedef uint8_t   Weight;
+typedef uint32_t  Random32;
+typedef uint16_t  Neuron;
+typedef uint16_t  SpikeID;
 
 void Accelerator_DMA_setup (SbSUpdateAccelerator * accelerator,
                             unsigned int * state_matrix_data,
@@ -745,21 +750,13 @@ void Accelerator_DMA_setup (SbSUpdateAccelerator * accelerator,
   if (!accelerator || !accelerator->dataMoverHardware)
     return;
 
-  Xil_DCacheFlushRange ((INTPTR) state_matrix_data,
-                        rows * columns * vector_size * sizeof(Neuron));
   XSbs_dma_Set_state_matrix_data (accelerator->dataMoverHardware, (unsigned int) state_matrix_data);
 
-  Xil_DCacheFlushRange ((INTPTR) weight_matrix_data,
-                        kernel_size * kernel_size * vector_size * weight_spikes * sizeof(Weight));
   XSbs_dma_Set_weight_matrix_data (accelerator->dataMoverHardware, (unsigned int) weight_matrix_data);
 
-  Xil_DCacheFlushRange ((INTPTR) input_spike_matrix_data,
-                        input_spike_matrix_rows * input_spike_matrix_columns * sizeof(SpikeID));
   XSbs_dma_Set_input_spike_matrix_data (accelerator->dataMoverHardware,
                                         (unsigned int) input_spike_matrix_data);
 
-  Xil_DCacheFlushRange ((INTPTR) output_spike_matrix_data,
-                        rows * columns * sizeof(SpikeID));
   XSbs_dma_Set_output_spike_matrix_data (accelerator->dataMoverHardware,
                                          (unsigned int) output_spike_matrix_data);
 
@@ -792,8 +789,6 @@ void Accelerator_DMA_setup (SbSUpdateAccelerator * accelerator,
 
   XSbs_dma_Set_epsilon (accelerator->dataMoverHardware, epsilon);
 }
-#endif
-
 
 void Accelerator_setup (SbSUpdateAccelerator * accelerator,
                         SbsAcceleratorProfie * profile,
@@ -938,7 +933,7 @@ int Accelerator_start(SbSUpdateAccelerator * accelerator)
     accelerator->dataMoverDone = 0;
     accelerator->hardwareConfig->hwDataMoverDriver->Start (accelerator->dataMoverHardware);
 
-    Xil_DCacheFlushRange ((INTPTR) &flags, sizeof(flags));
+    //Xil_DCacheFlushRange ((INTPTR) &flags, sizeof(flags));
     accelerator->txDone = 0;
     status = accelerator->hardwareConfig->dmaDriver->Move (accelerator->dmaHardware,
                                                            &flags,
