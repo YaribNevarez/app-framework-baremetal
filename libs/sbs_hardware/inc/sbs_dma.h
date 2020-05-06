@@ -41,10 +41,6 @@ typedef struct
   uint32_t  (*Get_state_matrix_data) (void *InstancePtr);
   void      (*Set_weight_matrix_data) (void *InstancePtr, uint32_t Data);
   uint32_t  (*Get_weight_matrix_data) (void *InstancePtr);
-  void      (*Set_input_spike_matrix_data) (void *InstancePtr, uint32_t Data);
-  uint32_t  (*Get_input_spike_matrix_data) (void *InstancePtr);
-  void      (*Set_output_spike_matrix_data) (void *InstancePtr, uint32_t Data);
-  uint32_t  (*Get_output_spike_matrix_data) (void *InstancePtr);
   void      (*Set_debug) (void *InstancePtr, uint32_t Data);
   uint32_t  (*Get_debug) (void *InstancePtr);
   void      (*Set_buffer_r) (void *InstancePtr, uint32_t Data);
@@ -69,10 +65,6 @@ typedef struct
   uint32_t  (*Get_kernel_size) (void *InstancePtr);
   void      (*Set_layer_weight_shift) (void *InstancePtr, uint32_t Data);
   uint32_t  (*Get_layer_weight_shift) (void *InstancePtr);
-  void      (*Set_mt19937) (void *InstancePtr, uint32_t Data);
-  uint32_t  (*Get_mt19937) (void *InstancePtr);
-  void      (*Set_epsilon) (void *InstancePtr, uint32_t Data);
-  uint32_t  (*Get_epsilon) (void *InstancePtr);
 
   void      (*InterruptGlobalEnable)  (void *InstancePtr);
   void      (*InterruptGlobalDisable) (void *InstancePtr);

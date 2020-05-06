@@ -156,8 +156,6 @@ typedef ap_axis<32, 2, 5, 6> StreamChannel;
 
 unsigned int sbs_dma (unsigned int * state_matrix_data,
               unsigned int * weight_matrix_data,
-              unsigned int * input_spike_matrix_data,
-              unsigned int * output_spike_matrix_data,
               unsigned int * debug,
               unsigned int * buffer,
               hls::stream<StreamChannel> &stream_in,
@@ -171,14 +169,10 @@ unsigned int sbs_dma (unsigned int * state_matrix_data,
               unsigned int vector_size,
               unsigned int kernel_stride,
               unsigned int kernel_size,
-              unsigned int layer_weight_shift,
-              unsigned int mt19937,
-              float epsilon)
+              unsigned int layer_weight_shift)
 {
 #pragma HLS INTERFACE m_axi port=state_matrix_data        offset=slave bundle=gmem
 #pragma HLS INTERFACE m_axi port=weight_matrix_data       offset=slave bundle=gmem
-#pragma HLS INTERFACE m_axi port=input_spike_matrix_data  offset=slave bundle=gmem
-#pragma HLS INTERFACE m_axi port=output_spike_matrix_data offset=slave bundle=gmem
 #pragma HLS INTERFACE m_axi port=debug                    offset=slave bundle=gmem
 #pragma HLS INTERFACE m_axi port=buffer                   offset=slave bundle=gmem
 
@@ -188,8 +182,6 @@ unsigned int sbs_dma (unsigned int * state_matrix_data,
 
 #pragma HLS INTERFACE s_axilite port=state_matrix_data        bundle=control
 #pragma HLS INTERFACE s_axilite port=weight_matrix_data       bundle=control
-#pragma HLS INTERFACE s_axilite port=input_spike_matrix_data  bundle=control
-#pragma HLS INTERFACE s_axilite port=output_spike_matrix_data bundle=control
 #pragma HLS INTERFACE s_axilite port=debug                    bundle=control
 #pragma HLS INTERFACE s_axilite port=buffer                   bundle=control
 
@@ -203,8 +195,6 @@ unsigned int sbs_dma (unsigned int * state_matrix_data,
 #pragma HLS INTERFACE s_axilite port=kernel_stride              bundle=control
 #pragma HLS INTERFACE s_axilite port=kernel_size                bundle=control
 #pragma HLS INTERFACE s_axilite port=layer_weight_shift         bundle=control
-#pragma HLS INTERFACE s_axilite port=mt19937                    bundle=control
-#pragma HLS INTERFACE s_axilite port=epsilon                    bundle=control
 #pragma HLS INTERFACE s_axilite port=return                     bundle=control
 
 
@@ -231,9 +221,9 @@ unsigned int sbs_dma (unsigned int * state_matrix_data,
   unsigned int debug_index = 0;
   unsigned int buffer_index = 0;
 
-  if (!MT19937_initialized (mt19937))
+  if (!MT19937_initialized (0))
   {
-    MT19937_sgenrand (mt19937, 666);
+    MT19937_sgenrand (0, 666);
   }
 
   j = input_spike_matrix_rows * input_spike_matrix_columns * sizeof(SpikeID)
@@ -261,7 +251,7 @@ unsigned int sbs_dma (unsigned int * state_matrix_data,
     {
       row_column_index = columns * row + column;
 
-      data32.f32 = ((float) MT19937_rand (mt19937)) / ((float) 0xFFFFFFFF);
+      data32.f32 = ((float) MT19937_rand (0)) / ((float) 0xFFFFFFFF);
 
       channel.data = data32.u32;
 

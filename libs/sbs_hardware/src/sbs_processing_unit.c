@@ -754,9 +754,6 @@ void Accelerator_DMA_setup (SbSUpdateAccelerator * accelerator,
 
   XSbs_dma_Set_weight_matrix_data (accelerator->dataMoverHardware, (unsigned int) weight_matrix_data);
 
-  XSbs_dma_Set_input_spike_matrix_data (accelerator->dataMoverHardware,
-                                        (unsigned int) input_spike_matrix_data);
-
   XSbs_dma_Set_output_spike_matrix_data (accelerator->dataMoverHardware,
                                          (unsigned int) output_spike_matrix_data);
 
@@ -784,10 +781,6 @@ void Accelerator_DMA_setup (SbSUpdateAccelerator * accelerator,
   XSbs_dma_Set_kernel_size (accelerator->dataMoverHardware, kernel_size);
 
   XSbs_dma_Set_layer_weight_shift (accelerator->dataMoverHardware, layer_weight_shift);
-
-  XSbs_dma_Set_mt19937 (accelerator->dataMoverHardware, mt19937);
-
-  XSbs_dma_Set_epsilon (accelerator->dataMoverHardware, epsilon);
 }
 
 void Accelerator_setup (SbSUpdateAccelerator * accelerator,
