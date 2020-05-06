@@ -754,9 +754,6 @@ void Accelerator_DMA_setup (SbSUpdateAccelerator * accelerator,
 
   XSbs_dma_Set_weight_matrix_data (accelerator->dataMoverHardware, (unsigned int) weight_matrix_data);
 
-  XSbs_dma_Set_output_spike_matrix_data (accelerator->dataMoverHardware,
-                                         (unsigned int) output_spike_matrix_data);
-
   XSbs_dma_Set_debug (accelerator->dataMoverHardware, (int) SbsDMA_debugBuffer);
 
   XSbs_dma_Set_buffer_r (accelerator->dataMoverHardware, (int) SbsDMA_hw_buffer);

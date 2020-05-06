@@ -154,22 +154,22 @@ enum
 
 typedef ap_axis<32, 2, 5, 6> StreamChannel;
 
-unsigned int sbs_dma (unsigned int * state_matrix_data,
-              unsigned int * weight_matrix_data,
-              unsigned int * debug,
-              unsigned int * buffer,
-              hls::stream<StreamChannel> &stream_in,
-              hls::stream<StreamChannel> &stream_out,
-              unsigned int weight_spikes,
-              unsigned int rows,
-              unsigned int input_spike_matrix_columns,
-              unsigned int input_spike_matrix_rows,
-              unsigned int kernel_row_pos,
-              unsigned int columns,
-              unsigned int vector_size,
-              unsigned int kernel_stride,
-              unsigned int kernel_size,
-              unsigned int layer_weight_shift)
+unsigned int sbs_dma (ap_uint<32> * state_matrix_data,
+                      ap_uint<32> * weight_matrix_data,
+                      ap_uint<32> * debug,
+                      ap_uint<32> * buffer,
+                      hls::stream<StreamChannel> &stream_in,
+                      hls::stream<StreamChannel> &stream_out,
+                      ap_uint<32> weight_spikes,
+                      ap_uint<32> rows,
+                      ap_uint<32> input_spike_matrix_columns,
+                      ap_uint<32> input_spike_matrix_rows,
+                      ap_uint<32> kernel_row_pos,
+                      ap_uint<32> columns,
+                      ap_uint<32> vector_size,
+                      ap_uint<32> kernel_stride,
+                      ap_uint<32> kernel_size,
+                      ap_uint<32> layer_weight_shift)
 {
 #pragma HLS INTERFACE m_axi port=state_matrix_data        offset=slave bundle=gmem
 #pragma HLS INTERFACE m_axi port=weight_matrix_data       offset=slave bundle=gmem
@@ -198,28 +198,27 @@ unsigned int sbs_dma (unsigned int * state_matrix_data,
 #pragma HLS INTERFACE s_axilite port=return                     bundle=control
 
 
-  static unsigned int input_spike_matrix_buffer[(24 * 24 * sizeof(SpikeID)) / sizeof(unsigned int)] = { 0 };
-  static unsigned int weight_matrix_buffer[(1024 * sizeof(Weight)) / sizeof(unsigned int)] = { 0 };
-  static unsigned int state_vector_buffer[(1024 * sizeof(Neuron)) / sizeof(unsigned int)] = { 0 };
+  static ap_uint<32> input_spike_matrix_buffer[(24 * 24 * sizeof(SpikeID)) / sizeof(ap_uint<32>)] = { 0 };
+  static ap_uint<32> weight_matrix_buffer[(1024 * sizeof(Weight)) / sizeof(ap_uint<32>)] = { 0 };
+  static ap_uint<32> state_vector_buffer[(1024 * sizeof(Neuron)) / sizeof(ap_uint<32>)] = { 0 };
 
   static StreamChannel channel;
 
-  unsigned int row;
+  ap_uint<32> row;
   SpikeID   spikeID;
-  unsigned int column;      /* Column index for navigation on the layer */
-  unsigned int kernel_column_pos; /* Kernel column position for navigation on the spike matrix */
-  unsigned int kernel_row;        /* Row index for navigation inside kernel */
-  unsigned int kernel_column;     /* Column index for navigation inside kernel */
-  unsigned int row_column_index;
-  unsigned int neuron;
-  unsigned char update;
-  unsigned int i;
-  unsigned int j;
-  unsigned int k;
-  unsigned int last;
+  ap_uint<32> column;      /* Column index for navigation on the layer */
+  ap_uint<32> kernel_column_pos; /* Kernel column position for navigation on the spike matrix */
+  ap_uint<32> kernel_row;        /* Row index for navigation inside kernel */
+  ap_uint<32> kernel_column;     /* Column index for navigation inside kernel */
+  ap_uint<32> row_column_index;
+  ap_uint<32> neuron;
+  ap_uint<32> i;
+  ap_uint<32> j;
+  ap_uint<32> k;
+  ap_uint<32> last;
   Data32 data32;
-  unsigned int debug_index = 0;
-  unsigned int buffer_index = 0;
+  ap_uint<32> debug_index = 0;
+  ap_uint<32> buffer_index = 0;
 
   if (!MT19937_initialized (0))
   {
@@ -227,7 +226,7 @@ unsigned int sbs_dma (unsigned int * state_matrix_data,
   }
 
   j = input_spike_matrix_rows * input_spike_matrix_columns * sizeof(SpikeID)
-      / sizeof(unsigned int);
+      / sizeof(ap_uint<32>);
 
   i = 0;
   do
@@ -284,7 +283,7 @@ unsigned int sbs_dma (unsigned int * state_matrix_data,
             j = (weight_spikes * kernel_size * kernel_column + weight_spikes * kernel_row + spikeID) * vector_size;
           }
 
-          memcpy(weight_matrix_buffer, &weight_matrix_data[j >> 2], (vector_size + (j & 3)) * sizeof(Weight));
+          memcpy (weight_matrix_buffer, &weight_matrix_data[j >> 2], (vector_size + (j & 3)) * sizeof(Weight));
 
           for (neuron = 0; neuron < vector_size; neuron ++)
           {
