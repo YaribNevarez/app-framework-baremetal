@@ -209,11 +209,10 @@ unsigned int sbs_dma (unsigned int * state_matrix_data,
 
 
   static unsigned int input_spike_matrix_buffer[(24 * 24 * sizeof(SpikeID)) / sizeof(unsigned int)] = { 0 };
-  static unsigned int output_spike_matrix_buffer[(24 * 24 * sizeof(SpikeID)) / sizeof(unsigned int)] = { 0 };
   static unsigned int weight_matrix_buffer[(1024 * sizeof(Weight)) / sizeof(unsigned int)] = { 0 };
   static unsigned int state_vector_buffer[(1024 * sizeof(Neuron)) / sizeof(unsigned int)] = { 0 };
 
-  static StreamChannel channel = { 0 };
+  static StreamChannel channel;
 
   unsigned int row;
   SpikeID   spikeID;
@@ -232,22 +231,22 @@ unsigned int sbs_dma (unsigned int * state_matrix_data,
   unsigned int debug_index = 0;
   unsigned int buffer_index = 0;
 
-  memcpy(input_spike_matrix_buffer, input_spike_matrix_data, sizeof(SpikeID) * input_spike_matrix_rows * input_spike_matrix_columns);
-
   if (!MT19937_initialized (mt19937))
   {
     MT19937_sgenrand (mt19937, 666);
   }
 
-  channel = stream_in.read ();
+  j = input_spike_matrix_rows * input_spike_matrix_columns * sizeof(SpikeID)
+      / sizeof(unsigned int);
 
-  debug[debug_index++] = channel.data;//0
-  debug[debug_index++] = channel.dest;//0
-  debug[debug_index++] = channel.id;//0
-  debug[debug_index++] = channel.keep;//F
-  debug[debug_index++] = channel.last;//0
-  debug[debug_index++] = channel.strb;//F
-  debug[debug_index++] = channel.user;//0
+  i = 0;
+  do
+  {
+    channel = stream_in.read ();
+    input_spike_matrix_buffer[i++] = channel.data;
+  }
+  while (i < j);
+
   channel.last = 0;
 
   /* Update begins */
@@ -265,8 +264,6 @@ unsigned int sbs_dma (unsigned int * state_matrix_data,
       data32.f32 = ((float) MT19937_rand (mt19937)) / ((float) 0xFFFFFFFF);
 
       channel.data = data32.u32;
-      //channel.data = (0xFFFF & row) << 16 | (0xFFFF & column);
-      //
 
       buffer[buffer_index++] = channel.data;
       stream_out.write (channel);

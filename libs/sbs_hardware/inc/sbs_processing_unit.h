@@ -89,6 +89,9 @@ typedef struct
   size_t    stateBufferSize;
   size_t    weightBufferSize;
 
+  void *    inputSpikeMatrixBuffer;
+  size_t    inputSpikeMatrixBufferSize;
+
   void *    txBuffer[ACCELERATOR_MODES];
   size_t    txBufferSize[ACCELERATOR_MODES];
 
@@ -112,6 +115,9 @@ typedef struct
   uint16_t    txStateCounter;
   uint16_t    txWeightCounter;
 #endif
+
+  void *      inputSpikeMatrixBuffer;
+  size_t      inputSpikeMatrixBufferSize;
 
   void *      txBufferCurrentPtr;
   void *      txBuffer;

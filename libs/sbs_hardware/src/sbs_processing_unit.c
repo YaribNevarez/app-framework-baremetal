@@ -834,12 +834,18 @@ void Accelerator_setup (SbSUpdateAccelerator * accelerator,
   accelerator->txBuffer = profile->txBuffer[mode];
   accelerator->txBufferSize = profile->txBufferSize[mode];
 
+  /****************** Input Spike Matrix Setup ******************/
+  accelerator->inputSpikeMatrixBuffer = profile->inputSpikeMatrixBuffer;
+  accelerator->inputSpikeMatrixBufferSize = profile->inputSpikeMatrixBufferSize;
+
+  /*********************** Sanity check *************************/
   ASSERT ((uint32_t)accelerator->hardwareConfig->ddrMem.baseAddress <= (uint32_t)accelerator->rxBuffer);
   ASSERT ((uint32_t)accelerator->rxBuffer + (uint32_t)accelerator->rxBufferSize <= (uint32_t)accelerator->hardwareConfig->ddrMem.highAddress);
 
   ASSERT ((uint32_t)accelerator->hardwareConfig->ddrMem.baseAddress <= (uint32_t)accelerator->txBuffer);
   ASSERT ((uint32_t)accelerator->txBuffer + (uint32_t)accelerator->txBufferSize <= (uint32_t)accelerator->hardwareConfig->ddrMem.highAddress);
 
+  /*********************** Initialize ***************************/
   accelerator->txBufferCurrentPtr = accelerator->txBuffer;
 
 #ifdef DEBUG
@@ -919,7 +925,6 @@ int Accelerator_start(SbSUpdateAccelerator * accelerator)
 
   if (accelerator->dataMoverHardware)
   {
-    int flags = 0xA513C85A;
     while (accelerator->dataMoverDone == 0);
     while (accelerator->acceleratorReady == 0);
     while (accelerator->txDone == 0);
@@ -933,11 +938,13 @@ int Accelerator_start(SbSUpdateAccelerator * accelerator)
     accelerator->dataMoverDone = 0;
     accelerator->hardwareConfig->hwDataMoverDriver->Start (accelerator->dataMoverHardware);
 
-    //Xil_DCacheFlushRange ((INTPTR) &flags, sizeof(flags));
+    ASSERT(accelerator->inputSpikeMatrixBuffer != NULL);
+    ASSERT(0 < accelerator->inputSpikeMatrixBufferSize);
+
     accelerator->txDone = 0;
     status = accelerator->hardwareConfig->dmaDriver->Move (accelerator->dmaHardware,
-                                                           &flags,
-                                                           sizeof(flags),
+                                                           accelerator->inputSpikeMatrixBuffer,
+                                                           accelerator->inputSpikeMatrixBufferSize,
                                                            MEMORY_TO_HARDWARE);
     ASSERT(status == XST_SUCCESS);
 

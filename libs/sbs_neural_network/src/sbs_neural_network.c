@@ -106,6 +106,7 @@ typedef struct
   WeightShift           weight_shift;
   Epsilon               epsilon;
   Multivector *         spike_matrix;
+  Multivector *         input_spike_matrix;
   SbsLearningData       learning_data;
 } SbsBaseLayer;
 
@@ -210,6 +211,7 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
                                      Multivector * state_matrix,
                                      Multivector * weight_matrix,
                                      Multivector * spike_matrix,
+                                     Multivector * input_spike_matrix,
                                      uint32_t kernel_size,
                                      Epsilon epsilon,
                                      MemoryCmd memory_cmd)
@@ -259,6 +261,9 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
       ASSERT (profile->txBuffer[UPDATE_MODE] == NULL);
       profile->txBuffer[UPDATE_MODE] = MemoryBlock_alloc(state_matrix->memory_def_parent, profile->txBufferSize[UPDATE_MODE]);
       ASSERT (profile->txBuffer[UPDATE_MODE] != NULL);
+
+      profile->inputSpikeMatrixBuffer = input_spike_matrix->data;
+      profile->inputSpikeMatrixBufferSize = Multivector_dataSize (input_spike_matrix);
     }
   }
 }
@@ -393,6 +398,7 @@ static void SbsLayerPartition_initialize (SbsLayerPartition * partition,
                                           SbsLayerType layerType,
                                           uint32_t kernel_size,
                                           Epsilon epsilon,
+                                          Multivector * input_spike_matrix,
                                           MemoryCmd accelerator_memory_cmd)
 {
   ASSERT(partition != NULL);
@@ -421,6 +427,7 @@ static void SbsLayerPartition_initialize (SbsLayerPartition * partition,
                                        state_matrix,
                                        partition->weight_matrix,
                                        partition->spike_matrix,
+                                       input_spike_matrix,
                                        kernel_size,
                                        epsilon,
                                        accelerator_memory_cmd);
@@ -622,6 +629,7 @@ static void SbsBaseLayer_initialize(SbsBaseLayer * layer)
                                     layer->layer_type,
                                     layer->kernel_size,
                                     layer->epsilon,
+                                    layer->input_spike_matrix,
                                     accelerator_memory_cmd);
 
       accelerator_memory_cmd.dest += accelerator_memory_cmd.size;
@@ -1277,6 +1285,9 @@ static void SbsBaseNetwork_giveLayer(SbsNetwork * network_ptr, SbsLayer * layer)
     if (layer_array != NULL)
     {
       layer_array[size] = (SbsBaseLayer *) layer;
+
+      // Connect last layer
+      layer_array[size]->input_spike_matrix = layer_array[size - 1]->spike_matrix;
 
       network->layer_array = layer_array;
       network->size++;
