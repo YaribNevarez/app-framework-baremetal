@@ -171,10 +171,10 @@ unsigned int sbs_dma (ap_uint<32> * state_matrix_data,
                       ap_uint<32> kernel_size,
                       ap_uint<32> layer_weight_shift)
 {
-#pragma HLS INTERFACE m_axi port=state_matrix_data        offset=slave bundle=gmem
-#pragma HLS INTERFACE m_axi port=weight_matrix_data       offset=slave bundle=gmem
-#pragma HLS INTERFACE m_axi port=debug                    offset=slave bundle=gmem
-#pragma HLS INTERFACE m_axi port=buffer                   offset=slave bundle=gmem
+#pragma HLS INTERFACE m_axi port=state_matrix_data        offset=slave bundle=state
+#pragma HLS INTERFACE m_axi port=weight_matrix_data       offset=slave bundle=weight
+#pragma HLS INTERFACE m_axi port=debug                    offset=slave bundle=debug
+#pragma HLS INTERFACE m_axi port=buffer                   offset=slave bundle=debug
 
 #pragma HLS INTERFACE axis  port=stream_out
 #pragma HLS INTERFACE axis  port=stream_in

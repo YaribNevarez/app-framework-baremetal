@@ -160,6 +160,28 @@ static void Accelerator_hardwareInterruptHandler (void * data)
 
 static unsigned int SbsDMA_debugBuffer[120000 / sizeof(unsigned int)] = { 0 };
 static unsigned int SbsDMA_hw_buffer[120000 / sizeof(unsigned int)] = { 0 };
+
+void Accelerator_verify (SbSUpdateAccelerator * accelerator)
+{
+  ASSERT(accelerator != NULL);
+
+  for (int i = 0; i < accelerator->txBufferSize / sizeof(int); i++)
+    if (((unsigned int *) accelerator->txBuffer)[i] != SbsDMA_hw_buffer[i])
+    {
+      printf ("x");
+    }
+}
+
+static void Accelerator_refreshDebuggBuffer (SbSUpdateAccelerator * accelerator)
+{
+  uint32_t hw_return;
+  hw_return = accelerator->hardwareConfig->hwDataMoverDriver->Get_return (accelerator->dataMoverHardware);
+
+  Xil_DCacheInvalidateRange ((INTPTR) SbsDMA_debugBuffer, sizeof(int) * hw_return);
+  Xil_DCacheInvalidateRange ((INTPTR) SbsDMA_hw_buffer, sizeof(SbsDMA_hw_buffer));
+}
+
+
 static void Accelerator_hardwareDataMoverInterruptHandler (void * data)
 {
   SbSUpdateAccelerator * accelerator = (SbSUpdateAccelerator *) data;
@@ -174,13 +196,8 @@ static void Accelerator_hardwareDataMoverInterruptHandler (void * data)
 #ifdef DEBUG
   if (accelerator->hardwareConfig->hwDataMoverDriver->Get_debug)
   {
-    /*
-    uint32_t hw_return;
-    hw_return = accelerator->hardwareConfig->hwDataMoverDriver->Get_return (accelerator->dataMoverHardware);
-
-    Xil_DCacheInvalidateRange ((INTPTR) SbsDMA_debugBuffer, sizeof(int) * hw_return);
-    Xil_DCacheInvalidateRange ((INTPTR) SbsDMA_hw_buffer, sizeof(SbsDMA_hw_buffer));
-    */
+    //Accelerator_refreshDebuggBuffer (accelerator);
+    //Accelerator_verify (accelerator);
   }
 #endif
 
@@ -750,34 +767,34 @@ void Accelerator_DMA_setup (SbSUpdateAccelerator * accelerator,
   if (!accelerator || !accelerator->dataMoverHardware)
     return;
 
-  XSbs_dma_Set_state_matrix_data (accelerator->dataMoverHardware, (unsigned int) state_matrix_data);
+  XSbs_dma_Set_state_matrix_data_V (accelerator->dataMoverHardware, (unsigned int) state_matrix_data);
 
-  XSbs_dma_Set_weight_matrix_data (accelerator->dataMoverHardware, (unsigned int) weight_matrix_data);
+  XSbs_dma_Set_weight_matrix_data_V (accelerator->dataMoverHardware, (unsigned int) weight_matrix_data);
 
-  XSbs_dma_Set_debug (accelerator->dataMoverHardware, (int) SbsDMA_debugBuffer);
+  XSbs_dma_Set_debug_V (accelerator->dataMoverHardware, (int) SbsDMA_debugBuffer);
 
-  XSbs_dma_Set_buffer_r (accelerator->dataMoverHardware, (int) SbsDMA_hw_buffer);
+  XSbs_dma_Set_buffer_V (accelerator->dataMoverHardware, (int) SbsDMA_hw_buffer);
 
-  XSbs_dma_Set_weight_spikes (accelerator->dataMoverHardware, weight_spikes);
+  XSbs_dma_Set_weight_spikes_V (accelerator->dataMoverHardware, weight_spikes);
 
-  XSbs_dma_Set_rows (accelerator->dataMoverHardware, rows);
+  XSbs_dma_Set_rows_V (accelerator->dataMoverHardware, rows);
 
-  XSbs_dma_Set_input_spike_matrix_columns (accelerator->dataMoverHardware, input_spike_matrix_columns);
+  XSbs_dma_Set_input_spike_matrix_columns_V (accelerator->dataMoverHardware, input_spike_matrix_columns);
 
-  XSbs_dma_Set_input_spike_matrix_rows (accelerator->dataMoverHardware,
+  XSbs_dma_Set_input_spike_matrix_rows_V (accelerator->dataMoverHardware,
                                         input_spike_matrix_rows);
 
-  XSbs_dma_Set_kernel_row_pos (accelerator->dataMoverHardware, kernel_row_pos);
+  XSbs_dma_Set_kernel_row_pos_V (accelerator->dataMoverHardware, kernel_row_pos);
 
-  XSbs_dma_Set_columns (accelerator->dataMoverHardware, columns);
+  XSbs_dma_Set_columns_V (accelerator->dataMoverHardware, columns);
 
-  XSbs_dma_Set_vector_size (accelerator->dataMoverHardware, vector_size);
+  XSbs_dma_Set_vector_size_V (accelerator->dataMoverHardware, vector_size);
 
-  XSbs_dma_Set_kernel_stride (accelerator->dataMoverHardware, kernel_stride);
+  XSbs_dma_Set_kernel_stride_V (accelerator->dataMoverHardware, kernel_stride);
 
-  XSbs_dma_Set_kernel_size (accelerator->dataMoverHardware, kernel_size);
+  XSbs_dma_Set_kernel_size_V (accelerator->dataMoverHardware, kernel_size);
 
-  XSbs_dma_Set_layer_weight_shift (accelerator->dataMoverHardware, layer_weight_shift);
+  XSbs_dma_Set_layer_weight_shift_V (accelerator->dataMoverHardware, layer_weight_shift);
 }
 
 void Accelerator_setup (SbSUpdateAccelerator * accelerator,
