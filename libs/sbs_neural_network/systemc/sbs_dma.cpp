@@ -231,6 +231,7 @@ unsigned int sbs_dma (ap_uint<32> * state_matrix_data,
   i = 0;
   do
   {
+#pragma HLS pipeline
     channel = stream_in.read ();
     input_spike_matrix_buffer[i++] = channel.data;
   }
@@ -261,6 +262,7 @@ unsigned int sbs_dma (ap_uint<32> * state_matrix_data,
 
       for (neuron = 0; neuron < vector_size >> 1; neuron ++)
       {
+#pragma HLS pipeline
         channel.data = state_vector_buffer[neuron];
         //buffer[buffer_index++] = channel.data;
         stream_out.write (channel);
@@ -268,8 +270,10 @@ unsigned int sbs_dma (ap_uint<32> * state_matrix_data,
 
       for (kernel_row = 0; kernel_row < kernel_size; kernel_row++)
       {
+#pragma HLS pipeline
         for (kernel_column = 0; kernel_column < kernel_size; kernel_column++)
         {
+#pragma HLS pipeline
           i = (kernel_row_pos + kernel_row) * input_spike_matrix_columns + (kernel_column_pos + kernel_column);
           spikeID = input_spike_matrix_buffer[i >> 1] >> ((i & 1) * 16);
           //debug[debug_index++] = spikeID;
@@ -287,6 +291,7 @@ unsigned int sbs_dma (ap_uint<32> * state_matrix_data,
 
           for (neuron = 0; neuron < vector_size; neuron ++)
           {
+#pragma HLS pipeline
             k = neuron + (j & 3);
 
             if (!(neuron & 3))
