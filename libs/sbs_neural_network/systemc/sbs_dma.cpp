@@ -254,7 +254,7 @@ unsigned int sbs_dma (ap_uint<32> * state_matrix_data,
 
       channel.data = data32.u32;
 
-      buffer[buffer_index++] = channel.data;
+      //buffer[buffer_index++] = channel.data;
       stream_out.write (channel);
 
       memcpy (state_vector_buffer, &state_matrix_data[(vector_size * row_column_index) >> 1], sizeof(unsigned short) * vector_size);
@@ -262,7 +262,7 @@ unsigned int sbs_dma (ap_uint<32> * state_matrix_data,
       for (neuron = 0; neuron < vector_size >> 1; neuron ++)
       {
         channel.data = state_vector_buffer[neuron];
-        buffer[buffer_index++] = channel.data;
+        //buffer[buffer_index++] = channel.data;
         stream_out.write (channel);
       }
 
@@ -272,7 +272,7 @@ unsigned int sbs_dma (ap_uint<32> * state_matrix_data,
         {
           i = (kernel_row_pos + kernel_row) * input_spike_matrix_columns + (kernel_column_pos + kernel_column);
           spikeID = input_spike_matrix_buffer[i >> 1] >> ((i & 1) * 16);
-          debug[debug_index++] = spikeID;
+          //debug[debug_index++] = spikeID;
 
           if (layer_weight_shift == COLUMN_SHIFT)
           {
@@ -305,7 +305,7 @@ unsigned int sbs_dma (ap_uint<32> * state_matrix_data,
             if ((neuron & 3) == 3 || last)
             {
               channel.last = last;
-              buffer[buffer_index++] = channel.data;
+              //buffer[buffer_index++] = channel.data;
               stream_out.write (channel);
             }
           }
