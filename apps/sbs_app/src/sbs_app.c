@@ -60,6 +60,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .hwIntVecID    = XPAR_FABRIC_SBS_SPIKE_50_0_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_0_S2MM_INTROUT_INTR,
+    .channelSize   = 4,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x24000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x27FFFFFF,
@@ -74,8 +75,9 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .hwDeviceID    = XPAR_SBS_ACCELERATOR_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXI_DMA_1_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_0_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
+    .dmaTxIntVecID = XPAR_FABRIC_AXI_DMA_1_MM2S_INTROUT_INTR,
     .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_1_S2MM_INTROUT_INTR,
+    .channelSize   = 4,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x28000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2BFFFFFF,
@@ -87,11 +89,12 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardware_fixedpoint,
     .dmaDriver     = &DMAHardware_mover,
     .layerAssign   = ACCELERATOR_2,
-    .hwDeviceID    = XPAR_SBS_ACCELERATOR_1_DEVICE_ID,
+    .hwDeviceID    = XPAR_XSBS_ACCELERATOR_64_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXI_DMA_2_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_1_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
+    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_64_0_INTERRUPT_INTR,
+    .dmaTxIntVecID = XPAR_FABRIC_AXI_DMA_2_MM2S_INTROUT_INTR,
     .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_2_S2MM_INTROUT_INTR,
+    .channelSize   = 8,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2C000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2FFFFFFF,
@@ -108,6 +111,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_2_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_3_S2MM_INTROUT_INTR,
+    .channelSize   = 4,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x30000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x33FFFFFF,
@@ -124,6 +128,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_3_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_4_S2MM_INTROUT_INTR,
+    .channelSize   = 4,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x34000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x37FFFFFF,
@@ -140,6 +145,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_4_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_5_S2MM_INTROUT_INTR,
+    .channelSize   = 4,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x38000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3BFFFFFF,
@@ -236,6 +242,7 @@ Result SnnApp_run (void)
                                                   SBS_H1_CONVOLUTION_LAYER_KERNEL,
                                                   SBS_INPUT_LAYER_NEURONS,
                                                   SBS_H1_CONVOLUTION_LAYER_NEURONS,
+                                                  4,
                                                   SBS_P_IN_H1_WEIGHTS_FILE);
   H1->giveWeights (H1, P_IN_H1);
 
@@ -254,6 +261,7 @@ Result SnnApp_run (void)
                                                   SBS_H2_POOLING_LAYER_KERNEL,
                                                   SBS_H1_CONVOLUTION_LAYER_NEURONS,
                                                   SBS_H2_POOLING_LAYER_NEURONS,
+                                                  4,
                                                   SBS_P_H1_H2_WEIGHTS_FILE);
   H2->giveWeights (H2, P_H1_H2);
 
@@ -272,6 +280,7 @@ Result SnnApp_run (void)
                                                   SBS_H3_CONVOLUTION_LAYER_KERNEL,
                                                   SBS_H2_POOLING_LAYER_NEURONS,
                                                   SBS_H3_CONVOLUTION_LAYER_NEURONS,
+                                                  4,
                                                   SBS_P_H2_H3_WEIGHTS_FILE);
   H3->giveWeights (H3, P_H2_H3);
 
@@ -290,6 +299,7 @@ Result SnnApp_run (void)
                                                   SBS_H4_POOLING_LAYER_KERNEL,
                                                   SBS_H3_CONVOLUTION_LAYER_NEURONS,
                                                   SBS_H4_POOLING_LAYER_NEURONS,
+                                                  4,
                                                   SBS_P_H3_H4_WEIGHTS_FILE);
   H4->giveWeights (H4, P_H3_H4);
 
@@ -306,6 +316,7 @@ Result SnnApp_run (void)
                                                   SBS_H4_POOLING_LAYER_COLUMNS,
                                                   SBS_H4_POOLING_LAYER_NEURONS,
                                                   SBS_FULLY_CONNECTED_LAYER_NEURONS,
+                                                  4,
                                                   SBS_P_H4_H5_WEIGHTS_FILE);
   H5->giveWeights (H5, P_H4_H5);
 
@@ -322,6 +333,7 @@ Result SnnApp_run (void)
                                                   1,
                                                   SBS_FULLY_CONNECTED_LAYER_NEURONS,
                                                   SBS_OUTPUT_LAYER_NEURONS,
+                                                  4,
                                                   SBS_P_H5_HY_WEIGHTS_FILE);
   HY->giveWeights (HY, P_H5_HY);
 

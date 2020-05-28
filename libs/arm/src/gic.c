@@ -25,9 +25,9 @@
 static XScuGic          ARM_GIC_ScuGic      = {0};
 static XScuGic_Config * ARM_GIC_IntcConfig  = NULL;
 
-int ARM_GIC_initialize(void)
+uint32_t ARM_GIC_initialize(void)
 {
-  int status;
+  uint32_t status;
 
   if (ARM_GIC_IntcConfig)
     return XST_SUCCESS;
@@ -63,9 +63,9 @@ int ARM_GIC_initialize(void)
   return XST_SUCCESS;
 }
 
-int ARM_GIC_connect (uint32_t ID, ARM_GIC_InterruptHandler handler, void * data)
+uint32_t ARM_GIC_connect (uint32_t ID, ARM_GIC_InterruptHandler handler, void * data)
 {
-  int status = XST_FAILURE;
+  uint32_t status = XST_FAILURE;
 
   ASSERT (ARM_GIC_IntcConfig != NULL)
   ASSERT (handler != NULL)

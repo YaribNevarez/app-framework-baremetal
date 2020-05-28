@@ -23,37 +23,55 @@
 
 typedef double   MDouble_1024_10[1024][10];
 typedef uint32_t M32Bit_24_24[24][24];
+typedef uint16_t M16Bit_24_24[24][24];
 typedef uint32_t M32Bit_12_24[12][24];
 typedef uint32_t M32Bit_24_24_50[24][24][50];
+typedef uint16_t M16Bit_24_24_50[24][24][50];
 typedef uint32_t M32Bit_12_24_32[12][24][32];
 typedef uint32_t M32Bit_24_24_32[24][24][32];
+typedef uint16_t M16Bit_24_24_32[24][24][32];
 typedef uint32_t M32Bit_1_1_50_32[1][1][50][32];
 typedef uint16_t   M16Bit_1_1_50_32[1][1][50][32];
+typedef uint8_t   M8Bit_1_1_50_32[1][1][50][32];
 typedef uint32_t M32Bit_6_12_32[6][12][32];
-typedef uint32_t M32Bit_12_12_32[6][12][32];
+typedef uint32_t M32Bit_12_12_32[12][12][32];
+typedef uint16_t M16Bit_12_12_32[12][12][32];
 typedef uint32_t M32Bit_12_12[12][12];
+typedef uint16_t M16Bit_12_12[12][12];
 typedef uint32_t M32Bit_6_12[6][12];
 typedef uint32_t M32Bit_2_2_32_32[2][2][32][32];
 typedef uint16_t   M16Bit_2_2_32_32[2][2][32][32];
+typedef uint8_t   M8Bit_2_2_32_32[2][2][32][32];
 typedef uint32_t M32Bit_8_8_64[8][8][64];
+typedef uint16_t M16Bit_8_8_64[8][8][64];
 typedef uint32_t M32Bit_4_8_64[4][8][64];
 typedef uint32_t M32Bit_8_8[8][8];
+typedef uint16_t M16Bit_8_8[8][8];
 typedef uint32_t M32Bit_4_8[8][8];
 typedef uint32_t M32Bit_5_5_32_64[5][5][32][64];
 typedef uint16_t   M16Bit_5_5_32_64[5][5][32][64];
+typedef uint8_t   M8Bit_5_5_32_64[5][5][32][64];
 typedef uint32_t M32Bit_2_4_64[2][4][64];
 typedef uint32_t M32Bit_4_4_64[4][4][64];
+typedef uint16_t M16Bit_4_4_64[4][4][64];
 typedef uint32_t M32Bit_4_4[4][4];
+typedef uint16_t M16Bit_4_4[4][4];
 typedef uint32_t M32Bit_2_4[2][4];
 typedef uint32_t M32Bit_2_2_64_64[2][2][64][64];
 typedef uint16_t   M16Bit_2_2_64_64[2][2][64][64];
+typedef uint8_t   M8Bit_2_2_64_64[2][2][64][64];
 typedef uint32_t M32Bit_1_1_1024[1][1][1024];
+typedef uint16_t M16Bit_1_1_1024[1][1][1024];
 typedef uint32_t M32Bit_1_1[1][1];
+typedef uint16_t M16Bit_1_1[1][1];
 typedef uint32_t M32Bit_4_4_64_1024[4][4][64][1024];
 typedef uint16_t   M16Bit_4_4_64_1024[4][4][64][1024];
+typedef uint8_t   M8Bit_4_4_64_1024[4][4][64][1024];
 typedef uint32_t M32Bit_1_1_10[1][1][10];
+typedef uint16_t M16Bit_1_1_10[1][1][10];
 typedef uint32_t M32Bit_1_1_1024_10[1][1][1024][10];
 typedef uint16_t   M16Bit_1_1_1024_10[1][1][1024][10];
+typedef uint8_t   M8Bit_1_1_1024_10[1][1][1024][10];
 
 typedef struct
 {
@@ -114,6 +132,12 @@ M32BitFormat M32BitFormat_list[] =
         .dimension_size = {24, 24, 32, 0}
     },
     {
+        .type_id = M16BIT_24_24_32_ID,
+        .data_type_size = sizeof(uint16_t),
+        .dimensionality = 3,
+        .dimension_size = {24, 24, 32, 0}
+    },
+    {
         .type_id = M32BIT_12_24_32_ID,
         .data_type_size = sizeof(uint32_t),
         .dimensionality = 3,
@@ -150,8 +174,20 @@ M32BitFormat M32BitFormat_list[] =
         .dimension_size = {12, 12, 32, 0}
     },
     {
+        .type_id = M16BIT_12_12_32_ID,
+        .data_type_size = sizeof(uint16_t),
+        .dimensionality = 3,
+        .dimension_size = {12, 12, 32, 0}
+    },
+    {
         .type_id = M32BIT_12_12_ID,
         .data_type_size = sizeof(uint32_t),
+        .dimensionality = 2,
+        .dimension_size = {12, 12, 0, 0}
+    },
+    {
+        .type_id = M16BIT_12_12_ID,
+        .data_type_size = sizeof(uint16_t),
         .dimensionality = 2,
         .dimension_size = {12, 12, 0, 0}
     },
@@ -174,8 +210,20 @@ M32BitFormat M32BitFormat_list[] =
         .dimension_size = {2, 2, 32, 32}
     },
     {
+        .type_id = M8BIT_2_2_32_32_ID,
+        .data_type_size = sizeof(uint8_t),
+        .dimensionality = 4,
+        .dimension_size = {2, 2, 32, 32}
+    },
+    {
         .type_id = M32BIT_8_8_64_ID,
         .data_type_size = sizeof(uint32_t),
+        .dimensionality = 3,
+        .dimension_size = {8, 8, 64, 0}
+    },
+    {
+        .type_id = M16BIT_8_8_64_ID,
+        .data_type_size = sizeof(uint16_t),
         .dimensionality = 3,
         .dimension_size = {8, 8, 64, 0}
     },
@@ -188,6 +236,12 @@ M32BitFormat M32BitFormat_list[] =
     {
         .type_id = M32BIT_8_8_ID,
         .data_type_size = sizeof(uint32_t),
+        .dimensionality = 2,
+        .dimension_size = {8, 8, 0, 0}
+    },
+    {
+        .type_id = M16BIT_8_8_ID,
+        .data_type_size = sizeof(uint16_t),
         .dimensionality = 2,
         .dimension_size = {8, 8, 0, 0}
     },
@@ -210,6 +264,12 @@ M32BitFormat M32BitFormat_list[] =
         .dimension_size = {5, 5, 32, 64}
     },
     {
+        .type_id = M8BIT_5_5_32_64_ID,
+        .data_type_size = sizeof(uint8_t),
+        .dimensionality = 4,
+        .dimension_size = {5, 5, 32, 64}
+    },
+    {
         .type_id = M32BIT_2_4_64_ID,
         .data_type_size = sizeof(uint32_t),
         .dimensionality = 3,
@@ -222,8 +282,26 @@ M32BitFormat M32BitFormat_list[] =
         .dimension_size = {4, 4, 64, 0}
     },
     {
+        .type_id = M16BIT_4_4_64_ID,
+        .data_type_size = sizeof(uint16_t),
+        .dimensionality = 3,
+        .dimension_size = {4, 4, 64, 0}
+    },
+    {
         .type_id = M32BIT_4_4_ID,
         .data_type_size = sizeof(uint32_t),
+        .dimensionality = 2,
+        .dimension_size = {4, 4, 0, 0}
+    },
+    {
+        .type_id = M16BIT_4_4_ID,
+        .data_type_size = sizeof(uint16_t),
+        .dimensionality = 2,
+        .dimension_size = {4, 4, 0, 0}
+    },
+    {
+        .type_id = M16BIT_4_4_ID,
+        .data_type_size = sizeof(uint16_t),
         .dimensionality = 2,
         .dimension_size = {4, 4, 0, 0}
     },
@@ -246,14 +324,32 @@ M32BitFormat M32BitFormat_list[] =
         .dimension_size = {2, 2, 64, 64}
     },
     {
+        .type_id = M8BIT_2_2_64_64_ID,
+        .data_type_size = sizeof(uint8_t),
+        .dimensionality = 4,
+        .dimension_size = {2, 2, 64, 64}
+    },
+    {
         .type_id = M32BIT_1_1_1024_ID,
         .data_type_size = sizeof(uint32_t),
         .dimensionality = 3,
         .dimension_size = {1, 1, 1024, 0}
     },
     {
+        .type_id = M16BIT_1_1_1024_ID,
+        .data_type_size = sizeof(uint16_t),
+        .dimensionality = 3,
+        .dimension_size = {1, 1, 1024, 0}
+    },
+    {
         .type_id = M32BIT_1_1_ID,
         .data_type_size = sizeof(uint32_t),
+        .dimensionality = 2,
+        .dimension_size = {1, 1, 0, 0}
+    },
+    {
+        .type_id = M16BIT_1_1_ID,
+        .data_type_size = sizeof(uint16_t),
         .dimensionality = 2,
         .dimension_size = {1, 1, 0, 0}
     },
@@ -270,8 +366,20 @@ M32BitFormat M32BitFormat_list[] =
         .dimension_size = {4, 4, 64, 1024}
     },
     {
+        .type_id = M8BIT_4_4_64_1024_ID,
+        .data_type_size = sizeof(uint8_t),
+        .dimensionality = 4,
+        .dimension_size = {4, 4, 64, 1024}
+    },
+    {
         .type_id = M32BIT_1_1_10_ID,
         .data_type_size = sizeof(uint32_t),
+        .dimensionality = 3,
+        .dimension_size = {1, 1, 10, 0}
+    },
+    {
+        .type_id = M16BIT_1_1_10_ID,
+        .data_type_size = sizeof(uint16_t),
         .dimensionality = 3,
         .dimension_size = {1, 1, 10, 0}
     },
@@ -284,6 +392,12 @@ M32BitFormat M32BitFormat_list[] =
     {
         .type_id = M16BIT_1_1_1024_10_ID,
         .data_type_size = sizeof(uint16_t),
+        .dimensionality = 4,
+        .dimension_size = {1, 1, 1024, 10}
+    },
+    {
+        .type_id = M8BIT_1_1_1024_10_ID,
+        .data_type_size = sizeof(uint8_t),
         .dimensionality = 4,
         .dimension_size = {1, 1, 1024, 10}
     }
@@ -322,6 +436,7 @@ MatrixTypeID M32BitFormat_getTypeID (uint8_t data_type_size,
 
 Multivector * Multivector_new (MemoryBlock * memory_def,
                                Format * format,
+                               size_t memory_padding,
                                uint8_t dimensionality,
                                ...)
 {
@@ -356,11 +471,13 @@ Multivector * Multivector_new (MemoryBlock * memory_def,
 
       multivector->memory_def_parent = memory_def;
 
+      multivector->memory_padding = memory_padding;
+
       // Ensure word alignment
-      alignment_padding = data_size % sizeof(uint32_t);
+      alignment_padding = data_size % memory_padding;
       if (alignment_padding)
       {
-        data_size += sizeof(uint32_t) - alignment_padding;
+        data_size += memory_padding - alignment_padding;
       }
       multivector->data_size = data_size;
 
@@ -537,50 +654,74 @@ void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uin
       return &(*(MDouble_1024_10*) multivector->data)[row][column];
     case M32BIT_24_24_ID:
       return &(*(M32Bit_24_24*) multivector->data)[row][column];
+    case M16BIT_24_24_ID:
+      return &(*(M16Bit_24_24*) multivector->data)[row][column];
     case M32BIT_12_24_ID:
       return &(*(M32Bit_12_24*) multivector->data)[row][column];
     case M32BIT_24_24_50_ID:
       return &(*(M32Bit_24_24_50*) multivector->data)[row][column];
+    case M16BIT_24_24_50_ID:
+      return &(*(M16Bit_24_24_50*) multivector->data)[row][column];
     case M32BIT_12_24_32_ID:
       return &(*(M32Bit_12_24_32*) multivector->data)[row][column];
     case M32BIT_24_24_32_ID:
       return &(*(M32Bit_24_24_32*) multivector->data)[row][column];
+    case M16BIT_24_24_32_ID:
+      return &(*(M16Bit_24_24_32*) multivector->data)[row][column];
     case M32BIT_1_1_50_32_ID:
       return &(*(M32Bit_1_1_50_32*) multivector->data)[row][column];
     case M32BIT_6_12_32_ID:
       return &(*(M32Bit_6_12_32*) multivector->data)[row][column];
     case M32BIT_12_12_32_ID:
       return &(*(M32Bit_12_12_32*) multivector->data)[row][column];
+    case M16BIT_12_12_32_ID:
+      return &(*(M16Bit_12_12_32*) multivector->data)[row][column];
     case M32BIT_12_12_ID:
       return &(*(M32Bit_12_12*) multivector->data)[row][column];
+    case M16BIT_12_12_ID:
+      return &(*(M16Bit_12_12*) multivector->data)[row][column];
     case M32BIT_6_12_ID:
       return &(*(M32Bit_6_12*) multivector->data)[row][column];
     case M32BIT_2_2_32_32_ID:
       return &(*(M32Bit_2_2_32_32*) multivector->data)[row][column];
     case M32BIT_8_8_64_ID:
       return &(*(M32Bit_8_8_64*) multivector->data)[row][column];
+    case M16BIT_8_8_64_ID:
+      return &(*(M16Bit_8_8_64*) multivector->data)[row][column];
     case M32BIT_4_8_64_ID:
       return &(*(M32Bit_4_8_64*) multivector->data)[row][column];
     case M32BIT_8_8_ID:
       return &(*(M32Bit_8_8*) multivector->data)[row][column];
+    case M16BIT_8_8_ID:
+      return &(*(M16Bit_8_8*) multivector->data)[row][column];
     case M32BIT_5_5_32_64_ID:
       return &(*(M32Bit_5_5_32_64*) multivector->data)[row][column];
     case M32BIT_2_4_64_ID:
       return &(*(M32Bit_2_4_64*) multivector->data)[row][column];
     case M32BIT_4_4_64_ID:
       return &(*(M32Bit_4_4_64*) multivector->data)[row][column];
+    case M16BIT_4_4_64_ID:
+      return &(*(M16Bit_4_4_64*) multivector->data)[row][column];
     case M32BIT_4_4_ID:
       return &(*(M32Bit_4_4*) multivector->data)[row][column];
+    case M16BIT_4_4_ID:
+      return &(*(M16Bit_4_4*) multivector->data)[row][column];
     case M32BIT_2_2_64_64_ID:
       return &(*(M32Bit_2_2_64_64*) multivector->data)[row][column];
     case M32BIT_1_1_1024_ID:
       return &(*(M32Bit_1_1_1024*) multivector->data)[row][column];
+    case M16BIT_1_1_1024_ID:
+      return &(*(M16Bit_1_1_1024*) multivector->data)[row][column];
     case M32BIT_1_1_ID:
       return &(*(M32Bit_1_1*) multivector->data)[row][column];
+    case M16BIT_1_1_ID:
+      return &(*(M16Bit_1_1*) multivector->data)[row][column];
     case M32BIT_4_4_64_1024_ID:
       return &(*(M32Bit_4_4_64_1024*) multivector->data)[row][column];
     case M32BIT_1_1_10_ID:
       return &(*(M32Bit_1_1_10*) multivector->data)[row][column];
+    case M16BIT_1_1_10_ID:
+      return &(*(M16Bit_1_1_10*) multivector->data)[row][column];
     case M32BIT_1_1_1024_10_ID:
       return &(*(M32Bit_1_1_1024_10*) multivector->data)[row][column];
     default:
@@ -608,36 +749,52 @@ void inline * Multivector_3DAccess (Multivector * multivector, uint16_t row, uin
       return &(*(M32Bit_1_1_50_32*) multivector->data)[row][column][position];
     case M16BIT_1_1_50_32_ID:
         return &(*(M16Bit_1_1_50_32*) multivector->data)[row][column][position];
+    case M8BIT_1_1_50_32_ID:
+        return &(*(M8Bit_1_1_50_32*) multivector->data)[row][column][position];
     case M32BIT_6_12_32_ID:
       return &(*(M32Bit_6_12_32*) multivector->data)[row][column][position];
     case M32BIT_2_2_32_32_ID:
       return &(*(M32Bit_2_2_32_32*) multivector->data)[row][column][position];
     case M16BIT_2_2_32_32_ID:
         return &(*(M16Bit_2_2_32_32*) multivector->data)[row][column][position];
+    case M8BIT_2_2_32_32_ID:
+        return &(*(M8Bit_2_2_32_32*) multivector->data)[row][column][position];
     case M32BIT_8_8_64_ID:
       return &(*(M32Bit_8_8_64*) multivector->data)[row][column][position];
     case M32BIT_5_5_32_64_ID:
       return &(*(M32Bit_5_5_32_64*) multivector->data)[row][column][position];
     case M16BIT_5_5_32_64_ID:
       return &(*(M16Bit_5_5_32_64*) multivector->data)[row][column][position];
+    case M8BIT_5_5_32_64_ID:
+      return &(*(M8Bit_5_5_32_64*) multivector->data)[row][column][position];
     case M32BIT_2_4_64_ID:
       return &(*(M32Bit_2_4_64*) multivector->data)[row][column][position];
     case M32BIT_2_2_64_64_ID:
       return &(*(M32Bit_2_2_64_64*) multivector->data)[row][column][position];
     case M16BIT_2_2_64_64_ID:
       return &(*(M16Bit_2_2_64_64*) multivector->data)[row][column][position];
+    case M8BIT_2_2_64_64_ID:
+      return &(*(M8Bit_2_2_64_64*) multivector->data)[row][column][position];
     case M32BIT_1_1_1024_ID:
       return &(*(M32Bit_1_1_1024*) multivector->data)[row][column][position];
+    case M16BIT_1_1_1024_ID:
+      return &(*(M16Bit_1_1_1024*) multivector->data)[row][column][position];
     case M32BIT_4_4_64_1024_ID:
       return &(*(M32Bit_4_4_64_1024*) multivector->data)[row][column][position];
     case M16BIT_4_4_64_1024_ID:
       return &(*(M16Bit_4_4_64_1024*) multivector->data)[row][column][position];
+    case M8BIT_4_4_64_1024_ID:
+      return &(*(M8Bit_4_4_64_1024*) multivector->data)[row][column][position];
     case M32BIT_1_1_10_ID:
       return &(*(M32Bit_1_1_10*) multivector->data)[row][column][position];
+    case M16BIT_1_1_10_ID:
+      return &(*(M16Bit_1_1_10*) multivector->data)[row][column][position];
     case M32BIT_1_1_1024_10_ID:
       return &(*(M32Bit_1_1_1024_10*) multivector->data)[row][column][position];
     case M16BIT_1_1_1024_10_ID:
       return &(*(M16Bit_1_1_1024_10*) multivector->data)[row][column][position];
+    case M8BIT_1_1_1024_10_ID:
+      return &(*(M8Bit_1_1_1024_10*) multivector->data)[row][column][position];
     default:
       ASSERT(0)
       ;
@@ -763,7 +920,8 @@ void Multivector_delete (Multivector ** multivector)
 
 Multivector * Multivector_reformat (MemoryBlock * memory_def,
                                     Multivector * original,
-                                    Format * new_format)
+                                    Format * new_format,
+                                    size_t memory_padding)
 {
   Multivector * duplicate = NULL;
   ASSERT(original != NULL);
@@ -790,16 +948,18 @@ Multivector * Multivector_reformat (MemoryBlock * memory_def,
 
       duplicate->format = *new_format;
 
+      duplicate->memory_padding = memory_padding;
+
       for (i = 0; i < original->dimensionality; i++)
         matrix_size *= original->dimension_size[i];
 
       data_size = new_format->size * matrix_size;
 
       // Ensure word alignment
-      alignment_padding = data_size % sizeof(uint32_t);
+      alignment_padding = data_size % memory_padding;
       if (alignment_padding)
       {
-        data_size += sizeof(uint32_t) - alignment_padding;
+        data_size += memory_padding - alignment_padding;
       }
 
       duplicate->memory_def_parent = memory_def;

@@ -48,6 +48,7 @@ typedef struct
   uint32_t            hwIntVecID;
   uint32_t            dmaTxIntVecID;
   uint32_t            dmaRxIntVecID;
+  size_t              channelSize;
   MemoryBlock         ddrMem;
 } SbSHardwareConfig;
 
@@ -84,6 +85,9 @@ typedef struct
   size_t    stateBufferSize;
   size_t    weightBufferSize;
 
+  size_t    stateBufferPaddingSize;
+  size_t    weightBufferPaddingSize;
+
   void *    txBuffer[ACCELERATOR_MODES];
   size_t    txBufferSize[ACCELERATOR_MODES];
 
@@ -111,6 +115,9 @@ typedef struct
 
   void *      rxBuffer;
   size_t      rxBufferSize;
+
+  size_t    txBufferPaddingSize;
+  size_t    rxBufferPaddingSize;
 
   AcceleratorMode mode;
 

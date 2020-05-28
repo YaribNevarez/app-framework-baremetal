@@ -28,34 +28,49 @@ typedef enum
   M32BIT_24_24_32_ID,
   M16BIT_24_24_32_ID,
   M32BIT_12_24_32_ID,
+  M16BIT_12_24_32_ID,
   M32BIT_1_1_50_32_ID,
   M8BIT_1_1_50_32_ID,
   M16BIT_1_1_50_32_ID,
   M32BIT_6_12_32_ID,
   M32BIT_12_12_32_ID,
+  M16BIT_12_12_32_ID,
   M32BIT_12_12_ID,
+  M16BIT_12_12_ID,
   M32BIT_6_12_ID,
   M32BIT_2_2_32_32_ID,
   M16BIT_2_2_32_32_ID,
+  M8BIT_2_2_32_32_ID,
   M32BIT_8_8_64_ID,
+  M16BIT_8_8_64_ID,
   M32BIT_4_8_64_ID,
   M32BIT_8_8_ID,
+  M16BIT_8_8_ID,
   M32BIT_4_8_ID,
   M32BIT_5_5_32_64_ID,
   M16BIT_5_5_32_64_ID,
+  M8BIT_5_5_32_64_ID,
   M32BIT_2_4_64_ID,
   M32BIT_4_4_64_ID,
+  M16BIT_4_4_64_ID,
   M32BIT_4_4_ID,
+  M16BIT_4_4_ID,
   M32BIT_2_4_ID,
   M32BIT_2_2_64_64_ID,
   M16BIT_2_2_64_64_ID,
+  M8BIT_2_2_64_64_ID,
   M32BIT_1_1_1024_ID,
+  M16BIT_1_1_1024_ID,
   M32BIT_1_1_ID,
+  M16BIT_1_1_ID,
   M32BIT_4_4_64_1024_ID,
   M16BIT_4_4_64_1024_ID,
+  M8BIT_4_4_64_1024_ID,
   M32BIT_1_1_10_ID,
+  M16BIT_1_1_10_ID,
   M32BIT_1_1_1024_10_ID,
   M16BIT_1_1_1024_10_ID,
+  M8BIT_1_1_1024_10_ID,
   M32BIT_TYPE_END = (unsigned)-1
 } MatrixTypeID;
 /**************************** Type Definitions *******************************/
@@ -78,6 +93,7 @@ typedef struct
   size_t data_size;
   MatrixTypeID type_id;
   Format format;
+  size_t memory_padding;
   uint8_t dimensionality;
   uint16_t dimension_size[1]; /*[0] = rows, [1] = columns, [2] = neurons... [n] = N*/
 } Multivector;
@@ -89,6 +105,7 @@ typedef struct
 
 Multivector * Multivector_new (MemoryBlock * memory_def,
                                Format * format,
+                               size_t memory_padding,
                                uint8_t dimensionality,
                                ...);
 
@@ -116,7 +133,8 @@ void Multivector_float2Fixed (Multivector * multivector, Format * new_format);
 
 Multivector * Multivector_reformat (MemoryBlock * memory_def,
                                     Multivector * original,
-                                    Format * new_format);
+                                    Format * new_format,
+                                    size_t memory_padding);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

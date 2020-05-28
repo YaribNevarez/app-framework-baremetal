@@ -134,6 +134,8 @@ static void Accelerator_rxInterruptHandler (void * data)
   }
 }
 
+static int sbs_accelerator_debug[100000] = { 0 };
+
 static void Accelerator_hardwareInterruptHandler (void * data)
 {
   SbSUpdateAccelerator * accelerator = (SbSUpdateAccelerator *) data;
@@ -149,7 +151,8 @@ static void Accelerator_hardwareInterruptHandler (void * data)
   if (accelerator->hardwareConfig->hwDriver->Get_debug)
   {
     //int debug = accelerator->hardwareConfig->hwDriver->Get_debug(accelerator->updateHardware);
-    //printf ("\nHW interrupt = 0x%X\n", debug);
+    //Xil_DCacheInvalidateRange ((INTPTR) sbs_accelerator_debug,
+    //                           sizeof(sbs_accelerator_debug));
   }
 #endif
 
@@ -197,7 +200,7 @@ int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
                                                               hardware_config->dmaTxIntVecID,
                                                               Accelerator_txInterruptHandler,
                                                               accelerator);
-    ASSERT(status != XST_SUCCESS);
+    ASSERT(status == XST_SUCCESS);
     if (status != XST_SUCCESS) return status;
   }
 
@@ -219,7 +222,7 @@ int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
   /***************************************************************************/
   /**************************** Accelerator initialization *******************/
 
-  accelerator->updateHardware = hardware_config->hwDriver->new();
+  accelerator->updateHardware = hardware_config->hwDriver->new ();
 
   ASSERT (accelerator->updateHardware != NULL);
 
@@ -228,7 +231,11 @@ int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
   ASSERT(status == XST_SUCCESS);
   if (status != XST_SUCCESS) return XST_FAILURE;
 
-
+  if (hardware_config->hwDriver->Set_debug != NULL)
+  {
+    hardware_config->hwDriver->Set_debug (accelerator->updateHardware,
+                                          sbs_accelerator_debug);
+  }
 
   hardware_config->hwDriver->InterruptGlobalEnable (accelerator->updateHardware);
   hardware_config->hwDriver->InterruptEnable (accelerator->updateHardware, 1);
@@ -352,6 +359,8 @@ void Accelerator_setup (SbSUpdateAccelerator * accelerator,
 
   accelerator->txBufferCurrentPtr = accelerator->txBuffer;
 
+  accelerator->txBufferPaddingSize = 0;
+
 #ifdef DEBUG
   accelerator->txStateCounter = 0;
   accelerator->txWeightCounter = 0;
@@ -370,23 +379,27 @@ inline void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
   ASSERT (0 < accelerator->profile->stateBufferSize);
   ASSERT (state_vector != NULL);
 
-  if (accelerator->profile->vectorSize == 10)
+  if (accelerator->mode == SPIKE_MODE)
   {
-    *((float *) accelerator->txBufferCurrentPtr) = 0.0;
-  }
-  else
-  {
-    *((float *) accelerator->txBufferCurrentPtr) =
-        ((float) MT19937_genrand ()) * (1.0 / (float) 0xFFFFFFFF);
-  }
+    if (accelerator->profile->vectorSize == 10)
+    {
+      *((float *) accelerator->txBufferCurrentPtr) = 0.0;
+    }
+    else
+    {
+      *((float *) accelerator->txBufferCurrentPtr) =
+          ((float) MT19937_genrand ()) * (1.0 / (float) 0xFFFFFFFF);
+    }
 
-  accelerator->txBufferCurrentPtr += sizeof(float);
+    accelerator->txBufferCurrentPtr += sizeof(float);
+  }
 
   memcpy (accelerator->txBufferCurrentPtr,
           state_vector,
-          accelerator->profile->stateBufferSize);
+          accelerator->profile->stateBufferSize + accelerator->profile->stateBufferPaddingSize);
 
   accelerator->txBufferCurrentPtr += accelerator->profile->stateBufferSize;
+  accelerator->txBufferPaddingSize += accelerator->profile->stateBufferPaddingSize;
 
 #ifdef DEBUG
   ASSERT(accelerator->txStateCounter <= accelerator->profile->layerSize);
@@ -414,9 +427,10 @@ inline void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
 
   memcpy (accelerator->txBufferCurrentPtr,
           weight_vector,
-          accelerator->profile->weightBufferSize);
+          accelerator->profile->weightBufferSize + accelerator->profile->weightBufferPaddingSize);
 
   accelerator->txBufferCurrentPtr += accelerator->profile->weightBufferSize;
+  accelerator->txBufferPaddingSize += accelerator->profile->weightBufferPaddingSize;
 
 #ifdef DEBUG
   accelerator->txWeightCounter ++;
@@ -439,7 +453,7 @@ int Accelerator_start(SbSUpdateAccelerator * accelerator)
   ASSERT (accelerator->mode == SPIKE_MODE || 0 < accelerator->profile->weightBufferSize);
   ASSERT (0 < accelerator->profile->layerSize);
 
-  ASSERT ((size_t)accelerator->txBufferCurrentPtr == (size_t)accelerator->txBuffer + accelerator->txBufferSize);
+  ASSERT((size_t )accelerator->txBufferCurrentPtr + accelerator->txBufferPaddingSize == (size_t )accelerator->txBuffer + accelerator->txBufferSize);
 
 #ifdef DEBUG
   ASSERT (accelerator->profile->layerSize == accelerator->txStateCounter);

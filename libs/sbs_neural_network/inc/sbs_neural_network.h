@@ -93,6 +93,7 @@ typedef struct
                                   uint16_t columns,
                                   uint16_t spikes,
                                   uint16_t neurons,
+                                  size_t memory_padding,
                                   char * file_name);
 
   SbsLayer *      (*InputLayer)  (SbsLayerType layer_type,

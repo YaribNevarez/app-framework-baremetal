@@ -13,18 +13,22 @@ extern "C" {
 
 /***************************** Include Files *********************************/
 #include "xil_exception.h"
+
 /***************** Macros (Inline Functions) Definitions *********************/
 
 /**************************** Type Definitions *******************************/
 typedef Xil_InterruptHandler ARM_GIC_InterruptHandler;
+
 /************************** Constant Definitions *****************************/
 
 /************************** Variable Definitions *****************************/
 
 /************************** Function Prototypes ******************************/
-int ARM_GIC_initialize(void);
+uint32_t ARM_GIC_initialize (void);
 
-int ARM_GIC_connect (uint32_t ID, ARM_GIC_InterruptHandler handler, void * data);
+uint32_t ARM_GIC_connect (uint32_t ID,
+                          ARM_GIC_InterruptHandler handler,
+                          void * data);
 
 void ARM_GIC_disconnect (uint32_t ID);
 

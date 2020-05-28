@@ -246,6 +246,9 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
     /**************************** UPDATE_MODE ********************************/
     if (weight_matrix != NULL)
     {
+      size_t ip_size;
+      size_t weight_size;
+
       ASSERT(weight_matrix->dimension_size[3] == state_matrix->dimension_size[2]);
 
       profile->weightBufferSize = profile->vectorSize * weight_matrix->format.size;
@@ -253,8 +256,30 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
       profile->memory_cmd[UPDATE_MODE] = memory_cmd;
       profile->rxBuffer[UPDATE_MODE] = state_matrix->data;
       profile->rxBufferSize[UPDATE_MODE] = Multivector_dataSize(state_matrix) + Multivector_dataSize(spike_matrix);
-      profile->txBufferSize[UPDATE_MODE] = profile->layerSize
-      * (sizeof(float) + profile->vectorSize * state_matrix->format.size + profile->kernelSize * profile->vectorSize * weight_matrix->format.size);
+
+      ip_size = profile->vectorSize * state_matrix->format.size;
+      if (ip_size % state_matrix->memory_padding)
+      {
+        profile->stateBufferPaddingSize = state_matrix->memory_padding - ip_size % state_matrix->memory_padding;
+        ip_size += profile->stateBufferPaddingSize;
+      }
+      else
+      {
+        profile->stateBufferPaddingSize = 0;
+      }
+
+      weight_size = profile->vectorSize * weight_matrix->format.size;
+      if (weight_size % weight_matrix->memory_padding)
+      {
+        profile->weightBufferPaddingSize = weight_matrix->memory_padding - weight_size % weight_matrix->memory_padding;
+        weight_size += profile->weightBufferPaddingSize;
+      }
+      else
+      {
+        profile->weightBufferPaddingSize = 0;
+      }
+
+      profile->txBufferSize[UPDATE_MODE] = profile->layerSize * (ip_size + profile->kernelSize * weight_size);
 
       ASSERT (profile->txBuffer[UPDATE_MODE] == NULL);
       profile->txBuffer[UPDATE_MODE] = MemoryBlock_alloc(state_matrix->memory_def_parent, profile->txBufferSize[UPDATE_MODE]);
@@ -304,6 +329,7 @@ static SbsLayerPartition * SbsLayerPartition_new (SbSUpdateAccelerator * acceler
     /* Instantiate state_matrix */
     state_matrix = Multivector_new (memory_def,
                                     &SbsSettings_.state_matrix_format,
+                                    accelerator->hardwareConfig->channelSize,
                                     3,
                                     rows,
                                     columns,
@@ -321,6 +347,7 @@ static SbsLayerPartition * SbsLayerPartition_new (SbSUpdateAccelerator * acceler
     /* Instantiate spike_matrix */
     spike_matrix = Multivector_new (memory_def,
                                     &SbsSettings_.spike_matrix_format,
+                                    accelerator->hardwareConfig->channelSize,
                                     2,
                                     rows,
                                     columns);
@@ -535,7 +562,12 @@ static SbsLayer * SbsBaseLayer_new(SbsLayerType layer_type,
 
     if (1 < layer->num_partitions)
     { /* Instantiate spike_matrix */
-      Multivector * spike_matrix = Multivector_new (NULL, &SbsSettings_.spike_matrix_format, 2, rows, columns);
+      Multivector * spike_matrix = Multivector_new (NULL,
+                                                    &SbsSettings_.spike_matrix_format,
+                                                    layer->partition_array[0]->accelerator->hardwareConfig->channelSize,
+                                                    2,
+                                                    rows,
+                                                    columns);
 
       ASSERT(spike_matrix != NULL);
       ASSERT(spike_matrix->dimensionality == 2);
@@ -679,6 +711,7 @@ static void SbsBaseLayer_setLearningRule (SbsLayer * layer_ptr, SbsLearningRule 
 
     layer->learning_data.omega_matrix = Multivector_new(NULL,
                                                         &SbsSettings_.learning_matrix_format,
+                                                        layer->partition_array[0]->accelerator->hardwareConfig->channelSize,
                                                         2,
                                                         w_spikes,
                                                         layer->vector_size);
@@ -692,6 +725,7 @@ static void SbsBaseLayer_setLearningRule (SbsLayer * layer_ptr, SbsLearningRule 
 
     layer->learning_data.a_matrix = Multivector_new(NULL,
                                                     &SbsSettings_.learning_matrix_format,
+                                                    layer->partition_array[0]->accelerator->hardwareConfig->channelSize,
                                                     2,
                                                     w_spikes,
                                                     layer->vector_size);
@@ -705,6 +739,7 @@ static void SbsBaseLayer_setLearningRule (SbsLayer * layer_ptr, SbsLearningRule 
 
     layer->learning_data.b_matrix = Multivector_new(NULL,
                                                     &SbsSettings_.learning_matrix_format,
+                                                    layer->partition_array[0]->accelerator->hardwareConfig->channelSize,
                                                     2,
                                                     w_spikes,
                                                     layer->vector_size);
@@ -812,7 +847,13 @@ static void SbsLayerPartition_loadInput(SbsLayerPartition * partition, char * fi
       }
       else
       {
-        fs_matrix = Multivector_new(NULL, &SbsSettings_.input_matrix_format_file_system, 3, rows, columns, neurons);
+        fs_matrix = Multivector_new (NULL,
+                                     &SbsSettings_.input_matrix_format_file_system,
+                                     partition->accelerator->hardwareConfig->channelSize,
+                                     3,
+                                     rows,
+                                     columns,
+                                     neurons);
       }
 
       size_t inference_population_size = fs_matrix->format.size * neurons;
@@ -837,10 +878,10 @@ static void SbsLayerPartition_loadInput(SbsLayerPartition * partition, char * fi
                    &fs_matrix->format,
                    sizeof(Format)) != 0)
         {
-
           Multivector * input_matrix_internal = Multivector_reformat (partition->state_matrix->memory_def_parent,
                                                                       fs_matrix,
-                                                                      &partition->state_matrix->format);
+                                                                      &partition->state_matrix->format,
+                                                                      partition->state_matrix->memory_padding);
 
           ASSERT(input_matrix_internal != NULL);
 
@@ -1636,6 +1677,7 @@ static SbsWeightMatrix SbsWeightMatrix_new (uint16_t rows,
                                             uint16_t columns,
                                             uint16_t depth,
                                             uint16_t neurons,
+                                            size_t memory_padding,
                                             char * file_name)
 {
   Multivector * weight_watrix = NULL;
@@ -1644,7 +1686,14 @@ static SbsWeightMatrix SbsWeightMatrix_new (uint16_t rows,
 
   if (file_name != NULL)
   {
-    weight_watrix = Multivector_new(NULL, &SbsSettings_.weight_matrix_format_file_system, 4, rows, columns, depth, neurons);
+    weight_watrix = Multivector_new(NULL,
+                                    &SbsSettings_.weight_matrix_format_file_system,
+                                    memory_padding,
+                                    4,
+                                    rows,
+                                    columns,
+                                    depth,
+                                    neurons);
 
     ASSERT(weight_watrix != NULL);
     ASSERT(weight_watrix->dimensionality == 4);
@@ -1683,7 +1732,8 @@ static SbsWeightMatrix SbsWeightMatrix_new (uint16_t rows,
 
           weight_watrix_internal = Multivector_reformat (weight_watrix->memory_def_parent,
                                                          weight_watrix,
-                                                         &SbsSettings_.weight_matrix_format);
+                                                         &SbsSettings_.weight_matrix_format,
+                                                         memory_padding);
 
           ASSERT(weight_watrix_internal != NULL);
 

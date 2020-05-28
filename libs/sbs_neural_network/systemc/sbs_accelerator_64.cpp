@@ -104,20 +104,20 @@ typedef union
 
 #define NEGLECTING_CONSTANT   ((float)1e-20)
 
-#define CHANNEL_WIDTH 32
+#define CHANNEL_WIDTH 64
 
 typedef ap_axis<CHANNEL_WIDTH, 2, 5, 6> StreamChannel;
 
 static int debug_flags;
 
 
-void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
-                      hls::stream<StreamChannel> &stream_out,
-                      int * debug,
-                      int layerSize,
-                      int kernelSize,
-                      int vectorSize,
-                      float epsilon)
+void sbs_accelerator_64 (hls::stream<StreamChannel> &stream_in,
+                         hls::stream<StreamChannel> &stream_out,
+                         int * debug,
+                         int layerSize,
+                         int kernelSize,
+                         int vectorSize,
+                         float epsilon)
 {
 #pragma HLS INTERFACE axis      port=stream_in
 #pragma HLS INTERFACE axis      port=stream_out
@@ -195,6 +195,21 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
         state_vector[index] = register_B.f32;
         index++;
       }
+      /////////////////////////////////////////////////
+      if (index < vectorSize)
+      {
+        register_B.u32 = DATA16_TO_FLOAT32(i >> 32);
+        state_vector[index] = register_B.f32;
+        index++;
+      }
+
+      if (index < vectorSize)
+      {
+        register_B.u32 = DATA16_TO_FLOAT32(i >> 48);
+        state_vector[index] = register_B.f32;
+        index++;
+      }
+      /////////////////////////////////////////////////
     }
 
     sum = 0.0f;
@@ -245,6 +260,36 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
           weight_vector[index] = register_B.f32;
           index++;
         }
+
+        /////////////////////////////////////////////////
+        if (index < vectorSize)
+        {
+          register_B.u32 = DATA8_TO_FLOAT32(i >> 32);
+          weight_vector[index] = register_B.f32;
+          index++;
+        }
+
+        if (index < vectorSize)
+        {
+          register_B.u32 = DATA8_TO_FLOAT32(i >> 40);
+          weight_vector[index] = register_B.f32;
+          index++;
+        }
+
+        if (index < vectorSize)
+        {
+          register_B.u32 = DATA8_TO_FLOAT32(i >> 48);
+          weight_vector[index] = register_B.f32;
+          index++;
+        }
+
+        if (index < vectorSize)
+        {
+          register_B.u32 = DATA8_TO_FLOAT32(i >> 56);
+          weight_vector[index] = register_B.f32;
+          index++;
+        }
+        /////////////////////////////////////////////////
       }
 
       sum = 0.0f;
