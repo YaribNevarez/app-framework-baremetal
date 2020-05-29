@@ -155,7 +155,7 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
   static float random_value;
 
   static ap_uint<CHANNEL_WIDTH> temp;
-  static ap_uint<CHANNEL_WIDTH> i;
+  static ap_uint<CHANNEL_WIDTH> input;
 
   static Data32 register_A;
   static Data32 register_B;
@@ -183,15 +183,15 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
     while (index < vectorSize)
     {
 #pragma HLS pipeline
-      i = stream_in.read ().data;
+      input = stream_in.read ().data;
 
-      register_B.u32 = DATA16_TO_FLOAT32(i >> 0);
+      register_B.u32 = DATA16_TO_FLOAT32(input >> 0);
       state_vector[index] = register_B.f32;
       index ++;
 
       if (index < vectorSize)
       {
-        register_B.u32 = DATA16_TO_FLOAT32(i >> 16);
+        register_B.u32 = DATA16_TO_FLOAT32(input >> 16);
         state_vector[index] = register_B.f32;
         index++;
       }
@@ -219,36 +219,36 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
       while (index < vectorSize)
       {
   #pragma HLS pipeline
-        i = stream_in.read ().data;
+        input = stream_in.read ().data;
 
-        register_B.u32 = DATA8_TO_FLOAT32(i >> 0);
+        register_B.u32 = DATA8_TO_FLOAT32(input >> 0);
         weight_vector[index] = register_B.f32;
         index++;
 
         if (index < vectorSize)
         {
-          register_B.u32 = DATA8_TO_FLOAT32(i >> 8);
+          register_B.u32 = DATA8_TO_FLOAT32(input >> 8);
           weight_vector[index] = register_B.f32;
           index++;
         }
 
         if (index < vectorSize)
         {
-          register_B.u32 = DATA8_TO_FLOAT32(i >> 16);
+          register_B.u32 = DATA8_TO_FLOAT32(input >> 16);
           weight_vector[index] = register_B.f32;
           index++;
         }
 
         if (index < vectorSize)
         {
-          register_B.u32 = DATA8_TO_FLOAT32(i >> 24);
+          register_B.u32 = DATA8_TO_FLOAT32(input >> 24);
           weight_vector[index] = register_B.f32;
           index++;
         }
       }
 
       sum = 0.0f;
-      for (i = 0; i < vectorSize; i++)
+      for (int i = 0; i < vectorSize; i++)
       {
 #pragma HLS pipeline
         temp_data[i] = state_vector[i] * weight_vector[i];
@@ -258,7 +258,7 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
       if (NEGLECTING_CONSTANT < sum)
       {
         epsion_over_sum = epsilon / sum;
-        for (i = 0; i < vectorSize; i++)
+        for (int i = 0; i < vectorSize; i++)
         {
 #pragma HLS pipeline
           state_vector[i] = reverse_epsilon
@@ -268,31 +268,37 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
     }
 
 
-    for (i = 0; i < vectorSize; i++)
+    for (int i = 0; i < vectorSize; )
     {
 #pragma HLS pipeline
+      channel.data = 0;
+
       register_A.f32 = state_vector[i];
 
       if ((register_A.u32 & 0xf0000000) == 0x30000000)
       {
-        temp |= ((ap_uint<CHANNEL_WIDTH> ) (FLOAT32_TO_DATA16(register_A.u32))) << (16 * index_channel);
+        channel.data = ((ap_uint<CHANNEL_WIDTH> ) (FLOAT32_TO_DATA16(register_A.u32))) << (16 * 0);
       }
+      i++;
 
-      index_channel ++;
-
-      if ((index_channel == CHANNEL_WIDTH / 16) || (i == vectorSize - 1))
+      if (i < vectorSize)
       {
-        channel.data = temp;
-        stream_out.write (channel);
-        index_channel = 0;
-        temp = 0;
+        register_A.f32 = state_vector[i];
+
+        if ((register_A.u32 & 0xf0000000) == 0x30000000)
+        {
+          channel.data |= ((ap_uint<CHANNEL_WIDTH> ) (FLOAT32_TO_DATA16(register_A.u32))) << (16 * 1);
+        }
+        i++;
       }
+
+      stream_out.write (channel);
     }
   }
 
   index_channel = 0;
   temp = 0;
-  for (i = 0; i < layerSize; i++)
+  for (int i = 0; i < layerSize; i++)
   {
 #pragma HLS pipeline
     temp |= ((ap_uint<CHANNEL_WIDTH> ) spike_matrix[i]) << (16 * index_channel);
