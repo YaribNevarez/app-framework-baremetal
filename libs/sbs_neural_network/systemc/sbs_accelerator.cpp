@@ -129,7 +129,6 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
 #pragma HLS INTERFACE s_axilite port=return      bundle=CRTL_BUS
 
   static unsigned int index;
-  static unsigned int index_channel;
 
   static int ip_index;
   static unsigned short spikeID;
@@ -154,7 +153,6 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
   static float epsion_over_sum;
   static float random_value;
 
-  static ap_uint<CHANNEL_WIDTH> temp;
   static ap_uint<CHANNEL_WIDTH> input;
 
   static Data32 register_A;
@@ -171,8 +169,6 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
     MT19937_sgenrand (0, 666);
   }
 
-  temp = 0;
-  index_channel = 0;
   debug_flags = 1;
 
   for (ip_index = 0; ip_index < layerSize; ip_index++)
@@ -187,14 +183,13 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
 
       register_B.u32 = DATA16_TO_FLOAT32(input >> 0);
       state_vector[index] = register_B.f32;
-      index ++;
 
-      if (index < vectorSize)
+      if (index + 1 < vectorSize)
       {
         register_B.u32 = DATA16_TO_FLOAT32(input >> 16);
-        state_vector[index] = register_B.f32;
-        index++;
+        state_vector[index + 1] = register_B.f32;
       }
+      index += 2;
     }
 
     sum = 0.0f;
@@ -223,28 +218,26 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
 
         register_B.u32 = DATA8_TO_FLOAT32(input >> 0);
         weight_vector[index] = register_B.f32;
-        index++;
 
-        if (index < vectorSize)
+        if (index + 1 < vectorSize)
         {
           register_B.u32 = DATA8_TO_FLOAT32(input >> 8);
-          weight_vector[index] = register_B.f32;
-          index++;
+          weight_vector[index + 1] = register_B.f32;
         }
 
-        if (index < vectorSize)
+        if (index + 2 < vectorSize)
         {
           register_B.u32 = DATA8_TO_FLOAT32(input >> 16);
-          weight_vector[index] = register_B.f32;
-          index++;
+          weight_vector[index + 2] = register_B.f32;
         }
 
-        if (index < vectorSize)
+        if (index + 3 < vectorSize)
         {
           register_B.u32 = DATA8_TO_FLOAT32(input >> 24);
-          weight_vector[index] = register_B.f32;
-          index++;
+          weight_vector[index + 3] = register_B.f32;
         }
+
+        index += 4;
       }
 
       sum = 0.0f;
@@ -274,30 +267,25 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
       channel.data = 0;
 
       register_A.f32 = state_vector[i];
-
       if ((register_A.u32 & 0xf0000000) == 0x30000000)
       {
         channel.data = ((ap_uint<CHANNEL_WIDTH> ) (FLOAT32_TO_DATA16(register_A.u32))) << (16 * 0);
       }
-      i++;
 
-      if (i < vectorSize)
+      if (i + 1 < vectorSize)
       {
-        register_A.f32 = state_vector[i];
-
+        register_A.f32 = state_vector[i + 1];
         if ((register_A.u32 & 0xf0000000) == 0x30000000)
         {
           channel.data |= ((ap_uint<CHANNEL_WIDTH> ) (FLOAT32_TO_DATA16(register_A.u32))) << (16 * 1);
         }
-        i++;
       }
 
       stream_out.write (channel);
+      i += 2;
     }
   }
 
-  index_channel = 0;
-  temp = 0;
   for (int i = 0; i < layerSize; )
   {
 #pragma HLS pipeline
