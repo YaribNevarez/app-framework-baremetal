@@ -298,20 +298,20 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
 
   index_channel = 0;
   temp = 0;
-  for (int i = 0; i < layerSize; i++)
+  for (int i = 0; i < layerSize; )
   {
 #pragma HLS pipeline
-    temp |= ((ap_uint<CHANNEL_WIDTH> ) spike_matrix[i]) << (16 * index_channel);
-    index_channel ++;
+    channel.data = ((ap_uint<CHANNEL_WIDTH> ) spike_matrix[i]) << (16 * 0);
+    i++;
 
-    if ((index_channel == CHANNEL_WIDTH / 16) || (i == layerSize - 1))
+    if (i < layerSize)
     {
-      channel.data = temp;
-      channel.last = (i == layerSize - 1);
-      stream_out.write (channel);
-      index_channel = 0;
-      temp = 0;
+      channel.data |= ((ap_uint<CHANNEL_WIDTH> ) spike_matrix[i]) << (16 * 1);
+      i++;
     }
+
+    channel.last = (i == layerSize);
+    stream_out.write (channel);
   }
 
   channel.last = 0;
