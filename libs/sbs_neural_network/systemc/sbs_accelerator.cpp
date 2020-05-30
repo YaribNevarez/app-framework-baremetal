@@ -246,12 +246,14 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
     for (int i = 0; i < vectorSize; i += 2)
     {
 #pragma HLS pipeline
-      channel.data = 0;
-
       register_A.f32 = state_vector[i];
       if ((register_A.u32 & 0xf0000000) == 0x30000000)
       {
         channel.data = ((ap_uint<CHANNEL_WIDTH> ) (FLOAT32_TO_DATA16(register_A.u32))) << (16 * 0);
+      }
+      else
+      {
+        channel.data = 0;
       }
 
       if (i + 1 < vectorSize)
@@ -267,19 +269,17 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
     }
   }
 
-  for (int i = 0; i < layerSize; )
+  for (int i = 0; i < layerSize; i += 2)
   {
 #pragma HLS pipeline
     channel.data = ((ap_uint<CHANNEL_WIDTH> ) spike_matrix[i]) << (16 * 0);
-    i++;
 
-    if (i < layerSize)
+    if (i + 1 < layerSize)
     {
-      channel.data |= ((ap_uint<CHANNEL_WIDTH> ) spike_matrix[i]) << (16 * 1);
-      i++;
+      channel.data |= ((ap_uint<CHANNEL_WIDTH> ) spike_matrix[i + 1]) << (16 * 1);
     }
 
-    channel.last = (i == layerSize);
+    channel.last = ((i + 2) >= layerSize);
     stream_out.write (channel);
   }
 
