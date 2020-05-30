@@ -108,9 +108,6 @@ typedef union
 
 typedef ap_axis<CHANNEL_WIDTH, 2, 5, 6> StreamChannel;
 
-static int debug_flags;
-
-
 void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
                       hls::stream<StreamChannel> &stream_out,
                       int * debug,
@@ -128,18 +125,10 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
 #pragma HLS INTERFACE s_axilite port=epsilon     bundle=CRTL_BUS
 #pragma HLS INTERFACE s_axilite port=return      bundle=CRTL_BUS
 
-  static unsigned int index;
-
-  static int ip_index;
-  static unsigned short spikeID;
-
-  static int batch;
   static StreamChannel channel;
 
   static unsigned short spike_matrix[MAX_SPIKE_MATRIX_SIZE];
 #pragma HLS array_partition variable=spike_matrix block factor=4
-
-  static int spike_index;
 
   static float state_vector[MAX_VECTOR_SIZE];
 #pragma HLS array_partition variable=state_vector block factor=246
@@ -169,31 +158,27 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
     MT19937_sgenrand (0, 666);
   }
 
-  debug_flags = 1;
-
-  for (ip_index = 0; ip_index < layerSize; ip_index++)
+  for (int ip_index = 0; ip_index < layerSize; ip_index++)
   {
     random_value = ((float) MT19937_rand (0)) / ((float) 0xFFFFFFFF);
 
-    index = 0;
-    while (index < vectorSize)
+    for (int i = 0; i < vectorSize; i += 2)
     {
 #pragma HLS pipeline
       input = stream_in.read ().data;
 
-      register_B.u32 = DATA16_TO_FLOAT32(input >> 0);
-      state_vector[index] = register_B.f32;
+      register_B.u32 = DATA16_TO_FLOAT32(input >> 16 * 0);
+      state_vector[i] = register_B.f32;
 
-      if (index + 1 < vectorSize)
+      if (i + 1 < vectorSize)
       {
-        register_B.u32 = DATA16_TO_FLOAT32(input >> 16);
-        state_vector[index + 1] = register_B.f32;
+        register_B.u32 = DATA16_TO_FLOAT32(input >> 16 * 1);
+        state_vector[i + 1] = register_B.f32;
       }
-      index += 2;
     }
 
     sum = 0.0f;
-    for (spikeID = 0; spikeID < vectorSize; spikeID++)
+    for (unsigned short spikeID = 0; spikeID < vectorSize; spikeID++)
     {
 #pragma HLS pipeline
       if (sum < random_value)
@@ -207,37 +192,34 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
       }
     }
 
-    for (batch = 0; batch < kernelSize; batch++)
+    for (int batch = 0; batch < kernelSize; batch++)
     {
 #pragma HLS pipeline
-      index = 0;
-      while (index < vectorSize)
+      for (int i = 0; i < vectorSize; i += 4)
       {
   #pragma HLS pipeline
         input = stream_in.read ().data;
 
-        register_B.u32 = DATA8_TO_FLOAT32(input >> 0);
-        weight_vector[index] = register_B.f32;
+        register_B.u32 = DATA8_TO_FLOAT32(input >> 8 * 0);
+        weight_vector[i] = register_B.f32;
 
-        if (index + 1 < vectorSize)
+        if (i + 1 < vectorSize)
         {
-          register_B.u32 = DATA8_TO_FLOAT32(input >> 8);
-          weight_vector[index + 1] = register_B.f32;
+          register_B.u32 = DATA8_TO_FLOAT32(input >> 8 * 1);
+          weight_vector[i + 1] = register_B.f32;
         }
 
-        if (index + 2 < vectorSize)
+        if (i + 2 < vectorSize)
         {
-          register_B.u32 = DATA8_TO_FLOAT32(input >> 16);
-          weight_vector[index + 2] = register_B.f32;
+          register_B.u32 = DATA8_TO_FLOAT32(input >> 8 * 2);
+          weight_vector[i + 2] = register_B.f32;
         }
 
-        if (index + 3 < vectorSize)
+        if (i + 3 < vectorSize)
         {
-          register_B.u32 = DATA8_TO_FLOAT32(input >> 24);
-          weight_vector[index + 3] = register_B.f32;
+          register_B.u32 = DATA8_TO_FLOAT32(input >> 8 * 3);
+          weight_vector[i + 3] = register_B.f32;
         }
-
-        index += 4;
       }
 
       sum = 0.0f;
@@ -261,7 +243,7 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
     }
 
 
-    for (int i = 0; i < vectorSize; )
+    for (int i = 0; i < vectorSize; i += 2)
     {
 #pragma HLS pipeline
       channel.data = 0;
@@ -282,7 +264,6 @@ void sbs_accelerator (hls::stream<StreamChannel> &stream_in,
       }
 
       stream_out.write (channel);
-      i += 2;
     }
   }
 
