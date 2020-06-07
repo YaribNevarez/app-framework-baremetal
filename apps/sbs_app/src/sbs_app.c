@@ -35,6 +35,7 @@
 #include "sbs_processing_unit.h"
 #include "sbs_hardware_spike.h"
 #include "sbs_hardware_update.h"
+#include "sbs_custom_hardware.h"
 #include "dma_hardware_mover.h"
 #include "sbs_hardware_emulator.h"
 // FORWARD DECLARATIONS --------------------------------------------------------
@@ -86,7 +87,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   },
 #endif
 #ifdef ACCELERATOR_2
-  { .hwDriver      = &SbsHardware_fixedpoint,
+  { .hwDriver      = &SbsHardware_custom,
     .dmaDriver     = &DMAHardware_mover,
     .layerAssign   = ACCELERATOR_2,
     .hwDeviceID    = XPAR_XSBS_ACCELERATOR_64_0_DEVICE_ID,
@@ -94,7 +95,7 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_64_0_INTERRUPT_INTR,
     .dmaTxIntVecID = XPAR_FABRIC_AXI_DMA_2_MM2S_INTROUT_INTR,
     .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_2_S2MM_INTROUT_INTR,
-    .channelSize   = 8,
+    .channelSize   = 4,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2C000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2FFFFFFF,

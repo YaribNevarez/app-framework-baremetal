@@ -34,6 +34,7 @@ typedef struct
   uint32_t  (*IsReady)    (void *InstancePtr);
   void      (*EnableAutoRestart) (void *InstancePtr);
   void      (*DisableAutoRestart) (void *InstancePtr);
+  uint32_t  (*Get_return) (void *InstancePtr);
 
   void      (*Set_mode)       (void *InstancePtr, uint32_t Data);
   uint32_t  (*Get_mode)       (void *InstancePtr);

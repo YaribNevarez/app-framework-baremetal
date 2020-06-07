@@ -60,6 +60,7 @@ SbsHardware SbsHardware_fixedpoint =
   .IsReady =            (uint32_t(*) (void *))  XSbs_accelerator_IsReady,
   .EnableAutoRestart =  (void (*) (void *))     XSbs_accelerator_EnableAutoRestart,
   .DisableAutoRestart = (void (*) (void *))     XSbs_accelerator_DisableAutoRestart,
+  .Get_return =         (uint32_t(*) (void *))  NULL,
 
   .Set_mode =       (void (*) (void *, uint32_t ))  NULL,
   .Get_mode =       (uint32_t(*) (void *))          NULL,

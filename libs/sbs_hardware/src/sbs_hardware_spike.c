@@ -50,6 +50,7 @@ SbsHardware SbsHardware_fixedpoint_spike = {
   .IsReady = (uint32_t(*) (void *)) XSbs_spike_50_IsReady,
   .EnableAutoRestart = (void (*) (void *)) XSbs_spike_50_EnableAutoRestart,
   .DisableAutoRestart = (void (*) (void *)) XSbs_spike_50_DisableAutoRestart,
+  .Get_return =         (uint32_t(*) (void *))  NULL,
 
   .Set_mode = (void (*) (void *, uint32_t )) NULL,
   .Get_mode = (uint32_t(*) (void *)) NULL,

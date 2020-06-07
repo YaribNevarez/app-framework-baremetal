@@ -134,7 +134,7 @@ static void Accelerator_rxInterruptHandler (void * data)
   }
 }
 
-static int sbs_accelerator_debug[100000] = { 0 };
+static int sbs_accelerator_debug[10000] = { 0 };
 
 static void Accelerator_hardwareInterruptHandler (void * data)
 {
@@ -148,11 +148,12 @@ static void Accelerator_hardwareInterruptHandler (void * data)
   ASSERT (accelerator->hardwareConfig->hwDriver->InterruptClear != NULL);
 
 #ifdef DEBUG
-  if (accelerator->hardwareConfig->hwDriver->Get_debug)
+  if ((accelerator->hardwareConfig->hwDriver->Get_return)
+      && accelerator->hardwareConfig->hwDriver->Get_return(accelerator->updateHardware))
   {
-    //int debug = accelerator->hardwareConfig->hwDriver->Get_debug(accelerator->updateHardware);
-    //Xil_DCacheInvalidateRange ((INTPTR) sbs_accelerator_debug,
-    //                           sizeof(sbs_accelerator_debug));
+    int size = accelerator->hardwareConfig->hwDriver->Get_return(accelerator->updateHardware);
+    Xil_DCacheInvalidateRange ((INTPTR) sbs_accelerator_debug,
+                               sizeof(int) * size);
   }
 #endif
 
