@@ -380,20 +380,18 @@ inline void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
   ASSERT (0 < accelerator->profile->stateBufferSize);
   ASSERT (state_vector != NULL);
 
-  if (accelerator->mode == SPIKE_MODE)
+  if (accelerator->profile->vectorSize == 10)
   {
-    if (accelerator->profile->vectorSize == 10)
-    {
-      *((float *) accelerator->txBufferCurrentPtr) = 0.0;
-    }
-    else
-    {
-      *((float *) accelerator->txBufferCurrentPtr) =
-          ((float) MT19937_genrand ()) * (1.0 / (float) 0xFFFFFFFF);
-    }
-
-    accelerator->txBufferCurrentPtr += sizeof(float);
+    *((float *) accelerator->txBufferCurrentPtr) = 0.0;
   }
+  else
+  {
+    *((float *) accelerator->txBufferCurrentPtr) = ((float) MT19937_genrand ())
+        * (1.0 / (float) 0xFFFFFFFF);
+  }
+
+  accelerator->txBufferCurrentPtr += sizeof(float);
+
 
   memcpy (accelerator->txBufferCurrentPtr,
           state_vector,

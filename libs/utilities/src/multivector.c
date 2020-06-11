@@ -45,6 +45,7 @@ typedef uint8_t   M8Bit_2_2_32_32[2][2][32][32];
 typedef uint32_t M32Bit_8_8_64[8][8][64];
 typedef uint16_t M16Bit_8_8_64[8][8][64];
 typedef uint32_t M32Bit_4_8_64[4][8][64];
+typedef uint16_t M16Bit_4_8_64[4][8][64];
 typedef uint32_t M32Bit_8_8[8][8];
 typedef uint16_t M16Bit_8_8[8][8];
 typedef uint32_t M32Bit_4_8[8][8];
@@ -234,6 +235,12 @@ M32BitFormat M32BitFormat_list[] =
         .dimension_size = {4, 8, 64, 0}
     },
     {
+        .type_id = M16BIT_4_8_64_ID,
+        .data_type_size = sizeof(uint16_t),
+        .dimensionality = 3,
+        .dimension_size = {4, 8, 64, 0}
+    },
+    {
         .type_id = M32BIT_8_8_ID,
         .data_type_size = sizeof(uint32_t),
         .dimensionality = 2,
@@ -248,6 +255,12 @@ M32BitFormat M32BitFormat_list[] =
     {
         .type_id = M32BIT_4_8_ID,
         .data_type_size = sizeof(uint32_t),
+        .dimensionality = 2,
+        .dimension_size = {4, 8, 0, 0}
+    },
+    {
+        .type_id = M16BIT_4_8_ID,
+        .data_type_size = sizeof(uint16_t),
         .dimensionality = 2,
         .dimension_size = {4, 8, 0, 0}
     },
@@ -690,6 +703,8 @@ void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uin
       return &(*(M16Bit_8_8_64*) multivector->data)[row][column];
     case M32BIT_4_8_64_ID:
       return &(*(M32Bit_4_8_64*) multivector->data)[row][column];
+    case M16BIT_4_8_64_ID:
+      return &(*(M16Bit_4_8_64*) multivector->data)[row][column];
     case M32BIT_8_8_ID:
       return &(*(M32Bit_8_8*) multivector->data)[row][column];
     case M16BIT_8_8_ID:

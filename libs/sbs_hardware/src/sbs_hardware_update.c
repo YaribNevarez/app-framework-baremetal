@@ -22,6 +22,7 @@
 /************************** Function Prototypes ******************************/
 
 /************************** Function Definitions******************************/
+/*
 
 static void SbsHardware_fixedpoint_delete (void ** InstancePtr)
 {
@@ -85,3 +86,4 @@ SbsHardware SbsHardware_fixedpoint =
 
   .InterruptSetHandler = SbsHardware_fixedpoint_InterruptSetHandler
 };
+*/

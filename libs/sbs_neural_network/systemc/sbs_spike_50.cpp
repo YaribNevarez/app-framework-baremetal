@@ -2,13 +2,117 @@
 #include <ap_int.h>
 #include "hls_stream.h"
 
+#define MT19937_HW false
+
+#if MT19937_HW
+typedef unsigned int MT19937;
+
+static unsigned int MT19937_flags_ = 0;
+
+typedef enum
+{
+  INITIALIZED = 1 << 0
+} MT19937Flags;
+
+static unsigned int MT19937_initialized (unsigned int instance)
+{
+  return MT19937_flags_ & INITIALIZED;
+}
+
+/* Period parameters */
+#define N 624
+#define M 397
+#define MATRIX_A 0x9908b0df   /* constant vector a */
+#define UPPER_MASK 0x80000000 /* most significant w-r bits */
+#define LOWER_MASK 0x7fffffff /* least significant r bits */
+
+/* Tempering parameters */
+#define TEMPERING_MASK_B 0x9d2c5680
+#define TEMPERING_MASK_C 0xefc60000
+#define TEMPERING_SHIFT_U(y)  (y >> 11)
+#define TEMPERING_SHIFT_S(y)  (y << 7)
+#define TEMPERING_SHIFT_T(y)  (y << 15)
+#define TEMPERING_SHIFT_L(y)  (y >> 18)
+
+static unsigned int mt[N]; /* the array for the state vector  */
+static unsigned int mti=N+1; /* mti==N+1 means mt[N] is not initialized */
+
+/* initializing the array with a NONZERO seed */
+static void MT19937_sgenrand (unsigned int instance, unsigned int seed)
+{
+  /* setting initial seeds to mt[N] using         */
+  /* the generator Line 25 of Table 1 in          */
+  /* [KNUTH 1981, The Art of Computer Programming */
+  /*    Vol. 2 (2nd Ed.), pp102]                  */
+  mt[0] = seed & 0xffffffff;
+  for (mti = 1; mti < N; mti++)
+  {
+#pragma HLS pipeline
+    mt[mti] = (69069 * mt[mti - 1]) & 0xffffffff;
+  }
+
+  MT19937_flags_ |= INITIALIZED;
+}
+
+static unsigned int MT19937_rand (unsigned int instance)
+{
+#pragma HLS inline off
+  unsigned int y;
+  static unsigned int mag01[2] = { 0x0, MATRIX_A };
+  /* mag01[x] = x * MATRIX_A  for x=0,1 */
+
+  if (mti >= N)
+  { /* generate N words at one time */
+    int kk;
+
+    if (mti == N + 1)
+    {/* if sgenrand() has not been called, */
+      MT19937_sgenrand (instance, 4357); /* a default initial seed is used   */
+    }
+
+    for (kk = 0; kk < N - M; kk++)
+    {
+#pragma HLS pipeline
+      y = (mt[kk] & UPPER_MASK) | (mt[kk + 1] & LOWER_MASK);
+      mt[kk] = mt[kk + M] ^ (y >> 1) ^ mag01[y & 0x1];
+    }
+
+    for (; kk < N - 1; kk++)
+    {
+#pragma HLS pipeline
+      y = (mt[kk] & UPPER_MASK) | (mt[kk + 1] & LOWER_MASK);
+      mt[kk] = mt[kk + (M - N)] ^ (y >> 1) ^ mag01[y & 0x1];
+    }
+
+    y = (mt[N - 1] & UPPER_MASK) | (mt[0] & LOWER_MASK);
+    mt[N - 1] = mt[M - 1] ^ (y >> 1) ^ mag01[y & 0x1];
+
+    mti = 0;
+  }
+
+  y = mt[mti++];
+  y ^= TEMPERING_SHIFT_U(y);
+  y ^= TEMPERING_SHIFT_S(y) & TEMPERING_MASK_B;
+  y ^= TEMPERING_SHIFT_T(y) & TEMPERING_MASK_C;
+  y ^= TEMPERING_SHIFT_L(y);
+
+  return y;
+}
+#endif
+
+
 typedef union
 {
   unsigned int    u32;
   float           f32;
 } Data32;
 
-typedef ap_axis<32, 2, 5, 6> StreamChannel;
+
+#define CHANNEL_WIDTH         32
+#define STATE_VECTOR_WIDTH    16
+#define SPIKE_VECTOR_WIDTH    16
+
+typedef ap_axis<CHANNEL_WIDTH, 2, 5, 6> StreamChannel;
 
 #define MAX_VECTOR_SIZE   50
 
@@ -37,58 +141,59 @@ void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
   static float data[MAX_VECTOR_SIZE];
 #pragma HLS array_partition variable=data complete
 
-  static unsigned int index;
   unsigned char index_spike;
   unsigned int debug_flags;
 
-  static int ip_index;
-  static unsigned short spikeID;
   static StreamChannel channel;
   static float random_value;
 
-  static Data32 register_A;
+  static ap_uint<CHANNEL_WIDTH> input;
   static Data32 register_B;
   unsigned int temp;
 
   static float sum;
 
+  channel.keep = 0xF;
+  channel.strb = 0xF;
+
   index_spike = 0;
   temp = 0;
 
-  for (ip_index = 0; ip_index < layerSize; ip_index++)
+#if MT19937_HW
+  if (!MT19937_initialized (0))
   {
-#pragma HLS pipeline
-    if (ip_index == 0)
-    {
-      channel = stream_in.read ();
-      register_A.u32 = channel.data;
-    }
-    else
-    {
-      register_A.u32 = stream_in.read ().data;
-    }
-    random_value = register_A.f32;
+    MT19937_sgenrand (0, 666);
+  }
+#endif
 
-    index = 0;
-    while (index < vectorSize)
+  for (int ip_index = 0; ip_index < layerSize; ip_index++)
+  {
+#if MT19937_HW
+    random_value = ((float) MT19937_rand (0)) / ((float) 0xFFFFFFFF);
+#else
+#pragma HLS pipeline
+    register_B.u32 = stream_in.read ().data;
+
+    random_value = register_B.f32;
+#endif
+
+    for (int index = 0; index < vectorSize; index += CHANNEL_WIDTH / STATE_VECTOR_WIDTH)
     {
 #pragma HLS pipeline
-      register_A.u32 = stream_in.read ().data;
+      input = stream_in.read ().data;
 
-      register_B.u32 = DATA16_TO_FLOAT32(register_A.u32 >> 0);
+      register_B.u32 = DATA16_TO_FLOAT32(input >> STATE_VECTOR_WIDTH * 0);
       data[index] = register_B.f32;
-      index ++;
 
-      if (index < vectorSize)
+      if (index + 1 < vectorSize)
       {
-        register_B.u32 = DATA16_TO_FLOAT32(register_A.u32 >> 16);
-        data[index] = register_B.f32;
-        index++;
+        register_B.u32 = DATA16_TO_FLOAT32(input >> STATE_VECTOR_WIDTH * 1);
+        data[index + 1] = register_B.f32;
       }
     }
 
     sum = 0.0f;
-    for (spikeID = 0; spikeID < vectorSize; spikeID++)
+    for (short spikeID = 0; spikeID < vectorSize; spikeID++)
     {
 #pragma HLS pipeline
       if (sum < random_value)
@@ -96,7 +201,7 @@ void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
         sum += data[spikeID];
         if ((random_value <= sum) || (spikeID == vectorSize - 1))
         {
-          temp |= ((unsigned int)spikeID) << (16 * index_spike);
+          temp |= ((unsigned int)spikeID) << (SPIKE_VECTOR_WIDTH * index_spike);
           index_spike ++;
 
           if ((index_spike == 2) || (ip_index == layerSize - 1))

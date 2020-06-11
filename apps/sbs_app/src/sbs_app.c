@@ -70,13 +70,13 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   },
 #endif
 #ifdef ACCELERATOR_1
-  { .hwDriver      = &SbsHardware_fixedpoint,
+  { .hwDriver      = &SbsHardware_custom,
     .dmaDriver     = &DMAHardware_mover,
     .layerAssign   = ACCELERATOR_1,
-    .hwDeviceID    = XPAR_SBS_ACCELERATOR_0_DEVICE_ID,
+    .hwDeviceID    = XPAR_XSBS_ACCELERATOR_64_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXI_DMA_1_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_0_INTERRUPT_INTR,
-    .dmaTxIntVecID = XPAR_FABRIC_AXI_DMA_1_MM2S_INTROUT_INTR,
+    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_64_0_INTERRUPT_INTR,
+    .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_1_S2MM_INTROUT_INTR,
     .channelSize   = 4,
     .ddrMem =
@@ -90,10 +90,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardware_custom,
     .dmaDriver     = &DMAHardware_mover,
     .layerAssign   = ACCELERATOR_2,
-    .hwDeviceID    = XPAR_XSBS_ACCELERATOR_64_0_DEVICE_ID,
+    .hwDeviceID    = XPAR_XSBS_ACCELERATOR_64_1_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXI_DMA_2_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_64_0_INTERRUPT_INTR,
-    .dmaTxIntVecID = XPAR_FABRIC_AXI_DMA_2_MM2S_INTROUT_INTR,
+    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_64_1_INTERRUPT_INTR,
+    .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_2_S2MM_INTROUT_INTR,
     .channelSize   = 4,
     .ddrMem =
@@ -104,12 +104,12 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   },
 #endif
 #ifdef ACCELERATOR_3
-  { .hwDriver      = &SbsHardware_fixedpoint,
+  { .hwDriver      = &SbsHardware_custom,
     .dmaDriver     = &DMAHardware_mover,
     .layerAssign   = ACCELERATOR_3,
-    .hwDeviceID    = XPAR_SBS_ACCELERATOR_2_DEVICE_ID,
+    .hwDeviceID    = XPAR_XSBS_ACCELERATOR_64_2_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXI_DMA_3_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_2_INTERRUPT_INTR,
+    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_64_2_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_3_S2MM_INTROUT_INTR,
     .channelSize   = 4,
@@ -121,12 +121,12 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   },
 #endif
 #ifdef ACCELERATOR_4
-  { .hwDriver      = &SbsHardware_fixedpoint,
+  { .hwDriver      = &SbsHardware_custom,
     .dmaDriver     = &DMAHardware_mover,
     .layerAssign   = ACCELERATOR_4,
-    .hwDeviceID    = XPAR_SBS_ACCELERATOR_3_DEVICE_ID,
+    .hwDeviceID    = XPAR_XSBS_ACCELERATOR_64_3_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXI_DMA_4_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_3_INTERRUPT_INTR,
+    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_64_3_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_4_S2MM_INTROUT_INTR,
     .channelSize   = 4,
@@ -138,12 +138,12 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   },
 #endif
 #ifdef ACCELERATOR_5
-  { .hwDriver      = &SbsHardware_fixedpoint,
+  { .hwDriver      = &SbsHardware_custom,
     .dmaDriver     = &DMAHardware_mover,
     .layerAssign   = ACCELERATOR_5,
-    .hwDeviceID    = XPAR_SBS_ACCELERATOR_4_DEVICE_ID,
+    .hwDeviceID    = XPAR_XSBS_ACCELERATOR_64_4_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXI_DMA_5_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_4_INTERRUPT_INTR,
+    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_64_4_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_5_S2MM_INTROUT_INTR,
     .channelSize   = 4,
@@ -203,6 +203,8 @@ Result SnnApp_initialize(void)
 
 Result SnnApp_run (void)
 {
+  Timer * timer = Timer_new (1);
+  double inference_time = 0;
   int pattern_index;
   char string_text[128];
   float output_vector[10];
@@ -343,7 +345,6 @@ Result SnnApp_run (void)
   HY->setLearningRule(HY, SBS_LEARNING_DELTA_MSE, 0.05, SBS_INPUT_PATTERN_LAST - SBS_INPUT_PATTERN_FIRST + 1);
 
   /*_________________________________________________________________________*/
-  EventLogger * event_logger = EventLogger_new(10);
 
   for (int loop = 0;; loop ++)
   {
@@ -358,12 +359,13 @@ Result SnnApp_run (void)
 
       network->loadInput (network, string_text);
 
-      EventLogger_timeReset ();
-      EventLogger_logTransition (event_logger, RISE_EVENT);
-      network->updateCycle (network, SBS_NETWORK_UPDATE_CYCLES);
-      EventLogger_logTransition (event_logger, FALL_EVENT);
 
-      EventLogger_flush(event_logger);
+      Timer_start (timer);
+
+      network->updateCycle (network, SBS_NETWORK_UPDATE_CYCLES);
+
+      inference_time = Timer_getCurrentTime (timer);
+      printf ("\nInference time = %f\n", inference_time);
 
       total_inference ++;
 
@@ -373,27 +375,31 @@ Result SnnApp_run (void)
       if (output_label == input_label)
       {
         correct_inference ++;
-        ToolCom_instance ()->textMsg (0, "PASS");
+        //ToolCom_instance ()->textMsg (0, "PASS");
+        printf ("\nPASS\n");
       }
       else
       {
-        ToolCom_instance ()->textMsg (0, "Misclassification");
+        //ToolCom_instance ()->textMsg (0, "Misclassification");
+        printf ("\nMisclassification\n");
       }
 
       output_vector_size = sizeof(output_vector) / sizeof(float);
       network->getOutputVector (network, output_vector, output_vector_size);
 
-      ToolCom_instance ()->sendByteBuffer (output_vector, sizeof(float) * output_vector_size);
+      //ToolCom_instance ()->sendByteBuffer (output_vector, sizeof(float) * output_vector_size);
 
       while (output_vector_size--)
       {
         NeuronState h = output_vector[output_vector_size];  //Ensure data alignment
 
         sprintf(string_text,"[%d] = %f", output_vector_size, h);
-        ToolCom_instance ()->textMsg (0, string_text);
+        printf ("%s\n", string_text);
+        //ToolCom_instance ()->textMsg (0, string_text);
       }
       sprintf(string_text,"Accuracy %f", ((float)correct_inference)/((float)total_inference));
-      ToolCom_instance ()->textMsg (0, string_text);
+      printf ("%s\n", string_text);
+      //ToolCom_instance ()->textMsg (0, string_text);
     }
   }
   network->delete (&network);
