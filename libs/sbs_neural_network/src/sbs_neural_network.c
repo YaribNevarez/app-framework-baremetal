@@ -255,7 +255,18 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
 
       profile->memory_cmd[UPDATE_MODE] = memory_cmd;
       profile->rxBuffer[UPDATE_MODE] = state_matrix->data;
-      profile->rxBufferSize[UPDATE_MODE] = Multivector_dataSize(state_matrix) + Multivector_dataSize(spike_matrix);
+      profile->rxBufferSize[UPDATE_MODE] = Multivector_dataSize (state_matrix);
+
+      if (memory_cmd.cmdID == MEM_CMD_NONE)
+      {
+        profile->rxSpkBuffer = spike_matrix->data;
+        profile->rxSpkBufferSize = Multivector_dataSize (spike_matrix);
+      }
+      else
+      {
+        profile->rxSpkBuffer = memory_cmd.dest;
+        profile->rxSpkBufferSize = memory_cmd.size;
+      }
 
       ip_size = profile->vectorSize * state_matrix->format.size;
       if (ip_size % state_matrix->memory_padding)
@@ -282,7 +293,7 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
       profile->txBufferSize[UPDATE_MODE] = profile->layerSize * (sizeof(float) + ip_size + profile->kernelSize * weight_size);
 
       ASSERT (profile->txBuffer[UPDATE_MODE] == NULL);
-      profile->txBuffer[UPDATE_MODE] = MemoryBlock_alloc(state_matrix->memory_def_parent, profile->txBufferSize[UPDATE_MODE]);
+      profile->txBuffer[UPDATE_MODE] = MemoryBlock_alloc (state_matrix->memory_def_parent, profile->txBufferSize[UPDATE_MODE]);
       ASSERT (profile->txBuffer[UPDATE_MODE] != NULL);
     }
   }
@@ -1117,7 +1128,14 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
 
     WeightShift layer_weight_shift = layer->weight_shift;
 
-    //while (!spike_layer->partition_array[0]->accelerator->rxDone);
+
+    while (!spike_layer->partition_array[0]->accelerator->acceleratorReady);
+    if (!spike_layer->partition_array[0]->accelerator->acceleratorReady && spike_layer->partition_array[0]->accelerator->rxSpkBuffer)
+      if (spike_layer->partition_array[0]->accelerator->rxSpkBuffer)
+      {
+        Xil_DCacheInvalidateRange ((INTPTR) spike_layer->partition_array[0]->accelerator->rxSpkBuffer,
+                                   spike_layer->partition_array[0]->accelerator->rxSpkBufferSize);
+      }
 
     kernel_row_pos = 0, layer_row = 0;
     for (i = 0; i < layer->num_partitions; i ++)

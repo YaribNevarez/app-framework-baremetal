@@ -94,6 +94,9 @@ typedef struct
   void *    rxBuffer[ACCELERATOR_MODES];
   size_t    rxBufferSize[ACCELERATOR_MODES];
 
+  void *    rxSpkBuffer;
+  size_t    rxSpkBufferSize;
+
   MemoryCmd memory_cmd[ACCELERATOR_MODES];
 } SbsAcceleratorProfie;
 
@@ -115,6 +118,9 @@ typedef struct
 
   void *      rxBuffer;
   size_t      rxBufferSize;
+
+  void *      rxSpkBuffer;
+  size_t      rxSpkBufferSize;
 
   size_t    txBufferPaddingSize;
   size_t    rxBufferPaddingSize;

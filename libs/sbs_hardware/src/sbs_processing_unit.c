@@ -124,6 +124,10 @@ static void Accelerator_rxInterruptHandler (void * data)
     Xil_DCacheInvalidateRange ((INTPTR) accelerator->rxBuffer,
                                accelerator->rxBufferSize);
 
+    if (accelerator->rxSpkBuffer)
+      Xil_DCacheInvalidateRange ((INTPTR) accelerator->rxSpkBuffer,
+                                 accelerator->rxSpkBufferSize);
+
     accelerator->txDone = 1;
     accelerator->rxDone = 1;
 
@@ -157,6 +161,18 @@ static void Accelerator_hardwareInterruptHandler (void * data)
   }
 #endif
 
+  if (accelerator->rxBuffer)
+  {
+    Xil_DCacheInvalidateRange ((INTPTR) accelerator->rxBuffer,
+                               accelerator->rxBufferSize);
+  }
+
+  if (accelerator->rxSpkBuffer)
+  {
+    Xil_DCacheInvalidateRange ((INTPTR) accelerator->rxSpkBuffer,
+                               accelerator->rxSpkBufferSize);
+  }
+
   status = accelerator->hardwareConfig->hwDriver->InterruptGetStatus (accelerator->updateHardware);
   accelerator->hardwareConfig->hwDriver->InterruptClear (accelerator->updateHardware, status);
   accelerator->acceleratorReady = status & 1;
@@ -178,75 +194,81 @@ int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
   accelerator->hardwareConfig = hardware_config;
 
   /******************************* DMA initialization ************************/
-
-  accelerator->dmaHardware = hardware_config->dmaDriver->new ();
-
-  ASSERT(accelerator->dmaHardware != NULL);
-  if (accelerator->dmaHardware == NULL) return XST_FAILURE;
-
-
-  status = hardware_config->dmaDriver->Initialize (accelerator->dmaHardware,
-                                                   hardware_config->dmaDeviceID);
-
-  ASSERT(status == XST_SUCCESS);
-  if (status != XST_SUCCESS) return status;
-
-  if (hardware_config->dmaTxIntVecID)
+  if (hardware_config->dmaDriver)
   {
-    hardware_config->dmaDriver->InterruptEnable (accelerator->dmaHardware,
-                                                 DMA_IRQ_ALL,
-                                                 MEMORY_TO_HARDWARE);
+    accelerator->dmaHardware = hardware_config->dmaDriver->new ();
 
-    status = hardware_config->dmaDriver->InterruptSetHandler (accelerator->dmaHardware,
-                                                              hardware_config->dmaTxIntVecID,
-                                                              Accelerator_txInterruptHandler,
-                                                              accelerator);
+    ASSERT(accelerator->dmaHardware != NULL);
+    if (accelerator->dmaHardware == NULL) return XST_FAILURE;
+
+
+    status = hardware_config->dmaDriver->Initialize (accelerator->dmaHardware,
+                                                     hardware_config->dmaDeviceID);
+
     ASSERT(status == XST_SUCCESS);
     if (status != XST_SUCCESS) return status;
+
+    if (hardware_config->dmaTxIntVecID)
+    {
+      hardware_config->dmaDriver->InterruptEnable (accelerator->dmaHardware,
+                                                   DMA_IRQ_ALL,
+                                                   MEMORY_TO_HARDWARE);
+
+      status = hardware_config->dmaDriver->InterruptSetHandler (accelerator->dmaHardware,
+                                                                hardware_config->dmaTxIntVecID,
+                                                                Accelerator_txInterruptHandler,
+                                                                accelerator);
+      ASSERT(status == XST_SUCCESS);
+      if (status != XST_SUCCESS) return status;
+    }
+
+    if (hardware_config->dmaRxIntVecID)
+    {
+      hardware_config->dmaDriver->InterruptEnable (accelerator->dmaHardware,
+                                                   DMA_IRQ_ALL,
+                                                   HARDWARE_TO_MEMORY);
+
+      status = hardware_config->dmaDriver->InterruptSetHandler (accelerator->dmaHardware,
+                                                                hardware_config->dmaRxIntVecID,
+                                                                Accelerator_rxInterruptHandler,
+                                                                accelerator);
+      ASSERT(status == XST_SUCCESS);
+      if (status != XST_SUCCESS) return status;
+    }
   }
-
-  if (hardware_config->dmaRxIntVecID)
-  {
-    hardware_config->dmaDriver->InterruptEnable (accelerator->dmaHardware,
-                                                 DMA_IRQ_ALL,
-                                                 HARDWARE_TO_MEMORY);
-
-    status = hardware_config->dmaDriver->InterruptSetHandler (accelerator->dmaHardware,
-                                                              hardware_config->dmaRxIntVecID,
-                                                              Accelerator_rxInterruptHandler,
-                                                              accelerator);
-    ASSERT(status == XST_SUCCESS);
-    if (status != XST_SUCCESS) return status;
-  }
-
-
   /***************************************************************************/
   /**************************** Accelerator initialization *******************/
-
-  accelerator->updateHardware = hardware_config->hwDriver->new ();
-
-  ASSERT (accelerator->updateHardware != NULL);
-
-  status = hardware_config->hwDriver->Initialize (accelerator->updateHardware,
-                                                  hardware_config->hwDeviceID);
-  ASSERT(status == XST_SUCCESS);
-  if (status != XST_SUCCESS) return XST_FAILURE;
-
-  if (hardware_config->hwDriver->Set_debug != NULL)
+  if (hardware_config->hwDriver)
   {
-    hardware_config->hwDriver->Set_debug (accelerator->updateHardware,
-                                          sbs_accelerator_debug);
+    accelerator->updateHardware = hardware_config->hwDriver->new ();
+
+    ASSERT (accelerator->updateHardware != NULL);
+
+    status = hardware_config->hwDriver->Initialize (accelerator->updateHardware,
+                                                    hardware_config->hwDeviceID);
+    ASSERT(status == XST_SUCCESS);
+    if (status != XST_SUCCESS) return XST_FAILURE;
+
+    if (hardware_config->hwDriver->Set_debug != NULL)
+    {
+      hardware_config->hwDriver->Set_debug (accelerator->updateHardware,
+                                            sbs_accelerator_debug);
+    }
+
+    if (hardware_config->hwIntVecID)
+    {
+      hardware_config->hwDriver->InterruptGlobalEnable (accelerator->updateHardware);
+      hardware_config->hwDriver->InterruptEnable (accelerator->updateHardware, 1);
+
+      status = hardware_config->hwDriver->InterruptSetHandler (accelerator->updateHardware,
+                                                               hardware_config->hwIntVecID,
+                                                               Accelerator_hardwareInterruptHandler,
+                                                               accelerator);
+    }
+
+    ASSERT(status == XST_SUCCESS);
+    if (status != XST_SUCCESS) return status;
   }
-
-  hardware_config->hwDriver->InterruptGlobalEnable (accelerator->updateHardware);
-  hardware_config->hwDriver->InterruptEnable (accelerator->updateHardware, 1);
-
-  status = hardware_config->hwDriver->InterruptSetHandler (accelerator->updateHardware,
-                                                           hardware_config->hwIntVecID,
-                                                           Accelerator_hardwareInterruptHandler,
-                                                           accelerator);
-  ASSERT(status == XST_SUCCESS);
-  if (status != XST_SUCCESS) return status;
 
   accelerator->acceleratorReady = 1;
   accelerator->rxDone = 1;
@@ -318,6 +340,8 @@ void Accelerator_setup (SbSUpdateAccelerator * accelerator,
   ASSERT (accelerator->hardwareConfig != NULL);
   ASSERT (accelerator->hardwareConfig->hwDriver != NULL);
 
+  //while (accelerator->acceleratorReady == 0);
+
   if (accelerator->profile != profile)
   {
     accelerator->profile = profile;
@@ -340,9 +364,34 @@ void Accelerator_setup (SbSUpdateAccelerator * accelerator,
   }
 
   accelerator->mode = mode;
+
   if (accelerator->hardwareConfig->hwDriver->Set_mode)
-    accelerator->hardwareConfig->hwDriver->Set_mode (
-        accelerator->updateHardware, accelerator->mode);
+  {
+    accelerator->hardwareConfig->hwDriver->Set_mode
+      (accelerator->updateHardware, accelerator->mode);
+  }
+
+  if (accelerator->hardwareConfig->hwDriver->Set_frame)
+  {
+    accelerator->hardwareConfig->hwDriver->Set_frame
+      (accelerator->updateHardware, (int) accelerator->profile->txBuffer[mode]);
+  }
+
+  if (accelerator->hardwareConfig->hwDriver->Set_layer)
+  {
+    accelerator->hardwareConfig->hwDriver->Set_layer
+      (accelerator->updateHardware, (int) accelerator->profile->rxBuffer[mode]);
+  }
+
+  if (accelerator->hardwareConfig->hwDriver->Set_spike)
+  {
+    accelerator->hardwareConfig->hwDriver->Set_spike
+      (accelerator->updateHardware, (int) accelerator->profile->rxSpkBuffer);
+  }
+
+
+  accelerator->rxSpkBuffer = profile->rxSpkBuffer;
+  accelerator->rxSpkBufferSize = profile->rxSpkBufferSize;
 
   /************************** Rx Setup **************************/
   accelerator->rxBuffer = profile->rxBuffer[mode];
@@ -442,9 +491,9 @@ typedef union
   float           f32;
 } Data32;
 
-int Accelerator_start(SbSUpdateAccelerator * accelerator)
+int Accelerator_start (SbSUpdateAccelerator * accelerator)
 {
-  int status;
+  int status = XST_SUCCESS;
 
   ASSERT (accelerator != NULL);
   ASSERT (accelerator->profile != NULL);
@@ -461,31 +510,33 @@ int Accelerator_start(SbSUpdateAccelerator * accelerator)
   Xil_DCacheFlushRange ((UINTPTR) accelerator->txBuffer, accelerator->txBufferSize);
 
   while (accelerator->acceleratorReady == 0);
-  while (accelerator->txDone == 0);
-  while (accelerator->rxDone == 0);
 
   accelerator->memory_cmd = accelerator->profile->memory_cmd[accelerator->mode];
 
   accelerator->acceleratorReady = 0;
   accelerator->hardwareConfig->hwDriver->Start (accelerator->updateHardware);
 
-
-  accelerator->txDone = 0;
-  status = accelerator->hardwareConfig->dmaDriver->Move (accelerator->dmaHardware,
-                                                         accelerator->txBuffer,
-                                                         accelerator->txBufferSize,
-                                                         MEMORY_TO_HARDWARE);
-  ASSERT(status == XST_SUCCESS);
-
-  if (status == XST_SUCCESS)
+  if (accelerator->dmaHardware)
   {
-    accelerator->rxDone = 0;
+    while (accelerator->txDone == 0);
+    accelerator->txDone = 0;
     status = accelerator->hardwareConfig->dmaDriver->Move (accelerator->dmaHardware,
-                                                           accelerator->rxBuffer,
-                                                           accelerator->rxBufferSize,
-                                                           HARDWARE_TO_MEMORY);
-
+                                                           accelerator->txBuffer,
+                                                           accelerator->txBufferSize,
+                                                           MEMORY_TO_HARDWARE);
     ASSERT(status == XST_SUCCESS);
+
+    if (status == XST_SUCCESS)
+    {
+      while (accelerator->rxDone == 0);
+      accelerator->rxDone = 0;
+      status = accelerator->hardwareConfig->dmaDriver->Move (accelerator->dmaHardware,
+                                                             accelerator->rxBuffer,
+                                                             accelerator->rxBufferSize,
+                                                             HARDWARE_TO_MEMORY);
+
+      ASSERT(status == XST_SUCCESS);
+    }
   }
 
   return status;

@@ -71,13 +71,13 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
 #endif
 #ifdef ACCELERATOR_1
   { .hwDriver      = &SbsHardware_custom,
-    .dmaDriver     = &DMAHardware_mover,
+    .dmaDriver     = NULL,
     .layerAssign   = ACCELERATOR_1,
     .hwDeviceID    = XPAR_XSBS_ACCELERATOR_64_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_1_DEVICE_ID,
+    .dmaDeviceID   = -1,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_64_0_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_1_S2MM_INTROUT_INTR,
+    .dmaRxIntVecID = 0,
     .channelSize   = 4,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x28000000,
@@ -88,13 +88,13 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
 #endif
 #ifdef ACCELERATOR_2
   { .hwDriver      = &SbsHardware_custom,
-    .dmaDriver     = &DMAHardware_mover,
+    .dmaDriver     = NULL,
     .layerAssign   = ACCELERATOR_2,
     .hwDeviceID    = XPAR_XSBS_ACCELERATOR_64_1_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_2_DEVICE_ID,
+    .dmaDeviceID   = -1,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_64_1_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_2_S2MM_INTROUT_INTR,
+    .dmaRxIntVecID = 0,
     .channelSize   = 4,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2C000000,
@@ -105,13 +105,13 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
 #endif
 #ifdef ACCELERATOR_3
   { .hwDriver      = &SbsHardware_custom,
-    .dmaDriver     = &DMAHardware_mover,
+    .dmaDriver     = NULL,
     .layerAssign   = ACCELERATOR_3,
     .hwDeviceID    = XPAR_XSBS_ACCELERATOR_64_2_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_3_DEVICE_ID,
+    .dmaDeviceID   = -1,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_64_2_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_3_S2MM_INTROUT_INTR,
+    .dmaRxIntVecID = 0,
     .channelSize   = 4,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x30000000,
@@ -122,13 +122,13 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
 #endif
 #ifdef ACCELERATOR_4
   { .hwDriver      = &SbsHardware_custom,
-    .dmaDriver     = &DMAHardware_mover,
+    .dmaDriver     = NULL,
     .layerAssign   = ACCELERATOR_4,
     .hwDeviceID    = XPAR_XSBS_ACCELERATOR_64_3_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_4_DEVICE_ID,
+    .dmaDeviceID   = -1,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_64_3_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_4_S2MM_INTROUT_INTR,
+    .dmaRxIntVecID = 0,
     .channelSize   = 4,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x34000000,
@@ -139,13 +139,13 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
 #endif
 #ifdef ACCELERATOR_5
   { .hwDriver      = &SbsHardware_custom,
-    .dmaDriver     = &DMAHardware_mover,
+    .dmaDriver     = NULL,
     .layerAssign   = ACCELERATOR_5,
     .hwDeviceID    = XPAR_XSBS_ACCELERATOR_64_4_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_5_DEVICE_ID,
+    .dmaDeviceID   = -1,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_64_4_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_5_S2MM_INTROUT_INTR,
+    .dmaRxIntVecID = 0,
     .channelSize   = 4,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x38000000,

@@ -72,6 +72,12 @@ SbsHardware SbsHardware_custom =
   .Get_vectorSize = (uint32_t(*) (void *))          XSbs_accelerator_64_Get_vectorSize,
   .Set_epsilon =    (void (*) (void *, uint32_t ))  XSbs_accelerator_64_Set_epsilon,
   .Get_epsilon =    (uint32_t(*) (void *))          XSbs_accelerator_64_Get_epsilon,
+  .Set_spike =      (void (*) (void *, uint32_t ))  XSbs_accelerator_64_Set_spike_out_V,
+  .Get_spike =      (uint32_t(*) (void *))          XSbs_accelerator_64_Get_spike_out_V,
+  .Set_layer =      (void (*) (void *, uint32_t ))  XSbs_accelerator_64_Set_layer_out_V,
+  .Get_layer =      (uint32_t(*) (void *))          XSbs_accelerator_64_Get_layer_out_V,
+  .Set_frame =      (void (*) (void *, uint32_t ))  XSbs_accelerator_64_Set_frame_in_V,
+  .Get_frame =      (uint32_t(*) (void *))          XSbs_accelerator_64_Get_frame_in_V,
   .Set_debug =      (void (*) (void *, uint32_t ))  XSbs_accelerator_64_Set_debug,
   .Get_debug =      (uint32_t(*) (void *))          XSbs_accelerator_64_Get_debug,
 
