@@ -2,6 +2,9 @@
 #include <ap_int.h>
 #include "hls_stream.h"
 
+#include <stdio.h>
+#include <string.h>
+
 #define MT19937_HW false
 
 #if MT19937_HW
@@ -148,14 +151,17 @@ unsigned int sbs_accelerator_64 (ap_uint<CHANNEL_WIDTH> * frame_in,
 #pragma HLS INTERFACE s_axilite port=epsilon     bundle=CRTL_BUS
 #pragma HLS INTERFACE s_axilite port=return      bundle=CRTL_BUS
 
+  static ap_uint<CHANNEL_WIDTH> input_vector[MAX_VECTOR_SIZE / (CHANNEL_WIDTH / STATE_VECTOR_WIDTH)];
+#pragma HLS array_partition variable=input_vector cyclic factor=1 dim=1
+
   static float state_vector[MAX_VECTOR_SIZE];
-#pragma HLS array_partition variable=state_vector block factor=1
+#pragma HLS array_partition variable=state_vector cyclic factor=1 dim=1
 
   static float weight_vector[MAX_VECTOR_SIZE];
-#pragma HLS array_partition variable=weight_vector block factor=1
+#pragma HLS array_partition variable=weight_vector cyclic factor=1 dim=1
 
   static float temp_data[MAX_VECTOR_SIZE];
-#pragma HLS array_partition variable=temp_data block factor=1
+#pragma HLS array_partition variable=temp_data cyclic factor=1 dim=1
 
   static float epsion_over_sum;
   static float random_value;
@@ -195,10 +201,12 @@ unsigned int sbs_accelerator_64 (ap_uint<CHANNEL_WIDTH> * frame_in,
     random_value = register_B.f32;
 #endif
 
+    memcpy (input_vector, &frame_in[frame_index], (vectorSize >> 1) * sizeof(ap_uint<CHANNEL_WIDTH> ));
+    frame_index += vectorSize >> 1;
     for (int i = 0; i < vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
     {
 #pragma HLS pipeline
-      input = frame_in[frame_index++];
+      input = input_vector[i >> 1];
 
       register_B.u32 = DATA16_TO_FLOAT32(input >> STATE_VECTOR_WIDTH * 0);
       state_vector[i] = register_B.f32;
@@ -240,10 +248,12 @@ unsigned int sbs_accelerator_64 (ap_uint<CHANNEL_WIDTH> * frame_in,
     for (int batch = 0; batch < kernelSize; batch++)
     {
 #pragma HLS pipeline
+      memcpy (input_vector, &frame_in[frame_index], (vectorSize >> 2) * sizeof(ap_uint<CHANNEL_WIDTH> ));
+      frame_index += vectorSize >> 2;
       for (int i = 0; i < vectorSize; i += (CHANNEL_WIDTH / WEIGHT_VECTOR_WIDTH))
       {
 #pragma HLS pipeline
-        input = frame_in[frame_index++];
+        input = input_vector[i >> 2];
 
         register_B.u32 = DATA8_TO_FLOAT32(input >> WEIGHT_VECTOR_WIDTH * 0);
         weight_vector[i] = register_B.f32;
@@ -310,8 +320,10 @@ unsigned int sbs_accelerator_64 (ap_uint<CHANNEL_WIDTH> * frame_in,
         }
       }
 
-      layer_out[output_index++] = output;
+      input_vector[i >> 1] = output;
     }
+    memcpy (&layer_out[output_index], input_vector, (vectorSize >> 1) * sizeof(ap_uint<CHANNEL_WIDTH> ));
+    output_index += vectorSize >> 1;
   }
 
 
