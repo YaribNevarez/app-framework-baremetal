@@ -233,6 +233,17 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
 
     profile->stateBufferSize = profile->vectorSize * state_matrix->format.size;
 
+    if (memory_cmd.cmdID == MEM_CMD_NONE)
+    {
+      profile->rxSpkBuffer = spike_matrix->data;
+      profile->rxSpkBufferSize = Multivector_dataSize (spike_matrix);
+    }
+    else
+    {
+      profile->rxSpkBuffer = memory_cmd.dest;
+      profile->rxSpkBufferSize = memory_cmd.size;
+    }
+
     /**************************** SPIKE_MODE *********************************/
     profile->rxBuffer[SPIKE_MODE] = spike_matrix->data;
     profile->rxBufferSize[SPIKE_MODE] = Multivector_dataSize(spike_matrix);
@@ -256,17 +267,6 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
       profile->memory_cmd[UPDATE_MODE] = memory_cmd;
       profile->rxBuffer[UPDATE_MODE] = state_matrix->data;
       profile->rxBufferSize[UPDATE_MODE] = Multivector_dataSize (state_matrix);
-
-      if (memory_cmd.cmdID == MEM_CMD_NONE)
-      {
-        profile->rxSpkBuffer = spike_matrix->data;
-        profile->rxSpkBufferSize = Multivector_dataSize (spike_matrix);
-      }
-      else
-      {
-        profile->rxSpkBuffer = memory_cmd.dest;
-        profile->rxSpkBufferSize = memory_cmd.size;
-      }
 
       ip_size = profile->vectorSize * state_matrix->format.size;
       if (ip_size % state_matrix->memory_padding)

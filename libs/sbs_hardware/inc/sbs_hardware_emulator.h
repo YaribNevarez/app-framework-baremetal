@@ -12,6 +12,7 @@ extern "C" {
 #endif
 
 /***************************** Include Files *********************************/
+#include "xstatus.h"
 #include "sbs_hardware.h"
 #include "dma_hardware.h"
 /***************** Macros (Inline Functions) Definitions *********************/

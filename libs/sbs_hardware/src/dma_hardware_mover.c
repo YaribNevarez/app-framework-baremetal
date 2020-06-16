@@ -21,6 +21,7 @@
 /************************** Function Prototypes ******************************/
 
 /************************** Function Definitions******************************/
+#if XILINX_DMA
 
 static void * DMAHardware_new (void)
 {
@@ -127,3 +128,4 @@ DMAHardware DMAHardware_mover =
   .ResetIsDone =          DMAHardware_ResetIsDone,
   .InterruptSetHandler =  DMAHardware_InterruptSetHandler
 };
+#endif

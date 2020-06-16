@@ -54,13 +54,13 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
 {
 #ifdef ACCELERATOR_0
   { .hwDriver      = &SbsHardware_fixedpoint_spike,
-    .dmaDriver     = &DMAHardware_mover,
+    .dmaDriver     = NULL,
     .layerAssign   = ACCELERATOR_0,
     .hwDeviceID    = XPAR_SBS_SPIKE_50_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_0_DEVICE_ID,
+    .dmaDeviceID   = -1,
     .hwIntVecID    = XPAR_FABRIC_SBS_SPIKE_50_0_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_0_S2MM_INTROUT_INTR,
+    .dmaRxIntVecID = 0,
     .channelSize   = 4,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x24000000,

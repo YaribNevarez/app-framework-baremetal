@@ -2,6 +2,9 @@
 #include <ap_int.h>
 #include "hls_stream.h"
 
+#include <stdio.h>
+#include <string.h>
+
 #define MT19937_HW false
 
 #if MT19937_HW
@@ -112,8 +115,6 @@ typedef union
 #define STATE_VECTOR_WIDTH    16
 #define SPIKE_VECTOR_WIDTH    16
 
-typedef ap_axis<CHANNEL_WIDTH, 2, 5, 6> StreamChannel;
-
 #define MAX_VECTOR_SIZE   50
 
 #define DATA16_TO_FLOAT32(d)  ((0x30000000 | (((unsigned int)(0xFFFF & (d))) << 12)))
@@ -125,18 +126,25 @@ typedef ap_axis<CHANNEL_WIDTH, 2, 5, 6> StreamChannel;
 #define DATA_SIZE     sizeof(short) // Bytes
 #define BUFFER_SIZE   ((MAX_VECTOR_SIZE + 1) * DATA_SIZE) / sizeof(Data32) + 1
 
-void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
-                   hls::stream<StreamChannel> &stream_out,
+void sbs_spike_50 (ap_uint<CHANNEL_WIDTH> * frame_in,
+                   ap_uint<CHANNEL_WIDTH> * spike_out,
                    int * debug,
                    int layerSize,
                    int vectorSize)
 {
-#pragma HLS INTERFACE axis      port=stream_in
-#pragma HLS INTERFACE axis      port=stream_out
+#pragma HLS INTERFACE m_axi     port=frame_in    offset=slave   bundle=DATA_BUS
+#pragma HLS INTERFACE m_axi     port=spike_out   offset=slave   bundle=DATA_BUS
+
+#pragma HLS INTERFACE s_axilite port=frame_in    bundle=CRTL_BUS
+#pragma HLS INTERFACE s_axilite port=spike_out   bundle=CRTL_BUS
+
 #pragma HLS INTERFACE s_axilite port=debug       bundle=CRTL_BUS
 #pragma HLS INTERFACE s_axilite port=layerSize   bundle=CRTL_BUS
 #pragma HLS INTERFACE s_axilite port=vectorSize  bundle=CRTL_BUS
 #pragma HLS INTERFACE s_axilite port=return      bundle=CRTL_BUS
+
+  static ap_uint<CHANNEL_WIDTH> input_vector[MAX_VECTOR_SIZE / (CHANNEL_WIDTH / STATE_VECTOR_WIDTH)];
+#pragma HLS array_partition variable=input_vector cyclic factor=1 dim=1
 
   static float data[MAX_VECTOR_SIZE];
 #pragma HLS array_partition variable=data complete
@@ -144,20 +152,17 @@ void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
   unsigned char index_spike;
   unsigned int debug_flags;
 
-  static StreamChannel channel;
   static float random_value;
 
   static ap_uint<CHANNEL_WIDTH> input;
   static Data32 register_B;
-  unsigned int temp;
 
   static float sum;
 
-  channel.keep = 0xF;
-  channel.strb = 0xF;
+  unsigned int frame_index = 0;
 
-  index_spike = 0;
-  temp = 0;
+  unsigned int spike_index = 0;
+  unsigned int spike_data = 0;
 
 #if MT19937_HW
   if (!MT19937_initialized (0))
@@ -172,15 +177,17 @@ void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
     random_value = ((float) MT19937_rand (0)) / ((float) 0xFFFFFFFF);
 #else
 #pragma HLS pipeline
-    register_B.u32 = stream_in.read ().data;
+    register_B.u32 = frame_in[frame_index++];
 
     random_value = register_B.f32;
 #endif
 
+    memcpy (input_vector, &frame_in[frame_index], (vectorSize >> 1) * sizeof(ap_uint<CHANNEL_WIDTH> ));
+    frame_index += vectorSize >> 1;
     for (int index = 0; index < vectorSize; index += CHANNEL_WIDTH / STATE_VECTOR_WIDTH)
     {
 #pragma HLS pipeline
-      input = stream_in.read ().data;
+      input = input_vector[index >> 1];
 
       register_B.u32 = DATA16_TO_FLOAT32(input >> STATE_VECTOR_WIDTH * 0);
       data[index] = register_B.f32;
@@ -201,18 +208,18 @@ void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
         sum += data[spikeID];
         if ((random_value <= sum) || (spikeID == vectorSize - 1))
         {
-          temp |= ((unsigned int)spikeID) << (SPIKE_VECTOR_WIDTH * index_spike);
-          index_spike ++;
-
-          if ((index_spike == 2) || (ip_index == layerSize - 1))
+          if (ip_index % 2 == 0)
           {
-            channel.last = (ip_index == layerSize - 1);
-            channel.data = temp;
+            spike_data = spikeID;
+          }
+          else
+          {
+            spike_data |= ((ap_uint<CHANNEL_WIDTH>)spikeID) << SPIKE_VECTOR_WIDTH;
+          }
 
-            stream_out.write (channel);
-
-            index_spike = 0;
-            temp = 0;
+          if ((ip_index % 2 == 1) || (ip_index == layerSize - 1))
+          {
+            spike_out[spike_index ++] = spike_data;
           }
         }
       }
