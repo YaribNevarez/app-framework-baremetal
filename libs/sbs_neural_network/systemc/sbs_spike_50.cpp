@@ -194,6 +194,7 @@ void sbs_spike_50 (ap_uint<CHANNEL_WIDTH> * frame_in,
 
       if (index + 1 < vectorSize)
       {
+#pragma HLS pipeline
         register_B.u32 = DATA16_TO_FLOAT32(input >> STATE_VECTOR_WIDTH * 1);
         data[index + 1] = register_B.f32;
       }
@@ -205,20 +206,25 @@ void sbs_spike_50 (ap_uint<CHANNEL_WIDTH> * frame_in,
 #pragma HLS pipeline
       if (sum < random_value)
       {
+#pragma HLS pipeline
         sum += data[spikeID];
         if ((random_value <= sum) || (spikeID == vectorSize - 1))
         {
+#pragma HLS pipeline
           if (ip_index % 2 == 0)
           {
+#pragma HLS pipeline
             spike_data = spikeID;
           }
           else
           {
+#pragma HLS pipeline
             spike_data |= ((ap_uint<CHANNEL_WIDTH>)spikeID) << SPIKE_VECTOR_WIDTH;
           }
 
           if ((ip_index % 2 == 1) || (ip_index == layerSize - 1))
           {
+#pragma HLS pipeline
             spike_out[spike_index ++] = spike_data;
           }
         }

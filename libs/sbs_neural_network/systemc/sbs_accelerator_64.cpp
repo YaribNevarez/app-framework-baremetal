@@ -213,6 +213,7 @@ unsigned int sbs_accelerator_64 (ap_uint<CHANNEL_WIDTH> * frame_in,
 
       if (i + 1 < vectorSize)
       {
+#pragma HLS pipeline
         register_B.u32 = DATA16_TO_FLOAT32(input >> STATE_VECTOR_WIDTH * 1);
         state_vector[i + 1] = register_B.f32;
       }
@@ -224,21 +225,26 @@ unsigned int sbs_accelerator_64 (ap_uint<CHANNEL_WIDTH> * frame_in,
 #pragma HLS pipeline
       if (sum < random_value)
       {
+#pragma HLS pipeline
         sum += state_vector[spikeID];
 
         if (random_value <= sum || (spikeID == vectorSize - 1))
         {
+#pragma HLS pipeline
           if (ip_index % 2 == 0)
           {
+#pragma HLS pipeline
             spike_data = spikeID;
           }
           else
           {
+#pragma HLS pipeline
             spike_data |= ((ap_uint<CHANNEL_WIDTH>)spikeID) << SPIKE_VECTOR_WIDTH;
           }
 
           if ((ip_index % 2 == 1) || (ip_index == layerSize - 1))
           {
+#pragma HLS pipeline
             spike_out[spike_index ++] = spike_data;
           }
         }
@@ -260,18 +266,21 @@ unsigned int sbs_accelerator_64 (ap_uint<CHANNEL_WIDTH> * frame_in,
 
         if (i + 1 < vectorSize)
         {
+#pragma HLS pipeline
           register_B.u32 = DATA8_TO_FLOAT32(input >> WEIGHT_VECTOR_WIDTH * 1);
           weight_vector[i + 1] = register_B.f32;
         }
 
         if (i + 2 < vectorSize)
         {
+#pragma HLS pipeline
           register_B.u32 = DATA8_TO_FLOAT32(input >> WEIGHT_VECTOR_WIDTH * 2);
           weight_vector[i + 2] = register_B.f32;
         }
 
         if (i + 3 < vectorSize)
         {
+#pragma HLS pipeline
           register_B.u32 = DATA8_TO_FLOAT32(input >> WEIGHT_VECTOR_WIDTH * 3);
           weight_vector[i + 3] = register_B.f32;
         }
@@ -287,6 +296,7 @@ unsigned int sbs_accelerator_64 (ap_uint<CHANNEL_WIDTH> * frame_in,
 
       if (NEGLECTING_CONSTANT < sum)
       {
+#pragma HLS pipeline
         epsion_over_sum = epsilon / sum;
         for (int i = 0; i < vectorSize; i++)
         {
@@ -304,18 +314,22 @@ unsigned int sbs_accelerator_64 (ap_uint<CHANNEL_WIDTH> * frame_in,
       register_A.f32 = state_vector[i];
       if ((register_A.u32 & 0xf0000000) == 0x30000000)
       {
+#pragma HLS pipeline
         output = ((ap_uint<CHANNEL_WIDTH> ) (FLOAT32_TO_DATA16(register_A.u32))) << (STATE_VECTOR_WIDTH * 0);
       }
       else
       {
+#pragma HLS pipeline
         output = 0;
       }
 
       if (i + 1 < vectorSize)
       {
+#pragma HLS pipeline
         register_A.f32 = state_vector[i + 1];
         if ((register_A.u32 & 0xf0000000) == 0x30000000)
         {
+#pragma HLS pipeline
           output |= ((ap_uint<CHANNEL_WIDTH> ) (FLOAT32_TO_DATA16(register_A.u32))) << (STATE_VECTOR_WIDTH * 1);
         }
       }
