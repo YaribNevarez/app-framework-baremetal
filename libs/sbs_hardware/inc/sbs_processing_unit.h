@@ -7,6 +7,8 @@
 #ifndef SBS_PROCESSING_UNIT_H_
 #define SBS_PROCESSING_UNIT_H_
 
+#ifdef SBS_PROCESSING_UNIT
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -172,5 +174,7 @@ void SbsPlatform_shutdown (void);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
+#endif /* SBS_PROCESSING_UNIT */
 
 #endif /* SBS_PROCESSING_UNIT_H_ */

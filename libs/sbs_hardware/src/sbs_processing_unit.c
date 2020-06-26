@@ -5,6 +5,7 @@
  *      Author: Yarib Nevarez
  */
 /***************************** Include Files *********************************/
+#if SBS_PROCESSING_UNIT
 #include "sbs_processing_unit.h"
 #include "sbs_hardware_spike.h"
 #include "sbs_hardware_update.h"
@@ -601,4 +602,4 @@ void SbsPlatform_shutdown (void)
 }
 
 /*****************************************************************************/
-
+#endif

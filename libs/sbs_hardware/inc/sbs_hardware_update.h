@@ -7,13 +7,15 @@
 #ifndef SBS_HARDWARE_UPDATE_H_
 #define SBS_HARDWARE_UPDATE_H_
 
+#ifdef XSBS_ACCELERATOR
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /***************************** Include Files *********************************/
 #include "sbs_hardware.h"
-//#include "xsbs_accelerator.h"
+#include "xsbs_accelerator.h"
 /***************** Macros (Inline Functions) Definitions *********************/
 
 /**************************** Type Definitions *******************************/
@@ -29,5 +31,7 @@ extern SbsHardware SbsHardware_fixedpoint;
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
+#endif /* XSBS_ACCELERATOR */
 
 #endif /* SBS_HARDWARE_UPDATE_H_ */

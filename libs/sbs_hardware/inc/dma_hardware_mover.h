@@ -7,6 +7,8 @@
 #ifndef DMA_HARDWARE_MOVER_H_
 #define DMA_HARDWARE_MOVER_H_
 
+#ifdef XAXIDMA
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -27,5 +29,7 @@ extern DMAHardware DMAHardware_mover;
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
+#endif /* XAXIDMA */
 
 #endif /* DMA_HARDWARE_MOVER_H_ */

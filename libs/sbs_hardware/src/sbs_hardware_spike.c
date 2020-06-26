@@ -4,6 +4,8 @@
  *  Created on: Mar 3rd, 2020
  *      Author: Yarib Nevarez
  */
+
+#ifdef XSBS_SPIKE_50
 /***************************** Include Files *********************************/
 #include "sbs_hardware_spike.h"
 #include "stdlib.h"
@@ -82,4 +84,4 @@ SbsHardware SbsHardware_fixedpoint_spike = {
 /************************** Function Prototypes ******************************/
 
 /************************** Function Definitions******************************/
-
+#endif

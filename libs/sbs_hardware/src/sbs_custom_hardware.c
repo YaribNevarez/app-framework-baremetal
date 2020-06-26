@@ -4,6 +4,7 @@
  *  Created on: Mar 3rd, 2020
  *      Author: Yarib Nevarez
  */
+#ifdef XSBS_ACCELERATOR_64
 /***************************** Include Files *********************************/
 #include "sbs_custom_hardware.h"
 #include "stdio.h"
@@ -91,3 +92,4 @@ SbsHardware SbsHardware_custom =
 
   .InterruptSetHandler = SbsHardware_custom_InterruptSetHandler
 };
+#endif

@@ -26,7 +26,7 @@ void _assert(const char * file,
              const char * expression)
 {
   int BypassFail = 0;
-  printf ("FAIL: %s\n\"%s\"\n[%s, %d]\n", expression, function, file, line);
+  printf ("\nFAIL: %s\n\"%s\"\n[%s, %d]\n", expression, function, file, line);
 
   while (!BypassFail);
 

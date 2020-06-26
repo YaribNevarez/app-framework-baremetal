@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cdtprojectproperties>
+<section name="org.eclipse.cdt.internal.ui.wizards.settingswizards.IncludePaths">
+<language name="s">
+
+</language>
+<language name="c,S">
+<includepath>../bsp/ps7_cortexa9_0/include</includepath>
+<includepath>/home/yarib/work/app-framework-baremetal/apps/test_app/inc</includepath>
+<includepath>/home/yarib/work/app-framework-baremetal/libs/arm/inc</includepath>
+<includepath>/home/yarib/work/app-framework-baremetal/libs/utilities/inc</includepath>
+<includepath>/home/yarib/work/app-framework-baremetal/libs/sbs_hardware/inc</includepath>
+
+</language>
+<language name="Object File">
+
+</language>
+<language name="ld">
+
+</language>
+</section>
+<section name="org.eclipse.cdt.internal.ui.wizards.settingswizards.Macros">
+<language name="s">
+
+</language>
+<language name="c,S">
+<macro>
+<name>XAXIDMA</name><value/>
+</macro>
+
+</language>
+<language name="Object File">
+
+</language>
+<language name="ld">
+
+</language>
+</section>
+</cdtprojectproperties>

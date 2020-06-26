@@ -7,6 +7,8 @@
 #ifndef SBS_DMA_HARDWARE_H_
 #define SBS_DMA_HARDWARE_H_
 
+#ifdef XAXIDMA
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -18,7 +20,7 @@ extern "C" {
 #include <result.h>
 #include <gic.h>
 
-//#include "xaxidma.h"
+#include "xaxidma.h"
 #include "xil_types.h"
 
 /***************** Macros (Inline Functions) Definitions *********************/
@@ -26,16 +28,16 @@ extern "C" {
 /**************************** Type Definitions *******************************/
 typedef enum
 {
-  MEMORY_TO_HARDWARE,
-  HARDWARE_TO_MEMORY
+  MEMORY_TO_HARDWARE = XAXIDMA_DMA_TO_DEVICE,
+  HARDWARE_TO_MEMORY = XAXIDMA_DEVICE_TO_DMA
 } DMATransferDirection;
 
 typedef enum
 {
-  DMA_IRQ_IOC,   /* Completion */
-  DMA_IRQ_DELAY, /* Delay      */
-  DMA_IRQ_ERROR, /* Error      */
-  DMA_IRQ_ALL    /* All        */
+  DMA_IRQ_IOC   = XAXIDMA_IRQ_IOC_MASK,   /* Completion */
+  DMA_IRQ_DELAY = XAXIDMA_IRQ_DELAY_MASK, /* Delay      */
+  DMA_IRQ_ERROR = XAXIDMA_IRQ_ERROR_MASK, /* Error      */
+  DMA_IRQ_ALL   = XAXIDMA_IRQ_ALL_MASK    /* All        */
 } DMAIRQMask;
 
 typedef struct
@@ -87,5 +89,7 @@ typedef struct
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
+#endif /* XAXIDMA */
 
 #endif /* SBS_DMA_HARDWARE_H_ */

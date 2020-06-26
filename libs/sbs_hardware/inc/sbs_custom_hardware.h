@@ -7,6 +7,8 @@
 #ifndef SBS_CUSTOM_HARDWARE_H_
 #define SBS_CUSTOM_HARDWARE_H_
 
+#ifdef XSBS_ACCELERATOR_64
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -29,5 +31,7 @@ extern SbsHardware SbsHardware_custom;
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
+#endif
 
 #endif /* SBS_CUSTOM_HARDWARE_H_ */

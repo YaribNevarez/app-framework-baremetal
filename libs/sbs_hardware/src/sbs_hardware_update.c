@@ -5,6 +5,7 @@
  *      Author: Yarib Nevarez
  */
 /***************************** Include Files *********************************/
+#ifdef XSBS_ACCELERATOR
 #include "sbs_hardware_update.h"
 #include "stdio.h"
 #include "stdlib.h"
@@ -22,7 +23,6 @@
 /************************** Function Prototypes ******************************/
 
 /************************** Function Definitions******************************/
-/*
 
 static void SbsHardware_fixedpoint_delete (void ** InstancePtr)
 {
@@ -86,4 +86,4 @@ SbsHardware SbsHardware_fixedpoint =
 
   .InterruptSetHandler = SbsHardware_fixedpoint_InterruptSetHandler
 };
-*/
+#endif

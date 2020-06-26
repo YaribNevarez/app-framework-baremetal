@@ -21,7 +21,7 @@
 /************************** Function Prototypes ******************************/
 
 /************************** Function Definitions******************************/
-#if XILINX_DMA
+#ifdef XAXIDMA
 
 static void * DMAHardware_new (void)
 {

@@ -7,6 +7,8 @@
 #ifndef SBS_HARDWARE_SPIKE_H_
 #define SBS_HARDWARE_SPIKE_H_
 
+#ifdef XSBS_SPIKE_50
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -28,5 +30,7 @@ extern SbsHardware SbsHardware_fixedpoint_spike;
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
+#endif /* XSBS_SPIKE_50 */
 
 #endif /* SBS_HARDWARE_SPIKE_H_ */
