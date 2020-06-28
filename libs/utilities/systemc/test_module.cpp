@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define CHANNEL_SIZE 1024
+#define CHANNEL_SIZE 64
 #define CACHE_ARRAY_LENGTH 1024
 
 typedef ap_axis<CHANNEL_SIZE, 2, 5, 6>    Channel;

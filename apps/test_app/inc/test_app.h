@@ -81,6 +81,7 @@ typedef struct
 {
   uint32_t dataSize;
   uint32_t bufferLength;
+  uint32_t maxBufferSize;
   void *   bufferInAddress;
   void *   bufferOutAddress;
 } DataParameters;
@@ -106,6 +107,8 @@ struct TestApp_
 // DECLARATIONS ----------------------------------------------------------------
 
 TestApp * TestApp_instance(void);
+
+char * TestCaseString_str (TestCase id);
 
 #ifdef __cplusplus
 }

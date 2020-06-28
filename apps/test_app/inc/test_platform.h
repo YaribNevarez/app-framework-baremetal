@@ -35,10 +35,4 @@
 #define KERNEL_DEVICE_ID    XPAR_TEST_MODULE_0_DEVICE_ID
 #define KERNEL_INTR_ID      XPAR_FABRIC_TEST_MODULE_0_INTERRUPT_INTR
 
-/////// Kernel hardware parameters ---------------------------------------------
-#define DATA_SIZE           (512/8)
-#define BUFFER_LENGTH       1024
-#define BUFFER_IN_ADDRESS   (void *) (XPAR_PS7_DDR_0_S_AXI_HIGHADDR - 1024*1024 + 1)
-#define BUFFER_OUT_ADDRESS  (void *) (XPAR_PS7_DDR_0_S_AXI_HIGHADDR -  512*1024 + 1)
-
 #endif /* TEST_PLATFORM_H_ */

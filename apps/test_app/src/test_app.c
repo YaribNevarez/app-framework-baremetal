@@ -472,33 +472,19 @@ static Result TestApp_run (TestApp * obj, TestCase test_case)
   TestAppPrivate * self = (TestAppPrivate *) obj;
   uint32_t correct_flag;
   float currentTime = 0;
-  float coefficient = 1.0 / (2.0 * 1024.0 * 1024.0);
+  float bandwidth = 0;
+  float txBandwidth = 0;
+  float rxBandwidth = 0;
 
   void * bufferIn = self->hwParameters->data.bufferInAddress;
   void * bufferOut = self->hwParameters->data.bufferOutAddress;
   size_t bufferSize = self->hwParameters->data.bufferLength * self->hwParameters->data.dataSize;
   size_t bufferLength = self->hwParameters->data.bufferLength;
 
-  if (test_case == MASTER_STORE_BURST
-      || test_case == MASTER_FLUSH_BURST
-      || test_case == MASTER_STORE
-      || test_case == MASTER_FLUSH
-      || test_case == MASTER_STORE_PIPELINED
-      || test_case == MASTER_FLUSH_PIPELINED
-      || test_case == STREAM_STORE
-      || test_case == STREAM_FLUSH
-      || test_case == STREAM_STORE_PIPELINED
-      || test_case == STREAM_FLUSH_PIPELINED)
-  {
-    coefficient = 1.0 / (1024.0 * 1024.0);
-  }
-
-  printf ("\n\n======== %s \n Length = %d, wide = %d-Bit, buffer size = %d-Byte\n",
-          TestCaseString_str (test_case),
+  printf ("\nLength = %d, wide = %d-Bit, buffer size = %d-Byte\n",
           self->hwParameters->data.bufferLength,
           self->hwParameters->data.dataSize * 8,
           bufferSize);
-
 
   self->dmaRxDone = 0;
   self->dmaTxDone = 0;
@@ -508,15 +494,19 @@ static Result TestApp_run (TestApp * obj, TestCase test_case)
   self->dmaTxTime = 0.0;
   self->hwTime = 0.0;
 
+  memset (bufferIn, 0x00, self->hwParameters->data.maxBufferSize);
+  memset (bufferOut, 0x00, self->hwParameters->data.maxBufferSize);
+
+  Xil_DCacheFlushRange ((INTPTR) bufferIn,  self->hwParameters->data.maxBufferSize);
+  Xil_DCacheFlushRange ((INTPTR) bufferOut, self->hwParameters->data.maxBufferSize);
+
   self->hwDriver->Set_buffer_length (self->hw, bufferLength);
   self->hwDriver->Set_test_case (self->hw, test_case);
   self->hwDriver->Set_master_in (self->hw, (uint32_t) bufferIn);
   self->hwDriver->Set_master_out (self->hw, (uint32_t) bufferOut);
 
   memset (bufferIn,  0xA5, bufferSize);
-  memset (bufferOut, 0x00, bufferSize);
   Xil_DCacheFlushRange ((INTPTR) bufferIn,  bufferSize);
-  Xil_DCacheFlushRange ((INTPTR) bufferOut, bufferSize);
 
   Timer_start (self->timer);
 
@@ -571,17 +561,73 @@ static Result TestApp_run (TestApp * obj, TestCase test_case)
       while (!self->hwDone && currentTime < 1.0)
         currentTime = Timer_getCurrentTime (self->timer);
 
-      printf ("dmaTxTime = %.3f uS,  %f Mb/S\n", self->dmaTxTime * 1e6, coefficient * bufferSize / self->dmaTxTime);
-      printf ("dmaRxTime = %.3f uS,  %f Mb/S\n", self->dmaRxTime * 1e6, coefficient * bufferSize / self->dmaRxTime);
-
       break;
     default:;
   }
 
-  Xil_DCacheInvalidateRange ((INTPTR) bufferOut, bufferSize);
+
+  switch(test_case)
+  {
+    case MASTER_DIRECT:
+    case MASTER_DIRECT_PIPELINE:
+      bandwidth = bufferSize / self->hwTime;
+      break;
+    case MASTER_CACHED:
+    case MASTER_CACHED_PIPELINED:
+    case MASTER_CACHED_BURST:
+      bandwidth = (2 * bufferSize) / self->hwTime;
+      break;
+    case MASTER_STORE_BURST:
+    case MASTER_FLUSH_BURST:
+    case MASTER_STORE:
+    case MASTER_FLUSH:
+    case MASTER_STORE_PIPELINED:
+    case MASTER_FLUSH_PIPELINED:
+      bandwidth = bufferSize / self->hwTime;
+      break;
+    case STREAM_DIRECT:
+    case STREAM_DIRECT_PIPELINED:
+      txBandwidth = bufferSize / self->dmaTxTime;
+      break;
+    case STREAM_CACHED:
+    case STREAM_CACHED_PIPELINED:
+      txBandwidth = bufferSize / self->dmaTxTime;
+      rxBandwidth = bufferSize / (self->dmaRxTime - self->dmaTxTime);
+      break;
+    case STREAM_STORE:
+      txBandwidth = bufferSize / self->dmaTxTime;
+      break;
+    case STREAM_FLUSH:
+      rxBandwidth = bufferSize / self->dmaRxTime;
+      break;
+    case STREAM_STORE_PIPELINED:
+      txBandwidth = bufferSize / self->dmaTxTime;
+      break;
+    case STREAM_FLUSH_PIPELINED:
+      rxBandwidth = bufferSize / self->dmaRxTime;
+      break;
+    default:
+      ASSERT (0);
+  }
 
 
-  printf ("\nKernel Hardware Time = %.3f uS\n", self->hwTime * 1e6);
+  if (0.0 < txBandwidth)
+  {
+    printf ("DMA Tx bandwidth = %f Mb/S\n", txBandwidth / (1024 * 1024));
+  }
+
+  if (0.0 < rxBandwidth)
+  {
+    printf ("DMA Rx bandwidth = %f Mb/S\n", rxBandwidth / (1024 * 1024));
+  }
+
+  if (0.0 < bandwidth)
+  {
+    printf ("Kernel Hardware bandwidth = %f Mb/S\n", bandwidth / (1024 * 1024));
+  }
+
+
+  Xil_DCacheInvalidateRange ((INTPTR) bufferOut, self->hwParameters->data.maxBufferSize);
 
   if (   test_case != STREAM_STORE
       && test_case != STREAM_STORE_PIPELINED
@@ -589,7 +635,10 @@ static Result TestApp_run (TestApp * obj, TestCase test_case)
       && test_case != MASTER_STORE_PIPELINED)
   {
     correct_flag = !memcmp (bufferIn, bufferOut, bufferSize);
-    printf ("%s\n", correct_flag ? "PASS" : "FAIL");
+    printf ("Inside memory region: %s\n", correct_flag ? "PASS" : "FAIL");
+
+    correct_flag = !memcmp (bufferIn, bufferOut, self->hwParameters->data.maxBufferSize);
+    printf ("Outside memory region: %s\n", correct_flag ? "PASS" : "FAIL");
   }
 
   if (currentTime >= 1.0)

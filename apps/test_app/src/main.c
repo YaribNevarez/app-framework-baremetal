@@ -1,5 +1,6 @@
 #include "stdio.h"
 #include "test_app.h"
+#include "test_app_config.h"
 #include "test_platform.h"
 
 static HardwareParameters hardwareParameters =
@@ -19,6 +20,7 @@ static HardwareParameters hardwareParameters =
     {
         .dataSize =         DATA_SIZE,
         .bufferLength =     BUFFER_LENGTH,
+        .maxBufferSize =    MAX_BUFFER_SIZE,
         .bufferInAddress =  BUFFER_IN_ADDRESS,
         .bufferOutAddress = BUFFER_OUT_ADDRESS
     }
@@ -39,12 +41,19 @@ int main (void)
   {
     rc = app->initialize (app, &hardwareParameters);
 
-    for (TestCase testCase = STREAM_DIRECT;
-        testCase <= STREAM_FLUSH_PIPELINED;
+    for (TestCase testCase = FIRST_TEST_CASE;
+        testCase <= LAST_TEST_CASE
+        && (rc == OK);
         testCase++)
-      if (rc == OK)
       {
+        printf ("\n====== Test case: %s\n", TestCaseString_str(testCase));
+
         rc = app->run (app, testCase);
+
+        if (rc != OK)
+        {
+          printf ("Application error\n");
+        }
       }
 
     app->dispose (app);
