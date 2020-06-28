@@ -43,26 +43,49 @@
 // TYPEDEFS AND DEFINES --------------------------------------------------------
 
 // EUNUMERATIONS ---------------------------------------------------------------
-typedef enum
+
+typedef struct
 {
-  MASTER_DIRECT,
-  MASTER_DIRECT_PIPELINE,
-  MASTER_CACHED,
-  MASTER_CACHED_PIPELINED,
-  MASTER_CACHED_BURST,
-  MASTER_STORE,
-  MASTER_FLUSH,
-  MASTER_STORE_PIPELINED,
-  MASTER_FLUSH_PIPELINED,
-  STREAM_DIRECT,
-  STREAM_DIRECT_PIPELINED,
-  STREAM_CACHED,
-  STREAM_CACHED_PIPELINED,
-  STREAM_STORE,
-  STREAM_FLUSH,
-  STREAM_STORE_PIPELINED,
-  STREAM_FLUSH_PIPELINED
-} TestCase;
+  TestCase  id;
+  char      str[32];
+} TestCaseString;
+
+static TestCaseString TestCaseString_data[] =
+{
+  { MASTER_DIRECT,            "MASTER_DIRECT"           },
+  { MASTER_DIRECT_PIPELINE,   "MASTER_DIRECT_PIPELINE"  },
+  { MASTER_CACHED,            "MASTER_CACHED"           },
+  { MASTER_CACHED_PIPELINED,  "MASTER_CACHED_PIPELINED" },
+  { MASTER_CACHED_BURST,      "MASTER_CACHED_BURST"     },
+  { MASTER_STORE_BURST,       "MASTER_STORE_BURST"      },
+  { MASTER_FLUSH_BURST,       "MASTER_FLUSH_BURST"      },
+  { MASTER_STORE,             "MASTER_STORE"            },
+  { MASTER_FLUSH,             "MASTER_FLUSH"            },
+  { MASTER_STORE_PIPELINED,   "MASTER_STORE_PIPELINED"  },
+  { MASTER_FLUSH_PIPELINED,   "MASTER_FLUSH_PIPELINED"  },
+  { STREAM_DIRECT,            "STREAM_DIRECT"           },
+  { STREAM_DIRECT_PIPELINED,  "STREAM_DIRECT_PIPELINED" },
+  { STREAM_CACHED,            "STREAM_CACHED"           },
+  { STREAM_CACHED_PIPELINED,  "STREAM_CACHED_PIPELINED" },
+  { STREAM_STORE,             "STREAM_STORE"            },
+  { STREAM_FLUSH,             "STREAM_FLUSH"            },
+  { STREAM_STORE_PIPELINED,   "STREAM_STORE_PIPELINED"  },
+  { STREAM_FLUSH_PIPELINED,   "STREAM_FLUSH_PIPELINED"  },
+  { 0 }
+};
+
+char * TestCaseString_str (TestCase id)
+{
+  char * str = NULL;
+
+  for (uint32_t i = 0;
+      (i < sizeof(TestCaseString_data) / sizeof(TestCaseString)) && str == NULL;
+      i++)
+    if (TestCaseString_data[i].id == id)
+      str = TestCaseString_data[i].str;
+
+  return str ? str : "NONE";
+}
 // STRUCTS AND NAMESPACES ------------------------------------------------------
 
 typedef struct
@@ -167,6 +190,9 @@ typedef struct
   // File system
   FATFS         fatFS;
 
+  // Hardware parameters
+  HardwareParameters * hwParameters;
+
   // DMA members
   DMAHardware * dmaDriver;
   void *        dma;
@@ -184,11 +210,6 @@ typedef struct
   double        dmaTxTime;
   double        dmaRxTime;
   double        hwTime;
-
-  void *        bufferIn;
-  uint32_t      bufferInLength;
-  void *        bufferOut;
-  uint32_t      bufferOutLength;
 } TestAppPrivate;
 
 // DEFINITIONs -----------------------------------------------------------------
@@ -213,7 +234,7 @@ static uint32_t TestApp_initializeSDCard (TestAppPrivate * self)
 
 #define DMA_RESET_TIMEOUT 10000
 
-void TestApp_txInterruptHandler(void * obj)
+static void TestApp_txInterruptHandler (void * obj)
 {
   TestAppPrivate * self = (TestAppPrivate *) obj;
   DMAIRQMask irq_status = self->dmaDriver->InterruptGetStatus (self->dma, MEMORY_TO_HARDWARE);
@@ -243,11 +264,11 @@ void TestApp_txInterruptHandler(void * obj)
    if (irq_status & DMA_IRQ_IOC)
    {
      self->dmaTxDone = 1;
-     self->dmaTxTime = Timer_getCurrentTime (self->timer);;
+     self->dmaTxTime = Timer_getCurrentTime (self->timer);
    }
 }
 
-void TestApp_rxInterruptHandler(void * obj)
+static void TestApp_rxInterruptHandler(void * obj)
 {
   TestAppPrivate * self = (TestAppPrivate *) obj;
   DMAIRQMask irq_status = self->dmaDriver->InterruptGetStatus (self->dma, HARDWARE_TO_MEMORY);
@@ -281,7 +302,7 @@ void TestApp_rxInterruptHandler(void * obj)
    }
 }
 
-void TestApp_hardwareInterruptHandler (void * obj)
+static void TestApp_hardwareInterruptHandler (void * obj)
 {
   TestAppPrivate * self = (TestAppPrivate *) obj;
   uint32_t status;
@@ -296,9 +317,16 @@ void TestApp_hardwareInterruptHandler (void * obj)
 static uint32_t TestApp_initializeDMA (TestAppPrivate * self)
 {
   uint32_t status = OK;
-  uint16_t dmaDeviceID = XPAR_AXI_DMA_0_DEVICE_ID;
-  uint16_t dmaTxIntVecID = XPAR_FABRIC_AXI_DMA_0_MM2S_INTROUT_INTR;
-  uint16_t dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_0_S2MM_INTROUT_INTR;
+
+  ASSERT (self != NULL);
+
+  if (self == NULL)
+    return ERROR;
+
+  ASSERT (self->hwParameters != NULL);
+
+  if (self->hwParameters == NULL)
+    return ERROR;
 
   ASSERT (self->dmaDriver != NULL);
 
@@ -312,19 +340,19 @@ static uint32_t TestApp_initializeDMA (TestAppPrivate * self)
   if (self->dma == NULL)
     return ERROR;
 
-  status = self->dmaDriver->Initialize (self->dma, dmaDeviceID);
+  status = self->dmaDriver->Initialize (self->dma, self->hwParameters->dma.deviceId);
 
   ASSERT (status == OK);
 
   if (status != OK)
     return ERROR;
 
-  if (dmaTxIntVecID != 0)
+  if (self->hwParameters->dma.txInterruptId != 0)
   {
     self->dmaDriver->InterruptEnable (self->dma, DMA_IRQ_ALL, MEMORY_TO_HARDWARE);
 
     status = self->dmaDriver->InterruptSetHandler (self->dma,
-                                                   dmaTxIntVecID,
+                                                   self->hwParameters->dma.txInterruptId,
                                                    TestApp_txInterruptHandler,
                                                    self);
     ASSERT(status == OK);
@@ -332,14 +360,14 @@ static uint32_t TestApp_initializeDMA (TestAppPrivate * self)
       return status;
   }
 
-  if (dmaRxIntVecID != 0)
+  if (self->hwParameters->dma.rxInterruptId != 0)
   {
     self->dmaDriver->InterruptEnable (self->dma,
                                       DMA_IRQ_ALL,
                                       HARDWARE_TO_MEMORY);
 
     status = self->dmaDriver->InterruptSetHandler (self->dma,
-                                                   dmaRxIntVecID,
+                                                   self->hwParameters->dma.rxInterruptId,
                                                    TestApp_rxInterruptHandler,
                                                    self);
     ASSERT(status == OK);
@@ -353,26 +381,34 @@ static uint32_t TestApp_initializeDMA (TestAppPrivate * self)
 static uint32_t TestApp_initializeHWKernel (TestAppPrivate * self)
 {
   uint32_t status = OK;
-  uint16_t hwDeviceID = XPAR_TEST_MODULE_0_DEVICE_ID;
-  uint16_t hwIntVecID = XPAR_FABRIC_TEST_MODULE_0_INTERRUPT_INTR;
+
+  ASSERT (self != NULL);
+
+   if (self == NULL)
+     return ERROR;
+
+  ASSERT (self->hwParameters != NULL);
+
+  if (self->hwParameters == NULL)
+    return ERROR;
 
   self->hw = self->hwDriver->new ();
 
   ASSERT (self->hw != NULL);
 
-  status = self->hwDriver->Initialize (self->hw, hwDeviceID);
+  status = self->hwDriver->Initialize (self->hw, self->hwParameters->kernel.deviceId);
   ASSERT(status == OK);
 
   if (status != OK)
     return ERROR;
 
-  if (hwIntVecID)
+  if (self->hwParameters->kernel.interruptId)
   {
     self->hwDriver->InterruptGlobalEnable (self->hw);
     self->hwDriver->InterruptEnable (self->hw, 1);
 
     status = self->hwDriver->InterruptSetHandler (self->hw,
-                                                  hwIntVecID,
+                                                  self->hwParameters->kernel.interruptId,
                                                   TestApp_hardwareInterruptHandler,
                                                   self);
   }
@@ -384,15 +420,17 @@ static uint32_t TestApp_initializeHWKernel (TestAppPrivate * self)
   return OK;
 }
 
-Result TestApp_initialize (TestApp * obj)
+static Result TestApp_initialize (TestApp * obj, HardwareParameters * hwParameters)
 {
   TestAppPrivate * self = (TestAppPrivate *) obj;
   Result rc;
 
-  uint32_t bufferInLength = 1024 * sizeof(uint32_t);
-  uint32_t bufferOutLength = 1024 * sizeof(uint32_t);
-  void * bufferIn = (void *) (XPAR_PS7_DDR_0_S_AXI_HIGHADDR - 1024*1024 + 1);
-  void * bufferOut = (void *) (XPAR_PS7_DDR_0_S_AXI_HIGHADDR - 512*1024 + 1);
+  ASSERT (hwParameters != NULL)
+
+  if (hwParameters == NULL)
+    return ERROR;
+
+  self->hwParameters = hwParameters;
 
   rc = ARM_GIC_initialize ();
 
@@ -426,34 +464,41 @@ Result TestApp_initialize (TestApp * obj)
     return rc;
   }
 
-
-  self->bufferIn = bufferIn;
-  self->bufferInLength = bufferInLength;
-
-  self->bufferOut = bufferOut;
-  self->bufferOutLength = bufferOutLength;
-
   return rc;
 }
 
-Result TestApp_run (TestApp * obj)
+static Result TestApp_run (TestApp * obj, TestCase test_case)
 {
   TestAppPrivate * self = (TestAppPrivate *) obj;
   uint32_t correct_flag;
-  TestCase test_case = STREAM_CACHED_PIPELINED;
+  float currentTime = 0;
+  float coefficient = 1.0 / (2.0 * 1024.0 * 1024.0);
 
-  // ********** Create SBS Neural Network **********
-  printf ("\n==========  Xilinx Zynq 7000  ===============");
-  printf ("\n==========  Memory bandwidth test ===========");
+  void * bufferIn = self->hwParameters->data.bufferInAddress;
+  void * bufferOut = self->hwParameters->data.bufferOutAddress;
+  size_t bufferSize = self->hwParameters->data.bufferLength * self->hwParameters->data.dataSize;
+  size_t bufferLength = self->hwParameters->data.bufferLength;
 
-  for (uint8_t * ptr = self->bufferIn;
-      (void *) ptr < (self->bufferIn + self->bufferInLength);
-      ptr ++)
-    *ptr = ((int)ptr) % 9 + 1;
+  if (test_case == MASTER_STORE_BURST
+      || test_case == MASTER_FLUSH_BURST
+      || test_case == MASTER_STORE
+      || test_case == MASTER_FLUSH
+      || test_case == MASTER_STORE_PIPELINED
+      || test_case == MASTER_FLUSH_PIPELINED
+      || test_case == STREAM_STORE
+      || test_case == STREAM_FLUSH
+      || test_case == STREAM_STORE_PIPELINED
+      || test_case == STREAM_FLUSH_PIPELINED)
+  {
+    coefficient = 1.0 / (1024.0 * 1024.0);
+  }
 
-  ((uint32_t*) self->bufferIn)[self->bufferInLength / sizeof(uint32_t) - 1] = 0xFFFFFFFF;
+  printf ("\n\n======== %s \n Length = %d, wide = %d-Bit, buffer size = %d-Byte\n",
+          TestCaseString_str (test_case),
+          self->hwParameters->data.bufferLength,
+          self->hwParameters->data.dataSize * 8,
+          bufferSize);
 
-  memset (self->bufferOut, 0, self->bufferOutLength);
 
   self->dmaRxDone = 0;
   self->dmaTxDone = 0;
@@ -463,10 +508,15 @@ Result TestApp_run (TestApp * obj)
   self->dmaTxTime = 0.0;
   self->hwTime = 0.0;
 
-  self->hwDriver->Set_buffer_length (self->hw, (uint32_t) self->bufferOutLength / sizeof(uint32_t));
+  self->hwDriver->Set_buffer_length (self->hw, bufferLength);
   self->hwDriver->Set_test_case (self->hw, test_case);
+  self->hwDriver->Set_master_in (self->hw, (uint32_t) bufferIn);
+  self->hwDriver->Set_master_out (self->hw, (uint32_t) bufferOut);
 
-  Xil_DCacheFlushRange ((INTPTR) self->bufferIn, self->bufferInLength);
+  memset (bufferIn,  0xA5, bufferSize);
+  memset (bufferOut, 0x00, bufferSize);
+  Xil_DCacheFlushRange ((INTPTR) bufferIn,  bufferSize);
+  Xil_DCacheFlushRange ((INTPTR) bufferOut, bufferSize);
 
   Timer_start (self->timer);
 
@@ -477,15 +527,16 @@ Result TestApp_run (TestApp * obj)
     case MASTER_CACHED:
     case MASTER_CACHED_PIPELINED:
     case MASTER_CACHED_BURST:
+    case MASTER_STORE_BURST:
+    case MASTER_FLUSH_BURST:
     case MASTER_STORE:
     case MASTER_FLUSH:
     case MASTER_STORE_PIPELINED:
     case MASTER_FLUSH_PIPELINED:
 
-      self->hwDriver->Set_master_in (self->hw, (uint32_t) self->bufferIn);
-      self->hwDriver->Set_master_out (self->hw, (uint32_t) self->bufferOut);
       self->hwDriver->Start (self->hw);
-      while (!self->hwDone);
+      while (!self->hwDone && currentTime < 1.0)
+        currentTime = Timer_getCurrentTime (self->timer);
 
       break;
     case STREAM_DIRECT:
@@ -499,38 +550,55 @@ Result TestApp_run (TestApp * obj)
 
       self->hwDriver->Start (self->hw);
 
-      self->dmaDriver->Move(self->dma,
-                            self->bufferIn,
-                            self->bufferInLength,
-                            MEMORY_TO_HARDWARE);
+      if(test_case != STREAM_FLUSH && test_case != STREAM_FLUSH_PIPELINED)
+        self->dmaDriver->Move (self->dma, bufferIn, bufferSize, MEMORY_TO_HARDWARE);
 
-      self->dmaDriver->Move(self->dma,
-                            self->bufferOut,
-                            self->bufferOutLength,
-                            HARDWARE_TO_MEMORY);
+      if(test_case != STREAM_STORE && test_case != STREAM_STORE_PIPELINED)
+        self->dmaDriver->Move (self->dma, bufferOut, bufferSize, HARDWARE_TO_MEMORY);
 
-      while (!self->dmaTxDone);
-      while (!self->dmaRxDone);
-      while (!self->hwDone);
+      while (!self->dmaTxDone
+          && test_case != STREAM_FLUSH
+          && test_case != STREAM_FLUSH_PIPELINED
+          && currentTime < 1.0)
+        currentTime = Timer_getCurrentTime (self->timer);
 
-      printf ("\ndmaTxTime = %.16f", self->dmaTxTime);
-      printf ("\ndmaRxTime = %.16f", self->dmaRxTime);
+      while (!self->dmaRxDone
+          && test_case != STREAM_STORE
+          && test_case != STREAM_STORE_PIPELINED
+          && currentTime < 1.0)
+        currentTime = Timer_getCurrentTime (self->timer);
+
+      while (!self->hwDone && currentTime < 1.0)
+        currentTime = Timer_getCurrentTime (self->timer);
+
+      printf ("dmaTxTime = %.3f uS,  %f Mb/S\n", self->dmaTxTime * 1e6, coefficient * bufferSize / self->dmaTxTime);
+      printf ("dmaRxTime = %.3f uS,  %f Mb/S\n", self->dmaRxTime * 1e6, coefficient * bufferSize / self->dmaRxTime);
 
       break;
     default:;
   }
 
-  Xil_DCacheInvalidateRange ((INTPTR) self->bufferOut, self->bufferOutLength);
+  Xil_DCacheInvalidateRange ((INTPTR) bufferOut, bufferSize);
 
-  correct_flag = !memcmp (self->bufferIn, self->bufferOut, self->bufferOutLength);
 
-  printf ("\nhwTime = %.16f", self->hwTime);
-  printf ("\n%s\n", correct_flag ? "PASS" : "FAIL");
+  printf ("\nKernel Hardware Time = %.3f uS\n", self->hwTime * 1e6);
+
+  if (   test_case != STREAM_STORE
+      && test_case != STREAM_STORE_PIPELINED
+      && test_case != MASTER_STORE
+      && test_case != MASTER_STORE_PIPELINED)
+  {
+    correct_flag = !memcmp (bufferIn, bufferOut, bufferSize);
+    printf ("%s\n", correct_flag ? "PASS" : "FAIL");
+  }
+
+  if (currentTime >= 1.0)
+    printf ("TIMEOUT\n");
 
   return OK;
 }
 
-void TestApp_dispose (TestApp * obj)
+static void TestApp_dispose (TestApp * obj)
 {
   TestAppPrivate * self = (TestAppPrivate *) obj;
 

@@ -41,18 +41,69 @@ extern "C" {
 
 // TYPEDEFS AND DEFINES --------------------------------------------------------
 
-// EUNUMERATIONS ---------------------------------------------------------------
+typedef enum
+{
+  MASTER_DIRECT,
+  MASTER_DIRECT_PIPELINE,
+  MASTER_CACHED,
+  MASTER_CACHED_PIPELINED,
+  MASTER_CACHED_BURST,
+  MASTER_STORE_BURST,
+  MASTER_FLUSH_BURST,
+  MASTER_STORE,
+  MASTER_FLUSH,
+  MASTER_STORE_PIPELINED,
+  MASTER_FLUSH_PIPELINED,
+  STREAM_DIRECT,
+  STREAM_DIRECT_PIPELINED,
+  STREAM_CACHED,
+  STREAM_CACHED_PIPELINED,
+  STREAM_STORE,
+  STREAM_FLUSH,
+  STREAM_STORE_PIPELINED,
+  STREAM_FLUSH_PIPELINED
+} TestCase;
 
-// DECLARATIONS ----------------------------------------------------------------
+typedef struct
+{
+  uint32_t deviceId;
+  uint32_t txInterruptId;
+  uint32_t rxInterruptId;
+} DMAHwParameters;
+
+typedef struct
+{
+  uint32_t deviceId;
+  uint32_t interruptId;
+} KernelHwParameters;
+
+typedef struct
+{
+  uint32_t dataSize;
+  uint32_t bufferLength;
+  void *   bufferInAddress;
+  void *   bufferOutAddress;
+} DataParameters;
+
+typedef struct
+{
+  KernelHwParameters  kernel;
+  DMAHwParameters     dma;
+  DataParameters      data;
+} HardwareParameters;
 
 typedef struct TestApp_ TestApp;
 
 struct TestApp_
 {
-  Result  (* initialize) (TestApp * self);
-  Result  (* run)        (TestApp * self);
+  Result  (* initialize) (TestApp * self, HardwareParameters * hwParameters);
+  Result  (* run)        (TestApp * self, TestCase testCase);
   void    (* dispose)    (TestApp * self);
 };
+
+// EUNUMERATIONS ---------------------------------------------------------------
+
+// DECLARATIONS ----------------------------------------------------------------
 
 TestApp * TestApp_instance(void);
 

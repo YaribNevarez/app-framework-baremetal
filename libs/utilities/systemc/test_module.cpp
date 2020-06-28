@@ -5,8 +5,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#define CHANNEL_SIZE 32
-#define CACHE_ARRAY_LENGTH 4096
+#define CHANNEL_SIZE 1024
+#define CACHE_ARRAY_LENGTH 1024
 
 typedef ap_axis<CHANNEL_SIZE, 2, 5, 6>    Channel;
 
@@ -56,12 +56,11 @@ unsigned int test_module (unsigned int test_case,
   Channel      channel_in;
   Channel      channel_out;
 
-  channel_out.keep = 0xF;
-  channel_out.strb = 0xF;
-  channel_out.last = 0x0;
+  channel_out.keep = -1;
+  channel_out.strb = -1;
 
   static ap_uint < CHANNEL_SIZE > cache_array[CACHE_ARRAY_LENGTH];
-#pragma HLS array_partition variable=cache_array block factor=1 dim=0
+//#pragma HLS array_partition variable=cache_array block factor=1 dim=0
 
   switch (test_case)
   {
@@ -107,16 +106,16 @@ unsigned int test_module (unsigned int test_case,
       break;
 
     case MASTER_CACHED_BURST:
-      memcpy (master_in, cache_array, sizeof(ap_uint< CHANNEL_SIZE> ) * buffer_length);
-      memcpy (cache_array, master_out, sizeof(ap_uint< CHANNEL_SIZE> ) * buffer_length);
+      memcpy (cache_array, master_in, sizeof(ap_uint< CHANNEL_SIZE> ) * buffer_length);
+      memcpy (master_out, cache_array, sizeof(ap_uint< CHANNEL_SIZE> ) * buffer_length);
       break;
 
     case MASTER_STORE_BURST:
-      memcpy (master_in, cache_array, sizeof(ap_uint< CHANNEL_SIZE> ) * buffer_length);
+      memcpy (cache_array, master_in, sizeof(ap_uint< CHANNEL_SIZE> ) * buffer_length);
       break;
 
     case MASTER_FLUSH_BURST:
-      memcpy (cache_array, master_out, sizeof(ap_uint< CHANNEL_SIZE> ) * buffer_length);
+      memcpy (master_out, cache_array, sizeof(ap_uint< CHANNEL_SIZE> ) * buffer_length);
       break;
 
     case MASTER_STORE:
@@ -153,9 +152,7 @@ unsigned int test_module (unsigned int test_case,
       for (unsigned int i = 0; i < buffer_length; i++)
       {
         stream_in.read (channel_in);
-        channel_out.data = channel_in.data;
-        channel_out.last = buffer_length == i - 1;
-        stream_out.write (channel_out);
+        stream_out.write (channel_in);
       }
       break;
 
@@ -164,9 +161,7 @@ unsigned int test_module (unsigned int test_case,
       {
 #pragma HLS pipeline
         stream_in.read (channel_in);
-        channel_out.data = channel_in.data;
-        channel_out.last = buffer_length == i - 1;
-        stream_out.write (channel_out);
+        stream_out.write (channel_in);
       }
       break;
 
@@ -180,7 +175,7 @@ unsigned int test_module (unsigned int test_case,
       for (unsigned int i = 0; i < buffer_length; i++)
       {
         channel_out.data = cache_array[i];
-        channel_out.last = buffer_length == i - 1;
+        channel_out.last = buffer_length - 1 == i;
         stream_out.write (channel_out);
       }
       break;
@@ -197,7 +192,7 @@ unsigned int test_module (unsigned int test_case,
       {
 #pragma HLS pipeline
         channel_out.data = cache_array[i];
-        channel_out.last = buffer_length == i - 1;
+        channel_out.last = buffer_length - 1 == i;
         stream_out.write (channel_out);
       }
       break;
@@ -214,7 +209,7 @@ unsigned int test_module (unsigned int test_case,
       for (unsigned int i = 0; i < buffer_length; i++)
       {
         channel_out.data = cache_array[i];
-        channel_out.last = buffer_length == i - 1;
+        channel_out.last = buffer_length - 1 == i;
         stream_out.write (channel_out);
       }
       break;
@@ -233,7 +228,7 @@ unsigned int test_module (unsigned int test_case,
       {
 #pragma HLS pipeline
         channel_out.data = cache_array[i];
-        channel_out.last = buffer_length == i - 1;
+        channel_out.last = buffer_length - 1 == i;
         stream_out.write (channel_out);
       }
       break;
