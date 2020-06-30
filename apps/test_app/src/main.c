@@ -3,6 +3,8 @@
 #include "test_app_config.h"
 #include "test_platform.h"
 
+// To debug BSP use: -g3 -O0 -DDEBUG
+
 static HardwareParameters hardwareParameters =
 {
     .kernel =

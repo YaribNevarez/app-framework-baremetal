@@ -52,25 +52,25 @@ typedef struct
 
 static TestCaseString TestCaseString_data[] =
 {
-  { MASTER_DIRECT,            "MASTER_DIRECT"           },
-  { MASTER_DIRECT_PIPELINE,   "MASTER_DIRECT_PIPELINE"  },
-  { MASTER_CACHED,            "MASTER_CACHED"           },
-  { MASTER_CACHED_PIPELINED,  "MASTER_CACHED_PIPELINED" },
-  { MASTER_CACHED_BURST,      "MASTER_CACHED_BURST"     },
-  { MASTER_STORE_BURST,       "MASTER_STORE_BURST"      },
-  { MASTER_FLUSH_BURST,       "MASTER_FLUSH_BURST"      },
-  { MASTER_STORE,             "MASTER_STORE"            },
-  { MASTER_FLUSH,             "MASTER_FLUSH"            },
-  { MASTER_STORE_PIPELINED,   "MASTER_STORE_PIPELINED"  },
-  { MASTER_FLUSH_PIPELINED,   "MASTER_FLUSH_PIPELINED"  },
-  { STREAM_DIRECT,            "STREAM_DIRECT"           },
-  { STREAM_DIRECT_PIPELINED,  "STREAM_DIRECT_PIPELINED" },
-  { STREAM_CACHED,            "STREAM_CACHED"           },
-  { STREAM_CACHED_PIPELINED,  "STREAM_CACHED_PIPELINED" },
-  { STREAM_STORE,             "STREAM_STORE"            },
-  { STREAM_FLUSH,             "STREAM_FLUSH"            },
-  { STREAM_STORE_PIPELINED,   "STREAM_STORE_PIPELINED"  },
-  { STREAM_FLUSH_PIPELINED,   "STREAM_FLUSH_PIPELINED"  },
+  { MASTER_DIRECT,              "MASTER_DIRECT"             },
+  { MASTER_DIRECT_PIPELINE,     "MASTER_DIRECT_PIPELINE"    },
+  { MASTER_CACHED,              "MASTER_CACHED"             },
+  { MASTER_CACHED_PIPELINED,    "MASTER_CACHED_PIPELINED"   },
+  { MASTER_CACHED_BURST,        "MASTER_CACHED_BURST"       },
+  { MASTER_SEND_BURST,          "MASTER_SEND_BURST"         },
+  { MASTER_RETRIEVE_BURST,      "MASTER_RETRIEVE_BURST"     },
+  { MASTER_SEND,                "MASTER_SEND"               },
+  { MASTER_RETRIEVE,            "MASTER_RETRIEVE"           },
+  { MASTER_SEND_PIPELINED,      "MASTER_SEND_PIPELINED"     },
+  { MASTER_RETRIEVE_PIPELINED,  "MASTER_RETRIEVE_PIPELINED" },
+  { STREAM_DIRECT,              "STREAM_DIRECT"             },
+  { STREAM_DIRECT_PIPELINED,    "STREAM_DIRECT_PIPELINED"   },
+  { STREAM_CACHED,              "STREAM_CACHED"             },
+  { STREAM_CACHED_PIPELINED,    "STREAM_CACHED_PIPELINED"   },
+  { STREAM_SEND,                "STREAM_SEND"               },
+  { STREAM_RETRIEVE,            "STREAM_RETRIEVE"           },
+  { STREAM_SEND_PIPELINED,      "STREAM_SEND_PIPELINED"     },
+  { STREAM_RETRIEVE_PIPELINED,  "STREAM_RETRIEVE_PIPELINED" },
   { 0 }
 };
 
@@ -470,11 +470,16 @@ static Result TestApp_initialize (TestApp * obj, HardwareParameters * hwParamete
 static Result TestApp_run (TestApp * obj, TestCase test_case)
 {
   TestAppPrivate * self = (TestAppPrivate *) obj;
-  uint32_t correct_flag;
+  uint32_t matching_flag;
+
   float currentTime = 0;
+
   float bandwidth = 0;
   float txBandwidth = 0;
   float rxBandwidth = 0;
+
+  float txLatency = 0;
+  float rxLatency = 0;
 
   void * bufferIn = self->hwParameters->data.bufferInAddress;
   void * bufferOut = self->hwParameters->data.bufferOutAddress;
@@ -482,8 +487,8 @@ static Result TestApp_run (TestApp * obj, TestCase test_case)
   size_t bufferLength = self->hwParameters->data.bufferLength;
 
   printf ("\nLength = %d, wide = %d-Bit, buffer size = %d-Byte\n",
-          self->hwParameters->data.bufferLength,
-          self->hwParameters->data.dataSize * 8,
+          (int) self->hwParameters->data.bufferLength,
+          (int )self->hwParameters->data.dataSize * 8,
           bufferSize);
 
   self->dmaRxDone = 0;
@@ -505,7 +510,12 @@ static Result TestApp_run (TestApp * obj, TestCase test_case)
   self->hwDriver->Set_master_in (self->hw, (uint32_t) bufferIn);
   self->hwDriver->Set_master_out (self->hw, (uint32_t) bufferOut);
 
-  memset (bufferIn,  0xA5, bufferSize);
+  //memset (bufferIn,  0xA5, bufferSize);
+  for (uint32_t * ptr = (uint32_t *) bufferIn; ptr < (bufferIn + bufferSize); ptr++)
+  {
+    *ptr = (uint32_t) ptr;
+  }
+
   Xil_DCacheFlushRange ((INTPTR) bufferIn,  bufferSize);
 
   Timer_start (self->timer);
@@ -517,12 +527,12 @@ static Result TestApp_run (TestApp * obj, TestCase test_case)
     case MASTER_CACHED:
     case MASTER_CACHED_PIPELINED:
     case MASTER_CACHED_BURST:
-    case MASTER_STORE_BURST:
-    case MASTER_FLUSH_BURST:
-    case MASTER_STORE:
-    case MASTER_FLUSH:
-    case MASTER_STORE_PIPELINED:
-    case MASTER_FLUSH_PIPELINED:
+    case MASTER_SEND_BURST:
+    case MASTER_RETRIEVE_BURST:
+    case MASTER_SEND:
+    case MASTER_RETRIEVE:
+    case MASTER_SEND_PIPELINED:
+    case MASTER_RETRIEVE_PIPELINED:
 
       self->hwDriver->Start (self->hw);
       while (!self->hwDone && currentTime < 1.0)
@@ -533,28 +543,28 @@ static Result TestApp_run (TestApp * obj, TestCase test_case)
     case STREAM_DIRECT_PIPELINED:
     case STREAM_CACHED:
     case STREAM_CACHED_PIPELINED:
-    case STREAM_STORE:
-    case STREAM_FLUSH:
-    case STREAM_STORE_PIPELINED:
-    case STREAM_FLUSH_PIPELINED:
+    case STREAM_SEND:
+    case STREAM_RETRIEVE:
+    case STREAM_SEND_PIPELINED:
+    case STREAM_RETRIEVE_PIPELINED:
 
       self->hwDriver->Start (self->hw);
 
-      if(test_case != STREAM_FLUSH && test_case != STREAM_FLUSH_PIPELINED)
+      if(test_case != STREAM_RETRIEVE && test_case != STREAM_RETRIEVE_PIPELINED)
         self->dmaDriver->Move (self->dma, bufferIn, bufferSize, MEMORY_TO_HARDWARE);
 
-      if(test_case != STREAM_STORE && test_case != STREAM_STORE_PIPELINED)
+      if(test_case != STREAM_SEND && test_case != STREAM_SEND_PIPELINED)
         self->dmaDriver->Move (self->dma, bufferOut, bufferSize, HARDWARE_TO_MEMORY);
 
       while (!self->dmaTxDone
-          && test_case != STREAM_FLUSH
-          && test_case != STREAM_FLUSH_PIPELINED
+          && test_case != STREAM_RETRIEVE
+          && test_case != STREAM_RETRIEVE_PIPELINED
           && currentTime < 1.0)
         currentTime = Timer_getCurrentTime (self->timer);
 
       while (!self->dmaRxDone
-          && test_case != STREAM_STORE
-          && test_case != STREAM_STORE_PIPELINED
+          && test_case != STREAM_SEND
+          && test_case != STREAM_SEND_PIPELINED
           && currentTime < 1.0)
         currentTime = Timer_getCurrentTime (self->timer);
 
@@ -564,7 +574,6 @@ static Result TestApp_run (TestApp * obj, TestCase test_case)
       break;
     default:;
   }
-
 
   switch(test_case)
   {
@@ -577,34 +586,42 @@ static Result TestApp_run (TestApp * obj, TestCase test_case)
     case MASTER_CACHED_BURST:
       bandwidth = (2 * bufferSize) / self->hwTime;
       break;
-    case MASTER_STORE_BURST:
-    case MASTER_FLUSH_BURST:
-    case MASTER_STORE:
-    case MASTER_FLUSH:
-    case MASTER_STORE_PIPELINED:
-    case MASTER_FLUSH_PIPELINED:
+    case MASTER_SEND_BURST:
+    case MASTER_RETRIEVE_BURST:
+    case MASTER_SEND:
+    case MASTER_RETRIEVE:
+    case MASTER_SEND_PIPELINED:
+    case MASTER_RETRIEVE_PIPELINED:
       bandwidth = bufferSize / self->hwTime;
       break;
     case STREAM_DIRECT:
     case STREAM_DIRECT_PIPELINED:
       txBandwidth = bufferSize / self->dmaTxTime;
+      txLatency = self->dmaTxTime;
       break;
     case STREAM_CACHED:
     case STREAM_CACHED_PIPELINED:
       txBandwidth = bufferSize / self->dmaTxTime;
       rxBandwidth = bufferSize / (self->dmaRxTime - self->dmaTxTime);
+
+      txLatency = self->dmaTxTime;
+      rxLatency = self->dmaRxTime - self->dmaTxTime;
       break;
-    case STREAM_STORE:
+    case STREAM_SEND:
       txBandwidth = bufferSize / self->dmaTxTime;
+      txLatency = self->dmaTxTime;
       break;
-    case STREAM_FLUSH:
+    case STREAM_RETRIEVE:
       rxBandwidth = bufferSize / self->dmaRxTime;
+      rxLatency = self->dmaRxTime;
       break;
-    case STREAM_STORE_PIPELINED:
+    case STREAM_SEND_PIPELINED:
       txBandwidth = bufferSize / self->dmaTxTime;
+      txLatency = self->dmaTxTime;
       break;
-    case STREAM_FLUSH_PIPELINED:
+    case STREAM_RETRIEVE_PIPELINED:
       rxBandwidth = bufferSize / self->dmaRxTime;
+      rxLatency = self->dmaRxTime;
       break;
     default:
       ASSERT (0);
@@ -613,32 +630,33 @@ static Result TestApp_run (TestApp * obj, TestCase test_case)
 
   if (0.0 < txBandwidth)
   {
-    printf ("DMA Tx bandwidth = %f Mb/S\n", txBandwidth / (1024 * 1024));
+    printf ("DMA Tx bandwidth = %f Mb/S, Tx latency = %.3f uS\n", txBandwidth / (1024 * 1024), 1e6 * txLatency);
   }
 
   if (0.0 < rxBandwidth)
   {
-    printf ("DMA Rx bandwidth = %f Mb/S\n", rxBandwidth / (1024 * 1024));
+    printf ("DMA Rx bandwidth = %f Mb/S, Rx latency = %.3f uS\n", rxBandwidth / (1024 * 1024), 1e6 * rxLatency);
   }
 
   if (0.0 < bandwidth)
   {
-    printf ("Kernel Hardware bandwidth = %f Mb/S\n", bandwidth / (1024 * 1024));
+    printf ("Kernel Hardware bandwidth = %f Mb/S, HW latency = %.3f uS\n", bandwidth / (1024 * 1024), 1e6 * self->hwTime);
   }
 
 
   Xil_DCacheInvalidateRange ((INTPTR) bufferOut, self->hwParameters->data.maxBufferSize);
 
-  if (   test_case != STREAM_STORE
-      && test_case != STREAM_STORE_PIPELINED
-      && test_case != MASTER_STORE
-      && test_case != MASTER_STORE_PIPELINED)
+  if (   test_case != STREAM_SEND
+      && test_case != STREAM_SEND_PIPELINED
+      && test_case != MASTER_SEND
+      && test_case != MASTER_SEND_PIPELINED
+      && test_case != MASTER_SEND_BURST)
   {
-    correct_flag = !memcmp (bufferIn, bufferOut, bufferSize);
-    printf ("Inside memory region: %s\n", correct_flag ? "PASS" : "FAIL");
+    matching_flag = !memcmp (bufferIn, bufferOut, bufferSize);
+    printf ("Inside memory region: %s\n", matching_flag ? "PASS" : "FAIL");
 
-    correct_flag = !memcmp (bufferIn, bufferOut, self->hwParameters->data.maxBufferSize);
-    printf ("Outside memory region: %s\n", correct_flag ? "PASS" : "FAIL");
+    matching_flag = !memcmp (bufferIn, bufferOut, self->hwParameters->data.maxBufferSize);
+    printf ("Outside memory region: %s\n", matching_flag ? "PASS" : "FAIL");
   }
 
   if (currentTime >= 1.0)

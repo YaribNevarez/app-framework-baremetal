@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define CHANNEL_SIZE 64
+#define CHANNEL_SIZE 32
 #define CACHE_ARRAY_LENGTH 1024
 
 typedef ap_axis<CHANNEL_SIZE, 2, 5, 6>    Channel;
@@ -17,20 +17,20 @@ typedef enum
   MASTER_CACHED,
   MASTER_CACHED_PIPELINED,
   MASTER_CACHED_BURST,
-  MASTER_STORE_BURST,
-  MASTER_FLUSH_BURST,
-  MASTER_STORE,
-  MASTER_FLUSH,
-  MASTER_STORE_PIPELINED,
-  MASTER_FLUSH_PIPELINED,
+  MASTER_SEND_BURST,
+  MASTER_RETRIEVE_BURST,
+  MASTER_SEND,
+  MASTER_RETRIEVE,
+  MASTER_SEND_PIPELINED,
+  MASTER_RETRIEVE_PIPELINED,
   STREAM_DIRECT,
   STREAM_DIRECT_PIPELINED,
   STREAM_CACHED,
   STREAM_CACHED_PIPELINED,
-  STREAM_STORE,
-  STREAM_FLUSH,
-  STREAM_STORE_PIPELINED,
-  STREAM_FLUSH_PIPELINED
+  STREAM_SEND,
+  STREAM_RETRIEVE,
+  STREAM_SEND_PIPELINED,
+  STREAM_RETRIEVE_PIPELINED
 } TestCase;
 
 unsigned int test_module (unsigned int test_case,
@@ -110,29 +110,29 @@ unsigned int test_module (unsigned int test_case,
       memcpy (master_out, cache_array, sizeof(ap_uint< CHANNEL_SIZE> ) * buffer_length);
       break;
 
-    case MASTER_STORE_BURST:
+    case MASTER_SEND_BURST:
       memcpy (cache_array, master_in, sizeof(ap_uint< CHANNEL_SIZE> ) * buffer_length);
       break;
 
-    case MASTER_FLUSH_BURST:
+    case MASTER_RETRIEVE_BURST:
       memcpy (master_out, cache_array, sizeof(ap_uint< CHANNEL_SIZE> ) * buffer_length);
       break;
 
-    case MASTER_STORE:
+    case MASTER_SEND:
       for (unsigned int i = 0; i < buffer_length; i++)
       {
         cache_array[i] = master_in[i];
       }
       break;
 
-    case MASTER_FLUSH:
+    case MASTER_RETRIEVE:
       for (unsigned int i = 0; i < buffer_length; i ++)
       {
         master_out[i] = cache_array[i];
       }
       break;
 
-    case MASTER_STORE_PIPELINED:
+    case MASTER_SEND_PIPELINED:
       for (unsigned int i = 0; i < buffer_length; i++)
       {
 #pragma HLS pipeline
@@ -140,7 +140,7 @@ unsigned int test_module (unsigned int test_case,
       }
       break;
 
-    case MASTER_FLUSH_PIPELINED:
+    case MASTER_RETRIEVE_PIPELINED:
       for (unsigned int i = 0; i < buffer_length; i ++)
       {
 #pragma HLS pipeline
@@ -197,7 +197,7 @@ unsigned int test_module (unsigned int test_case,
       }
       break;
 
-    case STREAM_STORE:
+    case STREAM_SEND:
       for (unsigned int i = 0; i < buffer_length; i++)
       {
         stream_in.read (channel_in);
@@ -205,7 +205,7 @@ unsigned int test_module (unsigned int test_case,
       }
       break;
 
-    case STREAM_FLUSH:
+    case STREAM_RETRIEVE:
       for (unsigned int i = 0; i < buffer_length; i++)
       {
         channel_out.data = cache_array[i];
@@ -214,7 +214,7 @@ unsigned int test_module (unsigned int test_case,
       }
       break;
 
-    case STREAM_STORE_PIPELINED:
+    case STREAM_SEND_PIPELINED:
       for (unsigned int i = 0; i < buffer_length; i++)
       {
 #pragma HLS pipeline
@@ -223,7 +223,7 @@ unsigned int test_module (unsigned int test_case,
       }
       break;
 
-    case STREAM_FLUSH_PIPELINED:
+    case STREAM_RETRIEVE_PIPELINED:
       for (unsigned int i = 0; i < buffer_length; i++)
       {
 #pragma HLS pipeline
