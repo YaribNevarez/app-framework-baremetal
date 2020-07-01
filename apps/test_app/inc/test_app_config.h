@@ -31,8 +31,8 @@
 // TYPEDEFS AND DEFINES --------------------------------------------------------
 
 /////// Kernel hardware parameters ---------------------------------------------
-#define DATA_SIZE           (32/8)
-#define BUFFER_LENGTH       4
+#define DATA_SIZE           (64/8)
+#define BUFFER_LENGTH       64
 #define MAX_BUFFER_SIZE     (256 * 1024)
 #define BUFFER_IN_ADDRESS   (void *) (XPAR_PS7_DDR_0_S_AXI_HIGHADDR - 1024*1024 + 1)
 #define BUFFER_OUT_ADDRESS  (void *) (XPAR_PS7_DDR_0_S_AXI_HIGHADDR -  512*1024 + 1)
