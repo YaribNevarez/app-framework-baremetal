@@ -224,6 +224,10 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
       && (state_matrix->dimensionality == 3)
       && (state_matrix->data != NULL))
   {
+    size_t rand_num_size;
+    size_t state_vector_size;
+
+
     profile->layerSize =
         state_matrix->dimension_size[0] * state_matrix->dimension_size[1];
     profile->vectorSize = state_matrix->dimension_size[2];
@@ -236,8 +240,34 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
     /**************************** SPIKE_MODE *********************************/
     profile->rxBuffer[SPIKE_MODE] = spike_matrix->data;
     profile->rxBufferSize[SPIKE_MODE] = Multivector_dataSize(spike_matrix);
-    profile->txBufferSize[SPIKE_MODE] = profile->layerSize
-        * (sizeof(float) + profile->vectorSize * state_matrix->format.size);
+//    profile->txBufferSize[SPIKE_MODE] = profile->layerSize
+//        * (sizeof(float) + profile->vectorSize * state_matrix->format.size);
+
+    rand_num_size = sizeof(float);
+
+    if (rand_num_size % state_matrix->memory_padding)
+    {
+      profile->randBufferPaddingSize = state_matrix->memory_padding - rand_num_size % state_matrix->memory_padding;
+      rand_num_size += profile->randBufferPaddingSize;
+    }
+    else
+    {
+      profile->randBufferPaddingSize = 0;
+    }
+
+    state_vector_size = profile->vectorSize * state_matrix->format.size;
+
+    if (state_vector_size % state_matrix->memory_padding)
+    {
+      profile->stateBufferPaddingSize = state_matrix->memory_padding - state_vector_size % state_matrix->memory_padding;
+      state_vector_size += profile->stateBufferPaddingSize;
+    }
+    else
+    {
+      profile->stateBufferPaddingSize = 0;
+    }
+
+    profile->txBufferSize[SPIKE_MODE] = profile->layerSize * (rand_num_size + state_vector_size);
 
     ASSERT (profile->txBuffer[SPIKE_MODE] == NULL);
     profile->txBuffer[SPIKE_MODE] = MemoryBlock_alloc(state_matrix->memory_def_parent, profile->txBufferSize[SPIKE_MODE]);
@@ -246,8 +276,7 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
     /**************************** UPDATE_MODE ********************************/
     if (weight_matrix != NULL)
     {
-      size_t ip_size;
-      size_t weight_size;
+      size_t weight_vector_size;
 
       ASSERT(weight_matrix->dimension_size[3] == state_matrix->dimension_size[2]);
 
@@ -257,29 +286,41 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
       profile->rxBuffer[UPDATE_MODE] = state_matrix->data;
       profile->rxBufferSize[UPDATE_MODE] = Multivector_dataSize(state_matrix) + Multivector_dataSize(spike_matrix);
 
-      ip_size = profile->vectorSize * state_matrix->format.size;
-      if (ip_size % state_matrix->memory_padding)
+      state_vector_size = profile->vectorSize * state_matrix->format.size;
+      if (state_vector_size % state_matrix->memory_padding)
       {
-        profile->stateBufferPaddingSize = state_matrix->memory_padding - ip_size % state_matrix->memory_padding;
-        ip_size += profile->stateBufferPaddingSize;
+        profile->stateBufferPaddingSize = state_matrix->memory_padding - state_vector_size % state_matrix->memory_padding;
+        state_vector_size += profile->stateBufferPaddingSize;
       }
       else
       {
         profile->stateBufferPaddingSize = 0;
       }
 
-      weight_size = profile->vectorSize * weight_matrix->format.size;
-      if (weight_size % weight_matrix->memory_padding)
+      weight_vector_size = profile->vectorSize * weight_matrix->format.size;
+      if (weight_vector_size % weight_matrix->memory_padding)
       {
-        profile->weightBufferPaddingSize = weight_matrix->memory_padding - weight_size % weight_matrix->memory_padding;
-        weight_size += profile->weightBufferPaddingSize;
+        profile->weightBufferPaddingSize = weight_matrix->memory_padding - weight_vector_size % weight_matrix->memory_padding;
+        weight_vector_size += profile->weightBufferPaddingSize;
       }
       else
       {
         profile->weightBufferPaddingSize = 0;
       }
 
-      profile->txBufferSize[UPDATE_MODE] = profile->layerSize * (sizeof(float) + ip_size + profile->kernelSize * weight_size);
+      rand_num_size = sizeof(float);
+
+      if (rand_num_size % state_matrix->memory_padding)
+      {
+        profile->randBufferPaddingSize = state_matrix->memory_padding - rand_num_size % state_matrix->memory_padding;
+        rand_num_size += profile->randBufferPaddingSize;
+      }
+      else
+      {
+        profile->randBufferPaddingSize = 0;
+      }
+
+      profile->txBufferSize[UPDATE_MODE] = profile->layerSize * (rand_num_size + state_vector_size + profile->kernelSize * weight_vector_size);
 
       ASSERT (profile->txBuffer[UPDATE_MODE] == NULL);
       profile->txBuffer[UPDATE_MODE] = MemoryBlock_alloc(state_matrix->memory_def_parent, profile->txBufferSize[UPDATE_MODE]);

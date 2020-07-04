@@ -85,6 +85,7 @@ typedef struct
   size_t    stateBufferSize;
   size_t    weightBufferSize;
 
+  size_t    randBufferPaddingSize;
   size_t    stateBufferPaddingSize;
   size_t    weightBufferPaddingSize;
 

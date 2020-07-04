@@ -118,7 +118,7 @@ typedef union
 
 #define NEGLECTING_CONSTANT   ((float)1e-20)
 
-#define CHANNEL_WIDTH         32
+#define CHANNEL_WIDTH         64
 #define STATE_VECTOR_WIDTH    16
 #define WEIGHT_VECTOR_WIDTH   8
 #define SPIKE_VECTOR_WIDTH    16
@@ -203,7 +203,7 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
         if (i + j < vectorSize)
         {
 #pragma HLS pipeline
-          register_B.u32 = DATA16_TO_FLOAT32(input >> STATE_VECTOR_WIDTH * j);
+          register_B.u32 = DATA16_TO_FLOAT32(input >> (STATE_VECTOR_WIDTH * j));
           state_vector[i + j] = register_B.f32;
         }
       }
@@ -240,7 +240,7 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
           if (i + j < vectorSize)
           {
 #pragma HLS pipeline
-            register_B.u32 = DATA8_TO_FLOAT32(input >> WEIGHT_VECTOR_WIDTH * j);
+            register_B.u32 = DATA8_TO_FLOAT32(input >> (WEIGHT_VECTOR_WIDTH * j));
             weight_vector[i + j] = register_B.f32;
           }
         }
@@ -305,7 +305,7 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
       {
 #pragma HLS pipeline
         channel.data = (~(((ap_uint<CHANNEL_WIDTH> )              0xFFFF) << (SPIKE_VECTOR_WIDTH * j)) & channel.data)
-                       | (((ap_uint<CHANNEL_WIDTH> ) spike_matrix[i + j]) << (STATE_VECTOR_WIDTH * j));
+                       | (((ap_uint<CHANNEL_WIDTH> ) spike_matrix[i + j]) << (SPIKE_VECTOR_WIDTH * j));
       }
     }
 

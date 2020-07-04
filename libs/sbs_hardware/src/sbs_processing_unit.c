@@ -390,15 +390,14 @@ inline void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
         * (1.0 / (float) 0xFFFFFFFF);
   }
 
-  accelerator->txBufferCurrentPtr += sizeof(float);
+  accelerator->txBufferCurrentPtr += sizeof(float) + accelerator->profile->randBufferPaddingSize;
 
 
   memcpy (accelerator->txBufferCurrentPtr,
           state_vector,
-          accelerator->profile->stateBufferSize + accelerator->profile->stateBufferPaddingSize);
+          accelerator->profile->stateBufferSize);
 
-  accelerator->txBufferCurrentPtr += accelerator->profile->stateBufferSize;
-  accelerator->txBufferPaddingSize += accelerator->profile->stateBufferPaddingSize;
+  accelerator->txBufferCurrentPtr += accelerator->profile->stateBufferSize + accelerator->profile->stateBufferPaddingSize;
 
 #ifdef DEBUG
   ASSERT(accelerator->txStateCounter <= accelerator->profile->layerSize);
@@ -426,10 +425,9 @@ inline void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
 
   memcpy (accelerator->txBufferCurrentPtr,
           weight_vector,
-          accelerator->profile->weightBufferSize + accelerator->profile->weightBufferPaddingSize);
+          accelerator->profile->weightBufferSize);
 
-  accelerator->txBufferCurrentPtr += accelerator->profile->weightBufferSize;
-  accelerator->txBufferPaddingSize += accelerator->profile->weightBufferPaddingSize;
+  accelerator->txBufferCurrentPtr += accelerator->profile->weightBufferSize + accelerator->profile->weightBufferPaddingSize;
 
 #ifdef DEBUG
   accelerator->txWeightCounter ++;
@@ -452,7 +450,7 @@ int Accelerator_start(SbSUpdateAccelerator * accelerator)
   ASSERT (accelerator->mode == SPIKE_MODE || 0 < accelerator->profile->weightBufferSize);
   ASSERT (0 < accelerator->profile->layerSize);
 
-  ASSERT((size_t )accelerator->txBufferCurrentPtr + accelerator->txBufferPaddingSize == (size_t )accelerator->txBuffer + accelerator->txBufferSize);
+  ASSERT((size_t )accelerator->txBufferCurrentPtr == (size_t )accelerator->txBuffer + accelerator->txBufferSize);
 
 #ifdef DEBUG
   ASSERT (accelerator->profile->layerSize == accelerator->txStateCounter);
