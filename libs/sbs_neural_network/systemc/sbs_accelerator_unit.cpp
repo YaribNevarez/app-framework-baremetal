@@ -271,33 +271,24 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
     for (int i = 0; i < vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
     {
 #pragma HLS pipeline
-      register_A.f32 = state_vector[i];
-      if ((register_A.u32 & 0xf0000000) == 0x30000000)
+      for (int j = 0; j < (CHANNEL_WIDTH / STATE_VECTOR_WIDTH); j++)
       {
-#pragma HLS pipeline
-        channel.data = (~(((ap_uint<CHANNEL_WIDTH> )                              0xFFFF) << (STATE_VECTOR_WIDTH * 0)) & channel.data)
-                       | (((ap_uint<CHANNEL_WIDTH> ) (FLOAT32_TO_DATA16(register_A.u32))) << (STATE_VECTOR_WIDTH * 0));
-      }
-      else
-      {
-#pragma HLS pipeline
-        channel.data = (~(((ap_uint<CHANNEL_WIDTH> )                              0xFFFF) << (STATE_VECTOR_WIDTH * 0)) & channel.data);
-      }
-
-      if (i + 1 < vectorSize)
-      {
-#pragma HLS pipeline
-        register_A.f32 = state_vector[i + 1];
-        if ((register_A.u32 & 0xf0000000) == 0x30000000)
+#pragma HLS unroll
+        if (i + j < vectorSize)
         {
 #pragma HLS pipeline
-          channel.data = (~(((ap_uint<CHANNEL_WIDTH> )                              0xFFFF) << (STATE_VECTOR_WIDTH * 1)) & channel.data)
-                         | (((ap_uint<CHANNEL_WIDTH> ) (FLOAT32_TO_DATA16(register_A.u32))) << (STATE_VECTOR_WIDTH * 1));
-        }
-        else
-        {
+          register_A.f32 = state_vector[i + j];
+          if ((register_A.u32 & 0xf0000000) == 0x30000000)
+          {
 #pragma HLS pipeline
-          channel.data = (~(((ap_uint<CHANNEL_WIDTH> )                              0xFFFF) << (STATE_VECTOR_WIDTH * 1)) & channel.data);
+            channel.data = (~(((ap_uint<CHANNEL_WIDTH> ) 0xFFFF) << (STATE_VECTOR_WIDTH * j)) & channel.data)
+                           | (((ap_uint<CHANNEL_WIDTH> ) (FLOAT32_TO_DATA16(register_A.u32))) << (STATE_VECTOR_WIDTH * j));
+          }
+          else
+          {
+#pragma HLS pipeline
+            channel.data = (~(((ap_uint<CHANNEL_WIDTH> ) 0xFFFF) << (STATE_VECTOR_WIDTH * j)) & channel.data);
+          }
         }
       }
       stream_out.write (channel);
@@ -307,15 +298,15 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
   for (int i = 0; i < layerSize; i += (CHANNEL_WIDTH / SPIKE_VECTOR_WIDTH))
   {
 #pragma HLS pipeline
-
-    if (i + 1 < layerSize)
+    for (int j = 0; j < (CHANNEL_WIDTH / SPIKE_VECTOR_WIDTH); j++)
     {
-      channel.data = ((ap_uint<CHANNEL_WIDTH> ) spike_matrix[i + 1]) << (SPIKE_VECTOR_WIDTH * 1)
-          | ((ap_uint<CHANNEL_WIDTH> ) spike_matrix[i]) << (SPIKE_VECTOR_WIDTH * 0);
-    }
-    else
-    {
-      channel.data = ((ap_uint<CHANNEL_WIDTH> ) spike_matrix[i]) << (SPIKE_VECTOR_WIDTH * 0);
+#pragma HLS unroll
+      if (i + j < layerSize)
+      {
+#pragma HLS pipeline
+        channel.data = (~(((ap_uint<CHANNEL_WIDTH> )              0xFFFF) << (SPIKE_VECTOR_WIDTH * j)) & channel.data)
+                       | (((ap_uint<CHANNEL_WIDTH> ) spike_matrix[i + j]) << (STATE_VECTOR_WIDTH * j));
+      }
     }
 
     channel.last = ((i + (CHANNEL_WIDTH / SPIKE_VECTOR_WIDTH)) >= layerSize);
