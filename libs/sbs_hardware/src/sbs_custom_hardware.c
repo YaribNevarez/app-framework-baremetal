@@ -35,7 +35,7 @@ static void SbsHardware_custom_delete (void ** InstancePtr)
 
 static void * SbsHardware_custom_new (void)
 {
-  return malloc (sizeof(XSbs_accelerator_64));
+  return malloc (sizeof(XSbs_accelerator_unit));
 }
 
 static uint32_t  SbsHardware_custom_InterruptSetHandler (void *instance,
@@ -53,35 +53,35 @@ SbsHardware SbsHardware_custom =
   .new =    SbsHardware_custom_new,
   .delete = SbsHardware_custom_delete,
 
-  .Initialize =         (int (*)(void *, u16))  XSbs_accelerator_64_Initialize,
-  .Start =              (void (*)(void *))      XSbs_accelerator_64_Start,
-  .IsDone =             (uint32_t(*)(void *))   XSbs_accelerator_64_IsDone,
-  .IsIdle =             (uint32_t(*) (void *))  XSbs_accelerator_64_IsIdle,
-  .IsReady =            (uint32_t(*) (void *))  XSbs_accelerator_64_IsReady,
-  .EnableAutoRestart =  (void (*) (void *))     XSbs_accelerator_64_EnableAutoRestart,
-  .DisableAutoRestart = (void (*) (void *))     XSbs_accelerator_64_DisableAutoRestart,
-  .Get_return =         (uint32_t(*) (void *))  XSbs_accelerator_64_Get_return,
+  .Initialize =         (int (*)(void *, u16))  XSbs_accelerator_unit_Initialize,
+  .Start =              (void (*)(void *))      XSbs_accelerator_unit_Start,
+  .IsDone =             (uint32_t(*)(void *))   XSbs_accelerator_unit_IsDone,
+  .IsIdle =             (uint32_t(*) (void *))  XSbs_accelerator_unit_IsIdle,
+  .IsReady =            (uint32_t(*) (void *))  XSbs_accelerator_unit_IsReady,
+  .EnableAutoRestart =  (void (*) (void *))     XSbs_accelerator_unit_EnableAutoRestart,
+  .DisableAutoRestart = (void (*) (void *))     XSbs_accelerator_unit_DisableAutoRestart,
+  .Get_return =         (uint32_t(*) (void *))  XSbs_accelerator_unit_Get_return,
 
   .Set_mode =       (void (*) (void *, uint32_t ))  NULL,
   .Get_mode =       (uint32_t(*) (void *))          NULL,
-  .Set_layerSize =  (void (*) (void *, uint32_t ))  XSbs_accelerator_64_Set_layerSize,
-  .Get_layerSize =  (uint32_t(*) (void *))          XSbs_accelerator_64_Get_layerSize,
-  .Set_kernelSize = (void (*) (void *, uint32_t ))  XSbs_accelerator_64_Set_kernelSize,
-  .Get_kernelSize = (uint32_t(*) (void *))          XSbs_accelerator_64_Get_kernelSize,
-  .Set_vectorSize = (void (*) (void *, uint32_t ))  XSbs_accelerator_64_Set_vectorSize,
-  .Get_vectorSize = (uint32_t(*) (void *))          XSbs_accelerator_64_Get_vectorSize,
-  .Set_epsilon =    (void (*) (void *, uint32_t ))  XSbs_accelerator_64_Set_epsilon,
-  .Get_epsilon =    (uint32_t(*) (void *))          XSbs_accelerator_64_Get_epsilon,
-  .Set_debug =      (void (*) (void *, uint32_t ))  XSbs_accelerator_64_Set_debug,
-  .Get_debug =      (uint32_t(*) (void *))          XSbs_accelerator_64_Get_debug,
+  .Set_layerSize =  (void (*) (void *, uint32_t ))  XSbs_accelerator_unit_Set_layerSize,
+  .Get_layerSize =  (uint32_t(*) (void *))          XSbs_accelerator_unit_Get_layerSize,
+  .Set_kernelSize = (void (*) (void *, uint32_t ))  XSbs_accelerator_unit_Set_kernelSize,
+  .Get_kernelSize = (uint32_t(*) (void *))          XSbs_accelerator_unit_Get_kernelSize,
+  .Set_vectorSize = (void (*) (void *, uint32_t ))  XSbs_accelerator_unit_Set_vectorSize,
+  .Get_vectorSize = (uint32_t(*) (void *))          XSbs_accelerator_unit_Get_vectorSize,
+  .Set_epsilon =    (void (*) (void *, uint32_t ))  XSbs_accelerator_unit_Set_epsilon,
+  .Get_epsilon =    (uint32_t(*) (void *))          XSbs_accelerator_unit_Get_epsilon,
+  .Set_debug =      (void (*) (void *, uint32_t ))  XSbs_accelerator_unit_Set_debug,
+  .Get_debug =      (uint32_t(*) (void *))          XSbs_accelerator_unit_Get_debug,
 
-  .InterruptGlobalEnable =  (void (*) (void *))             XSbs_accelerator_64_InterruptGlobalEnable,
-  .InterruptGlobalDisable = (void (*) (void *))             XSbs_accelerator_64_InterruptGlobalDisable,
-  .InterruptEnable =        (void (*) (void *, uint32_t ))  XSbs_accelerator_64_InterruptEnable,
-  .InterruptDisable =       (void (*) (void *, uint32_t ))  XSbs_accelerator_64_InterruptDisable,
-  .InterruptClear =         (void (*) (void *, uint32_t ))  XSbs_accelerator_64_InterruptClear,
-  .InterruptGetEnabled =    (uint32_t(*) (void *))          XSbs_accelerator_64_InterruptGetEnabled,
-  .InterruptGetStatus =     (uint32_t(*) (void *))          XSbs_accelerator_64_InterruptGetStatus,
+  .InterruptGlobalEnable =  (void (*) (void *))             XSbs_accelerator_unit_InterruptGlobalEnable,
+  .InterruptGlobalDisable = (void (*) (void *))             XSbs_accelerator_unit_InterruptGlobalDisable,
+  .InterruptEnable =        (void (*) (void *, uint32_t ))  XSbs_accelerator_unit_InterruptEnable,
+  .InterruptDisable =       (void (*) (void *, uint32_t ))  XSbs_accelerator_unit_InterruptDisable,
+  .InterruptClear =         (void (*) (void *, uint32_t ))  XSbs_accelerator_unit_InterruptClear,
+  .InterruptGetEnabled =    (uint32_t(*) (void *))          XSbs_accelerator_unit_InterruptGetEnabled,
+  .InterruptGetStatus =     (uint32_t(*) (void *))          XSbs_accelerator_unit_InterruptGetStatus,
 
   .InterruptSetHandler = SbsHardware_custom_InterruptSetHandler
 };

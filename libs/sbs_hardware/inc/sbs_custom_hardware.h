@@ -13,7 +13,7 @@ extern "C" {
 
 /***************************** Include Files *********************************/
 #include "sbs_hardware.h"
-#include "xsbs_accelerator_64.h"
+#include "xsbs_accelerator_unit.h"
 /***************** Macros (Inline Functions) Definitions *********************/
 
 /**************************** Type Definitions *******************************/

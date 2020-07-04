@@ -125,11 +125,11 @@ typedef ap_axis<CHANNEL_WIDTH, 2, 5, 6> StreamChannel;
 #define DATA_SIZE     sizeof(short) // Bytes
 #define BUFFER_SIZE   ((MAX_VECTOR_SIZE + 1) * DATA_SIZE) / sizeof(Data32) + 1
 
-void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
-                   hls::stream<StreamChannel> &stream_out,
-                   int * debug,
-                   int layerSize,
-                   int vectorSize)
+void sbs_spike_unit (hls::stream<StreamChannel> &stream_in,
+                     hls::stream<StreamChannel> &stream_out,
+                     int * debug,
+                     int layerSize,
+                     int vectorSize)
 {
 #pragma HLS INTERFACE axis      port=stream_in
 #pragma HLS INTERFACE axis      port=stream_out
@@ -141,7 +141,6 @@ void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
   static float data[MAX_VECTOR_SIZE];
 #pragma HLS array_partition variable=data complete
 
-  unsigned char index_spike;
   unsigned int debug_flags;
 
   static StreamChannel channel;
@@ -149,15 +148,11 @@ void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
 
   static ap_uint<CHANNEL_WIDTH> input;
   static Data32 register_B;
-  unsigned int temp;
 
   static float sum;
 
-  channel.keep = 0xF;
-  channel.strb = 0xF;
-
-  index_spike = 0;
-  temp = 0;
+  channel.keep = -1;
+  channel.strb = -1;
 
 #if MT19937_HW
   if (!MT19937_initialized (0))
@@ -182,13 +177,15 @@ void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
 #pragma HLS pipeline
       input = stream_in.read ().data;
 
-      register_B.u32 = DATA16_TO_FLOAT32(input >> STATE_VECTOR_WIDTH * 0);
-      data[index] = register_B.f32;
-
-      if (index + 1 < vectorSize)
+      for (int i = 0; i < CHANNEL_WIDTH / STATE_VECTOR_WIDTH; i++)
       {
-        register_B.u32 = DATA16_TO_FLOAT32(input >> STATE_VECTOR_WIDTH * 1);
-        data[index + 1] = register_B.f32;
+#pragma HLS unroll
+        if (index + i < vectorSize)
+        {
+#pragma HLS pipeline
+          register_B.u32 = DATA16_TO_FLOAT32(input >> STATE_VECTOR_WIDTH * i);
+          data[index + i] = register_B.f32;
+        }
       }
     }
 
@@ -198,21 +195,21 @@ void sbs_spike_50 (hls::stream<StreamChannel> &stream_in,
 #pragma HLS pipeline
       if (sum < random_value)
       {
+#pragma HLS pipeline
         sum += data[spikeID];
         if ((random_value <= sum) || (spikeID == vectorSize - 1))
         {
-          temp |= ((unsigned int)spikeID) << (SPIKE_VECTOR_WIDTH * index_spike);
-          index_spike ++;
+#pragma HLS pipeline
+          channel.data =
+           (~(((ap_uint<CHANNEL_WIDTH> )  0xFFFF) << (SPIKE_VECTOR_WIDTH * (ip_index & 1))) & channel.data)
+          | (((ap_uint<CHANNEL_WIDTH> ) spikeID) << (SPIKE_VECTOR_WIDTH * (ip_index & 1)));
 
-          if ((index_spike == 2) || (ip_index == layerSize - 1))
+          if ((ip_index & 1) || (ip_index == layerSize - 1))
           {
+#pragma HLS pipeline
             channel.last = (ip_index == layerSize - 1);
-            channel.data = temp;
 
             stream_out.write (channel);
-
-            index_spike = 0;
-            temp = 0;
           }
         }
       }
