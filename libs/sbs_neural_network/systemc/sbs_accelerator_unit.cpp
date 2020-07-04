@@ -118,7 +118,7 @@ typedef union
 
 #define NEGLECTING_CONSTANT   ((float)1e-20)
 
-#define CHANNEL_WIDTH         64
+#define CHANNEL_WIDTH         128
 #define STATE_VECTOR_WIDTH    16
 #define WEIGHT_VECTOR_WIDTH   8
 #define SPIKE_VECTOR_WIDTH    16

@@ -108,7 +108,7 @@ typedef union
 } Data32;
 
 
-#define CHANNEL_WIDTH         64
+#define CHANNEL_WIDTH         128
 #define STATE_VECTOR_WIDTH    16
 #define SPIKE_VECTOR_WIDTH    16
 
@@ -201,10 +201,10 @@ void sbs_spike_unit (hls::stream<StreamChannel> &stream_in,
         {
 #pragma HLS pipeline
           channel.data =
-           (~(((ap_uint<CHANNEL_WIDTH> )  0xFFFF) << (SPIKE_VECTOR_WIDTH * (ip_index & 3))) & channel.data)
-          | (((ap_uint<CHANNEL_WIDTH> ) spikeID) << (SPIKE_VECTOR_WIDTH * (ip_index & 3)));
+           (~(((ap_uint<CHANNEL_WIDTH> )  0xFFFF) << (SPIKE_VECTOR_WIDTH * (ip_index & 7))) & channel.data)
+          | (((ap_uint<CHANNEL_WIDTH> ) spikeID) << (SPIKE_VECTOR_WIDTH * (ip_index & 7)));
 
-          if (((ip_index & 3) == 3) || (ip_index == layerSize - 1))
+          if (((ip_index & 7) == 7) || (ip_index == layerSize - 1))
           {
 #pragma HLS pipeline
             channel.last = (ip_index == layerSize - 1);
