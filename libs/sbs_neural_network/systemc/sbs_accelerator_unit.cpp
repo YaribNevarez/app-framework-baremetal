@@ -118,7 +118,7 @@ typedef union
 
 #define NEGLECTING_CONSTANT   ((float)1e-20)
 
-#define CHANNEL_WIDTH         128
+#define CHANNEL_WIDTH         32
 #define STATE_VECTOR_WIDTH    16
 #define WEIGHT_VECTOR_WIDTH   8
 #define SPIKE_VECTOR_WIDTH    16
@@ -187,9 +187,15 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
     random_value = ((float) MT19937_rand (0)) / ((float) 0xFFFFFFFF);
 #else
 #pragma HLS pipeline
+
+#if 32 <= CHANNEL_WIDTH
     register_B.u32 = stream_in.read ().data;
+#else
+    register_B.u32 = DATA16_TO_FLOAT32(stream_in.read ().data);
+#endif
 
     random_value = register_B.f32;
+
 #endif
 
     for (int i = 0; i < vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
@@ -203,8 +209,17 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
         if (i + j < vectorSize)
         {
 #pragma HLS pipeline
-          register_B.u32 = DATA16_TO_FLOAT32(input >> (STATE_VECTOR_WIDTH * j));
-          state_vector[i + j] = register_B.f32;
+          if (0xFFFF & (input >> (STATE_VECTOR_WIDTH * j)))
+          {
+#pragma HLS pipeline
+            register_B.u32 = DATA16_TO_FLOAT32(input >> (STATE_VECTOR_WIDTH * j));
+            state_vector[i + j] = register_B.f32;
+          }
+          else
+          {
+#pragma HLS pipeline
+            state_vector[i + j] = 0;
+          }
         }
       }
     }
@@ -240,8 +255,17 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
           if (i + j < vectorSize)
           {
 #pragma HLS pipeline
-            register_B.u32 = DATA8_TO_FLOAT32(input >> (WEIGHT_VECTOR_WIDTH * j));
-            weight_vector[i + j] = register_B.f32;
+            if (0xFF & (input >> (WEIGHT_VECTOR_WIDTH * j)))
+            {
+#pragma HLS pipeline
+              register_B.u32 = DATA8_TO_FLOAT32(input >> (WEIGHT_VECTOR_WIDTH * j));
+              weight_vector[i + j] = register_B.f32;
+            }
+            else
+            {
+#pragma HLS pipeline
+              weight_vector[i + j] = 0;
+            }
           }
         }
       }
@@ -250,8 +274,17 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
       for (int i = 0; i < vectorSize; i++)
       {
 #pragma HLS pipeline
-        temp_data[i] = state_vector[i] * weight_vector[i];
-        sum += temp_data[i];
+        if ((state_vector[i] != 0) && (weight_vector[i] != 0))
+        {
+#pragma HLS pipeline
+          temp_data[i] = state_vector[i] * weight_vector[i];
+          sum += temp_data[i];
+        }
+        else
+        {
+#pragma HLS pipeline
+          temp_data[i] = 0;
+        }
       }
 
       if (NEGLECTING_CONSTANT < sum)
@@ -261,8 +294,17 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
         for (int i = 0; i < vectorSize; i++)
         {
 #pragma HLS pipeline
-          state_vector[i] = reverse_epsilon
-              * (state_vector[i] + temp_data[i] * epsion_over_sum);
+          if (temp_data[i] != 0)
+          {
+#pragma HLS pipeline
+            state_vector[i] = reverse_epsilon
+                * (state_vector[i] + temp_data[i] * epsion_over_sum);
+          }
+          else if (state_vector[i] != 0)
+          {
+#pragma HLS pipeline
+            state_vector[i] = reverse_epsilon * state_vector[i];
+          }
         }
       }
     }

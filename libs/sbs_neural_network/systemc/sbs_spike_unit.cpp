@@ -108,9 +108,11 @@ typedef union
 } Data32;
 
 
-#define CHANNEL_WIDTH         128
+#define CHANNEL_WIDTH         32
 #define STATE_VECTOR_WIDTH    16
 #define SPIKE_VECTOR_WIDTH    16
+
+#define SPIKE_COUNT_MASK      ((CHANNEL_WIDTH / SPIKE_VECTOR_WIDTH) - 1)
 
 typedef ap_axis<CHANNEL_WIDTH, 2, 5, 6> StreamChannel;
 
@@ -167,7 +169,14 @@ void sbs_spike_unit (hls::stream<StreamChannel> &stream_in,
     random_value = ((float) MT19937_rand (0)) / ((float) 0xFFFFFFFF);
 #else
 #pragma HLS pipeline
+
+
+#if 32 <= CHANNEL_WIDTH
     register_B.u32 = stream_in.read ().data;
+#else
+    register_B.u32 = DATA16_TO_FLOAT32(stream_in.read ().data);
+#endif
+
 
     random_value = register_B.f32;
 #endif
@@ -201,10 +210,10 @@ void sbs_spike_unit (hls::stream<StreamChannel> &stream_in,
         {
 #pragma HLS pipeline
           channel.data =
-           (~(((ap_uint<CHANNEL_WIDTH> )  0xFFFF) << (SPIKE_VECTOR_WIDTH * (ip_index & 7))) & channel.data)
-          | (((ap_uint<CHANNEL_WIDTH> ) spikeID) << (SPIKE_VECTOR_WIDTH * (ip_index & 7)));
+           (~(((ap_uint<CHANNEL_WIDTH> )  0xFFFF) << (SPIKE_VECTOR_WIDTH * (ip_index & SPIKE_COUNT_MASK))) & channel.data)
+          | (((ap_uint<CHANNEL_WIDTH> )  spikeID) << (SPIKE_VECTOR_WIDTH * (ip_index & SPIKE_COUNT_MASK)));
 
-          if (((ip_index & 7) == 7) || (ip_index == layerSize - 1))
+          if (((ip_index & SPIKE_COUNT_MASK) == SPIKE_COUNT_MASK) || (ip_index == layerSize - 1))
           {
 #pragma HLS pipeline
             channel.last = (ip_index == layerSize - 1);
