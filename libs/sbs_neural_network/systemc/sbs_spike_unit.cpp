@@ -189,6 +189,7 @@ void sbs_spike_unit (hls::stream<StreamChannel> &stream_in,
       for (int i = 0; i < CHANNEL_WIDTH / STATE_VECTOR_WIDTH; i++)
       {
 #pragma HLS unroll
+#pragma HLS pipeline
         if (index + i < vectorSize)
         {
 #pragma HLS pipeline

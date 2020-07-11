@@ -38,6 +38,15 @@ typedef enum
   HY_OUTPUT_LAYER          = 1<<6
 } SbsLayerType;
 
+typedef enum
+{
+  SBS_HW_INPUT_LAYER,
+  SBS_HW_CONVOLUTION_LAYER,
+  SBS_HW_POOLING_LAYER,
+  SBS_HW_DENSE_LAYER,
+  SBS_HW_OUTPUT_LAYER
+} SbSHardwareType;
+
 typedef struct
 {
   SbsHardware *       hwDriver;
@@ -48,6 +57,7 @@ typedef struct
   uint32_t            hwIntVecID;
   uint32_t            dmaTxIntVecID;
   uint32_t            dmaRxIntVecID;
+  SbSHardwareType     hwType;
   size_t              channelSize;
   MemoryBlock         ddrMem;
 } SbSHardwareConfig;
@@ -84,10 +94,12 @@ typedef struct
 
   size_t    stateBufferSize;
   size_t    weightBufferSize;
+  size_t    spikeBufferSize;
 
   size_t    randBufferPaddingSize;
   size_t    stateBufferPaddingSize;
   size_t    weightBufferPaddingSize;
+  size_t    spikeBufferPaddingSize;
 
   void *    txBuffer[ACCELERATOR_MODES];
   size_t    txBufferSize[ACCELERATOR_MODES];
@@ -108,6 +120,7 @@ typedef struct
 #ifdef DEBUG
   uint16_t    txStateCounter;
   uint16_t    txWeightCounter;
+  uint16_t    txSpikeCounter;
 #endif
 
   void *      txBufferCurrentPtr;
@@ -116,9 +129,6 @@ typedef struct
 
   void *      rxBuffer;
   size_t      rxBufferSize;
-
-  size_t    txBufferPaddingSize;
-  size_t    rxBufferPaddingSize;
 
   AcceleratorMode mode;
 
@@ -156,6 +166,8 @@ void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
 
 void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
                                    uint8_t * weight_vector);
+
+void Accelerator_giveSpike (SbSUpdateAccelerator * accelerator, uint16_t spike);
 
 int Accelerator_start (SbSUpdateAccelerator * accelerator);
 

@@ -360,11 +360,10 @@ void Accelerator_setup (SbSUpdateAccelerator * accelerator,
 
   accelerator->txBufferCurrentPtr = accelerator->txBuffer;
 
-  accelerator->txBufferPaddingSize = 0;
-
 #ifdef DEBUG
   accelerator->txStateCounter = 0;
   accelerator->txWeightCounter = 0;
+  accelerator->txSpikeCounter = 0;
 #endif
 }
 
@@ -400,9 +399,8 @@ inline void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
   accelerator->txBufferCurrentPtr += accelerator->profile->stateBufferSize + accelerator->profile->stateBufferPaddingSize;
 
 #ifdef DEBUG
-  ASSERT(accelerator->txStateCounter <= accelerator->profile->layerSize);
-
   accelerator->txStateCounter ++;
+  ASSERT(accelerator->txStateCounter <= accelerator->profile->layerSize);
 #endif
 }
 
@@ -431,14 +429,30 @@ inline void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
 
 #ifdef DEBUG
   accelerator->txWeightCounter ++;
+  ASSERT(accelerator->txWeightCounter <= accelerator->profile->layerSize * accelerator->profile->kernelSize);
 #endif
 }
 
-typedef union
+inline void Accelerator_giveSpike (SbSUpdateAccelerator * accelerator,
+                                   uint16_t spike) __attribute__((always_inline));
+
+inline void Accelerator_giveSpike (SbSUpdateAccelerator * accelerator, uint16_t spike)
 {
-  unsigned int    u32;
-  float           f32;
-} Data32;
+  ASSERT (accelerator != NULL);
+  ASSERT (accelerator->profile != NULL);
+  ASSERT (0 < accelerator->profile->spikeBufferSize);
+  ASSERT (0 < accelerator->profile->kernelSize);
+  ASSERT (0 < accelerator->profile->layerSize);
+
+  *((uint16_t*) accelerator->txBufferCurrentPtr) = spike;
+
+  accelerator->txBufferCurrentPtr += accelerator->profile->spikeBufferSize + accelerator->profile->spikeBufferPaddingSize;
+
+#ifdef DEBUG
+  accelerator->txSpikeCounter ++;
+  ASSERT(accelerator->txSpikeCounter <= accelerator->profile->layerSize * accelerator->profile->kernelSize);
+#endif
+}
 
 int Accelerator_start(SbSUpdateAccelerator * accelerator)
 {
@@ -447,13 +461,21 @@ int Accelerator_start(SbSUpdateAccelerator * accelerator)
   ASSERT (accelerator != NULL);
   ASSERT (accelerator->profile != NULL);
   ASSERT (0 < accelerator->profile->stateBufferSize);
-  ASSERT (accelerator->mode == SPIKE_MODE || 0 < accelerator->profile->weightBufferSize);
   ASSERT (0 < accelerator->profile->layerSize);
-
   ASSERT((size_t )accelerator->txBufferCurrentPtr == (size_t )accelerator->txBuffer + accelerator->txBufferSize);
 
 #ifdef DEBUG
-  ASSERT (accelerator->profile->layerSize == accelerator->txStateCounter);
+  if (accelerator->profile->spikeBufferSize)
+  {
+    ASSERT (accelerator->txSpikeCounter == accelerator->profile->layerSize * accelerator->profile->kernelSize);
+  }
+
+  if (accelerator->profile->weightBufferSize)
+  {
+    ASSERT(accelerator->txWeightCounter == accelerator->profile->layerSize * accelerator->profile->kernelSize);
+  }
+
+  ASSERT (accelerator->txStateCounter == accelerator->profile->layerSize);
 #endif
 
   Xil_DCacheFlushRange ((UINTPTR) accelerator->txBuffer, accelerator->txBufferSize);

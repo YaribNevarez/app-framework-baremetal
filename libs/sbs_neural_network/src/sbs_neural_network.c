@@ -276,11 +276,7 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
     /**************************** UPDATE_MODE ********************************/
     if (weight_matrix != NULL)
     {
-      size_t weight_vector_size;
-
-      ASSERT(weight_matrix->dimension_size[3] == state_matrix->dimension_size[2]);
-
-      profile->weightBufferSize = profile->vectorSize * weight_matrix->format.size;
+      size_t spike_or_weight_vector_size = 0;
 
       profile->memory_cmd[UPDATE_MODE] = memory_cmd;
       profile->rxBuffer[UPDATE_MODE] = state_matrix->data;
@@ -297,15 +293,49 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
         profile->stateBufferPaddingSize = 0;
       }
 
-      weight_vector_size = profile->vectorSize * weight_matrix->format.size;
-      if (weight_vector_size % weight_matrix->memory_padding)
+      switch (layerType)
       {
-        profile->weightBufferPaddingSize = weight_matrix->memory_padding - weight_vector_size % weight_matrix->memory_padding;
-        weight_vector_size += profile->weightBufferPaddingSize;
-      }
-      else
-      {
-        profile->weightBufferPaddingSize = 0;
+        case HX_INPUT_LAYER:
+          break;
+        case H1_CONVOLUTION_LAYER:
+        case H3_CONVOLUTION_LAYER:
+        case H5_FULLY_CONNECTED_LAYER:
+        case HY_OUTPUT_LAYER:
+          {
+            ASSERT(weight_matrix->dimension_size[3] == state_matrix->dimension_size[2]);
+
+            profile->weightBufferSize = profile->vectorSize * weight_matrix->format.size;
+
+            spike_or_weight_vector_size = profile->weightBufferSize;
+            if (spike_or_weight_vector_size % weight_matrix->memory_padding)
+            {
+              profile->weightBufferPaddingSize = weight_matrix->memory_padding - spike_or_weight_vector_size % weight_matrix->memory_padding;
+              spike_or_weight_vector_size += profile->weightBufferPaddingSize;
+            }
+            else
+            {
+              profile->weightBufferPaddingSize = 0;
+            }
+          }
+          break;
+        case H2_POOLING_LAYER:
+        case H4_POOLING_LAYER:
+          {
+            profile->spikeBufferSize = state_matrix->format.size;
+
+            spike_or_weight_vector_size = profile->spikeBufferSize;
+            if (spike_matrix->memory_padding % spike_or_weight_vector_size)
+            {
+              profile->spikeBufferPaddingSize = spike_matrix->memory_padding % spike_or_weight_vector_size;
+              spike_or_weight_vector_size += profile->spikeBufferPaddingSize;
+            }
+            else
+            {
+              profile->spikeBufferPaddingSize = 0;
+            }
+          }
+          break;
+        default: ASSERT (0);
       }
 
       rand_num_size = sizeof(float);
@@ -320,7 +350,7 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
         profile->randBufferPaddingSize = 0;
       }
 
-      profile->txBufferSize[UPDATE_MODE] = profile->layerSize * (rand_num_size + state_vector_size + profile->kernelSize * weight_vector_size);
+      profile->txBufferSize[UPDATE_MODE] = profile->layerSize * (rand_num_size + state_vector_size + profile->kernelSize * spike_or_weight_vector_size);
 
       ASSERT (profile->txBuffer[UPDATE_MODE] == NULL);
       profile->txBuffer[UPDATE_MODE] = MemoryBlock_alloc(state_matrix->memory_def_parent, profile->txBufferSize[UPDATE_MODE]);
@@ -1158,7 +1188,7 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
 
     WeightShift layer_weight_shift = layer->weight_shift;
 
-    //while (!spike_layer->partition_array[0]->accelerator->rxDone);
+    while (!spike_layer->partition_array[0]->accelerator->rxDone);
 
     kernel_row_pos = 0, layer_row = 0;
     for (i = 0; i < layer->num_partitions; i ++)
@@ -1229,18 +1259,28 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
             {
               spikeID = *(SpikeID *) Multivector_2DAccess(spike_layer_spike_matrix, kernel_row_pos + kernel_row, kernel_column_pos + kernel_column);
 
-              ASSERT(layer->vector_size == update_partition->weight_matrix->dimension_size[3]);
+              ASSERT (spikeID < spike_layer->vector_size);
 
-              if (layer_weight_shift == COLUMN_SHIFT)
+              if (layer->layer_type == H2_POOLING_LAYER
+                  || layer->layer_type == H4_POOLING_LAYER)
               {
-                weight_vector = Multivector_3DAccess (update_partition_weight_matrix, kernel_row, kernel_column, spikeID);
+                Accelerator_giveSpike (update_partition_accelerator, spikeID);
               }
               else
               {
-                weight_vector = Multivector_3DAccess (update_partition_weight_matrix, kernel_column, kernel_row, spikeID);
-              }
+                ASSERT(layer->vector_size == update_partition->weight_matrix->dimension_size[3]);
 
-              Accelerator_giveWeightVector (update_partition_accelerator, weight_vector);
+                if (layer_weight_shift == COLUMN_SHIFT)
+                {
+                  weight_vector = Multivector_3DAccess (update_partition_weight_matrix, kernel_row, kernel_column, spikeID);
+                }
+                else
+                {
+                  weight_vector = Multivector_3DAccess (update_partition_weight_matrix, kernel_column, kernel_row, spikeID);
+                }
+
+                Accelerator_giveWeightVector (update_partition_accelerator, weight_vector);
+              }
             }
           }
 #endif

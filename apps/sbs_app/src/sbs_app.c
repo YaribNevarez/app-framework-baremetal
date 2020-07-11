@@ -36,6 +36,7 @@
 #include "sbs_hardware_spike.h"
 #include "sbs_hardware_update.h"
 #include "sbs_custom_hardware.h"
+#include "sbs_pooling_layer.h"
 #include "dma_hardware_mover.h"
 #include "sbs_hardware_emulator.h"
 // FORWARD DECLARATIONS --------------------------------------------------------
@@ -138,14 +139,14 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   },
 #endif
 #ifdef ACCELERATOR_5
-  { .hwDriver      = &SbsHardware_custom,
+  { .hwDriver      = &SbsHardware_poolingLayer,
     .dmaDriver     = &DMAHardware_mover,
     .layerAssign   = ACCELERATOR_5,
-    .hwDeviceID    = XPAR_XSBS_ACCELERATOR_UNIT_4_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_5_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_UNIT_4_INTERRUPT_INTR,
+    .hwDeviceID    = XPAR_SBS_POOLING_LAYER_0_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_2_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_POOLING_LAYER_0_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_5_S2MM_INTROUT_INTR,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_2_S2MM_INTROUT_INTR,
     .channelSize   = 4,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x38000000,
