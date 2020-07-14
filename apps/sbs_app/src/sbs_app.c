@@ -37,6 +37,7 @@
 #include "sbs_hardware_update.h"
 #include "sbs_custom_hardware.h"
 #include "sbs_pooling_layer.h"
+#include "sbs_convolution_layer.h"
 #include "dma_hardware_mover.h"
 #include "sbs_hardware_emulator.h"
 // FORWARD DECLARATIONS --------------------------------------------------------
@@ -104,14 +105,14 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     }
   },
 #endif
-#ifdef ACCELERATOR_3
-  { .hwDriver      = &SbsHardware_custom,
+#ifdef ACCELERATOR_CONVOLUTION_0
+  { .hwDriver      = &SbsHardware_convolutionLayer,
     .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = ACCELERATOR_3,
-    .hwDeviceID    = XPAR_XSBS_ACCELERATOR_UNIT_2_DEVICE_ID,
+    .layerAssign   = ACCELERATOR_CONVOLUTION_0,
+    .hwDeviceID    = XPAR_SBS_CONVOLUTION_LAYER_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXI_DMA_3_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_UNIT_2_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
+    .hwIntVecID    = XPAR_FABRIC_SBS_CONVOLUTION_LAYER_0_INTERRUPT_INTR,
+    .dmaTxIntVecID = XPAR_FABRIC_AXI_DMA_3_MM2S_INTROUT_INTR,
     .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_3_S2MM_INTROUT_INTR,
     .channelSize   = 4,
     .ddrMem =
@@ -121,27 +122,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     }
   },
 #endif
-#ifdef ACCELERATOR_4
-  { .hwDriver      = &SbsHardware_custom,
-    .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = ACCELERATOR_4,
-    .hwDeviceID    = XPAR_XSBS_ACCELERATOR_UNIT_3_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_4_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_UNIT_3_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_4_S2MM_INTROUT_INTR,
-    .channelSize   = 4,
-    .ddrMem =
-    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x34000000,
-      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x37FFFFFF,
-      .blockIndex  = 0
-    }
-  },
-#endif
-#ifdef ACCELERATOR_5
+#ifdef ACCELERATOR_POOLING_LAYER
   { .hwDriver      = &SbsHardware_poolingLayer,
     .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = ACCELERATOR_5,
+    .layerAssign   = ACCELERATOR_POOLING_LAYER,
     .hwDeviceID    = XPAR_SBS_POOLING_LAYER_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXI_DMA_2_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_POOLING_LAYER_0_INTERRUPT_INTR,
@@ -153,7 +137,24 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x3BFFFFFF,
       .blockIndex  = 0
     }
-  }
+  },
+#endif
+#ifdef ACCELERATOR_CONVOLUTION_1
+  { .hwDriver      = &SbsHardware_convolutionLayer,
+    .dmaDriver     = &DMAHardware_mover,
+    .layerAssign   = ACCELERATOR_CONVOLUTION_1,
+    .hwDeviceID    = XPAR_SBS_CONVOLUTION_LAYER_1_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_4_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_CONVOLUTION_LAYER_1_INTERRUPT_INTR,
+    .dmaTxIntVecID = XPAR_FABRIC_AXI_DMA_4_MM2S_INTROUT_INTR,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_4_S2MM_INTROUT_INTR,
+    .channelSize   = 4,
+    .ddrMem =
+    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x34000000,
+      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x37FFFFFF,
+      .blockIndex  = 0
+    }
+  },
 #endif
 };
 

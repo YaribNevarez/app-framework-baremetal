@@ -277,6 +277,7 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
     if (weight_matrix != NULL)
     {
       size_t spike_or_weight_vector_size = 0;
+      size_t spike_or_weight_batch_size = 0;
 
       profile->memory_cmd[UPDATE_MODE] = memory_cmd;
       profile->rxBuffer[UPDATE_MODE] = state_matrix->data;
@@ -297,8 +298,6 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
       {
         case HX_INPUT_LAYER:
           break;
-        case H1_CONVOLUTION_LAYER:
-        case H3_CONVOLUTION_LAYER:
         case H5_FULLY_CONNECTED_LAYER:
         case HY_OUTPUT_LAYER:
           {
@@ -318,6 +317,8 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
             }
           }
           break;
+        case H1_CONVOLUTION_LAYER:
+        case H3_CONVOLUTION_LAYER:
         case H2_POOLING_LAYER:
         case H4_POOLING_LAYER:
           {
@@ -350,7 +351,19 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
         profile->randBufferPaddingSize = 0;
       }
 
-      profile->txBufferSize[UPDATE_MODE] = profile->layerSize * (rand_num_size + state_vector_size + profile->kernelSize * spike_or_weight_vector_size);
+      spike_or_weight_batch_size = profile->kernelSize * spike_or_weight_vector_size;
+
+      if (spike_or_weight_batch_size % state_matrix->memory_padding)
+      {
+        profile->spikeBatchBufferPaddingSize = state_matrix->memory_padding - spike_or_weight_batch_size % state_matrix->memory_padding;
+        spike_or_weight_batch_size += profile->spikeBatchBufferPaddingSize;
+      }
+      else
+      {
+        profile->spikeBatchBufferPaddingSize = 0;
+      }
+
+      profile->txBufferSize[UPDATE_MODE] = profile->layerSize * (rand_num_size + state_vector_size + spike_or_weight_batch_size);
 
       ASSERT (profile->txBuffer[UPDATE_MODE] == NULL);
       profile->txBuffer[UPDATE_MODE] = MemoryBlock_alloc(state_matrix->memory_def_parent, profile->txBufferSize[UPDATE_MODE]);
@@ -1149,6 +1162,52 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
   }
 }
 
+static void SbsBaseLayer_initializeHardware (SbsBaseLayer * layer)
+{
+  ASSERT (layer != NULL);
+  if (layer != NULL)
+  {
+    int i;
+    SbsLayerPartition *  update_partition = NULL;
+    Multivector * update_partition_weight_matrix = NULL;
+    SbSUpdateAccelerator * update_partition_accelerator = NULL;
+
+    for (i = 0; i < layer->num_partitions; i ++)
+    {
+      update_partition = layer->partition_array[i];
+      ASSERT(update_partition != NULL);
+
+      update_partition_accelerator = update_partition->accelerator;
+      ASSERT(update_partition_accelerator != NULL);
+
+      switch (layer->layer_type)
+      {
+        case HX_INPUT_LAYER:
+          break;
+        case H1_CONVOLUTION_LAYER:
+        case H3_CONVOLUTION_LAYER:
+          update_partition_weight_matrix = update_partition->weight_matrix;
+          ASSERT(update_partition_weight_matrix != NULL);
+
+          ASSERT (layer->num_partitions == 1);
+          Accelerator_loadCoefficients (update_partition_accelerator,
+                                        &update_partition->profile,
+                                        update_partition_weight_matrix,
+                                        layer->weight_shift == COLUMN_SHIFT);
+          break;
+        case H2_POOLING_LAYER:
+        case H4_POOLING_LAYER:
+          break;
+        case H5_FULLY_CONNECTED_LAYER:
+          break;
+        case HY_OUTPUT_LAYER:
+          break;
+        default:;
+      }
+    }
+  }
+}
+
 inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer) __attribute__((always_inline));
 inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spike_layer)
 {
@@ -1262,7 +1321,9 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
               ASSERT (spikeID < spike_layer->vector_size);
 
               if (layer->layer_type == H2_POOLING_LAYER
-                  || layer->layer_type == H4_POOLING_LAYER)
+                  || layer->layer_type == H4_POOLING_LAYER
+                  || layer->layer_type == H1_CONVOLUTION_LAYER
+                  || layer->layer_type == H3_CONVOLUTION_LAYER)
               {
                 Accelerator_giveSpike (update_partition_accelerator, spikeID);
               }
@@ -1589,8 +1650,9 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
     for (i = 0; i < network->size; i++)
     {
       ASSERT(network->layer_array[i] != NULL);
-      SbsBaseLayer_initialize(network->layer_array[i]);
-      SbsBaseLayer_cacheFlush(network->layer_array[i]);
+      SbsBaseLayer_initialize (network->layer_array[i]);
+      SbsBaseLayer_cacheFlush (network->layer_array[i]);
+      SbsBaseLayer_initializeHardware (network->layer_array[i]);
     }
 
     input_layer = network->layer_array[0];

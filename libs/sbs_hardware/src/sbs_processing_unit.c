@@ -13,6 +13,7 @@
 #include "stdio.h"
 
 #include "mt19937int.h"
+#include "multivector.h"
 
 /***************** Macros (Inline Functions) Definitions *********************/
 
@@ -134,7 +135,7 @@ static void Accelerator_rxInterruptHandler (void * data)
   }
 }
 
-static int sbs_accelerator_debug[10000] = { 0 };
+static int sbs_accelerator_debug[100000] = { 0 };
 
 static void Accelerator_hardwareInterruptHandler (void * data)
 {
@@ -162,8 +163,8 @@ static void Accelerator_hardwareInterruptHandler (void * data)
   accelerator->acceleratorReady = status & 1;
 }
 
-int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
-                                  SbSHardwareConfig * hardware_config)
+int Accelerator_initialize (SbSUpdateAccelerator * accelerator,
+                            SbSHardwareConfig * hardware_config)
 {
   int                 status;
 
@@ -235,7 +236,7 @@ int Accelerator_initialize(SbSUpdateAccelerator * accelerator,
   if (hardware_config->hwDriver->Set_debug != NULL)
   {
     hardware_config->hwDriver->Set_debug (accelerator->updateHardware,
-                                          sbs_accelerator_debug);
+                                          (uint32_t) sbs_accelerator_debug);
   }
 
   hardware_config->hwDriver->InterruptGlobalEnable (accelerator->updateHardware);
@@ -308,6 +309,77 @@ void Accelerator_delete (SbSUpdateAccelerator ** accelerator)
   }
 }
 
+void Accelerator_loadCoefficients (SbSUpdateAccelerator * accelerator,
+                                   SbsAcceleratorProfie * profile,
+                                   Multivector * weight_matrix,
+                                   int row_vector)
+{
+  int status;
+  ASSERT (accelerator != NULL);
+  ASSERT (profile != NULL);
+
+  ASSERT (accelerator->hardwareConfig != NULL);
+  ASSERT (accelerator->hardwareConfig->hwDriver != NULL);
+
+  static char buffer[52000] = { 0 };
+  void * weight_vector = NULL;
+  void * buffer_ptr = buffer;
+  size_t weight_vector_size = weight_matrix->dimension_size[3] * weight_matrix->format.size;
+
+  SbsHardwareProfile * hwProfile = (SbsHardwareProfile *) buffer_ptr;
+
+  hwProfile->layerSize = profile->layerSize;
+  hwProfile->kernelSize = profile->kernelSize;
+  hwProfile->vectorSize = profile->vectorSize;
+  hwProfile->epsilon = *((float *) &profile->epsilon);
+
+  hwProfile->weightRows = weight_matrix->dimension_size[0];
+  hwProfile->weightColumns = weight_matrix->dimension_size[1];
+  hwProfile->weightDepth = weight_matrix->dimension_size[2];
+
+  buffer_ptr += sizeof(SbsHardwareProfile);
+
+  for (int row = 0; row < weight_matrix->dimension_size[0]; row++)
+    for (int column = 0; column < weight_matrix->dimension_size[1]; column++)
+      for (int depth = 0; depth < weight_matrix->dimension_size[2]; depth++)
+      {
+        if (row_vector)
+        {
+          weight_vector = Multivector_3DAccess (weight_matrix, row, column, depth);
+        }
+        else
+        {
+          weight_vector = Multivector_3DAccess (weight_matrix, column, row, depth);
+        }
+        memcpy (buffer_ptr, weight_vector, weight_vector_size);
+        buffer_ptr += weight_vector_size;
+      }
+
+  if (accelerator->hardwareConfig->hwDriver->Set_mode)
+  {
+    accelerator->hardwareConfig->hwDriver->Set_mode (accelerator->updateHardware, SBS_HW_INITIALIZE);
+
+    while (!accelerator->acceleratorReady);
+    while (!accelerator->txDone);
+    accelerator->acceleratorReady = 0;
+    accelerator->hardwareConfig->hwDriver->Start (accelerator->updateHardware);
+
+    Xil_DCacheFlushRange ((UINTPTR) buffer, (size_t) (buffer_ptr - (void*) buffer));
+
+    accelerator->txDone = 0;
+    status = accelerator->hardwareConfig->dmaDriver->Move (accelerator->dmaHardware,
+                                                           buffer,
+                                                           (size_t) (buffer_ptr - (void*) buffer),
+                                                           MEMORY_TO_HARDWARE);
+    ASSERT(status == XST_SUCCESS);
+
+    while (!accelerator->acceleratorReady);
+    while (!accelerator->txDone);
+
+    accelerator->hardwareConfig->hwDriver->Set_mode (accelerator->updateHardware, SBS_HW_INFERENCE);
+  }
+}
+
 void Accelerator_setup (SbSUpdateAccelerator * accelerator,
                         SbsAcceleratorProfie * profile,
                         AcceleratorMode mode)
@@ -339,11 +411,6 @@ void Accelerator_setup (SbSUpdateAccelerator * accelerator,
           accelerator->updateHardware, accelerator->profile->epsilon);
   }
 
-  accelerator->mode = mode;
-  if (accelerator->hardwareConfig->hwDriver->Set_mode)
-    accelerator->hardwareConfig->hwDriver->Set_mode (
-        accelerator->updateHardware, accelerator->mode);
-
   /************************** Rx Setup **************************/
   accelerator->rxBuffer = profile->rxBuffer[mode];
   accelerator->rxBufferSize = profile->rxBufferSize[mode];
@@ -363,8 +430,8 @@ void Accelerator_setup (SbSUpdateAccelerator * accelerator,
 #ifdef DEBUG
   accelerator->txStateCounter = 0;
   accelerator->txWeightCounter = 0;
-  accelerator->txSpikeCounter = 0;
 #endif
+  accelerator->txSpikeCounter = 0;
 }
 
 inline void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
@@ -448,8 +515,14 @@ inline void Accelerator_giveSpike (SbSUpdateAccelerator * accelerator, uint16_t 
 
   accelerator->txBufferCurrentPtr += accelerator->profile->spikeBufferSize + accelerator->profile->spikeBufferPaddingSize;
 
-#ifdef DEBUG
   accelerator->txSpikeCounter ++;
+
+  if (!(accelerator->txSpikeCounter % accelerator->profile->kernelSize))
+  {
+    accelerator->txBufferCurrentPtr += accelerator->profile->spikeBatchBufferPaddingSize;
+  }
+
+#ifdef DEBUG
   ASSERT(accelerator->txSpikeCounter <= accelerator->profile->layerSize * accelerator->profile->kernelSize);
 #endif
 }

@@ -22,6 +22,25 @@ extern "C" {
 /***************** Macros (Inline Functions) Definitions *********************/
 
 /**************************** Type Definitions *******************************/
+
+typedef enum
+{
+  SBS_HW_INITIALIZE,
+  SBS_HW_INFERENCE
+} SbsHwMode;
+
+typedef struct
+{
+  int layerSize;
+  int kernelSize;
+  int vectorSize;
+  float epsilon;
+
+  int weightRows;
+  int weightColumns;
+  int weightDepth;
+} SbsHardwareProfile;
+
 typedef struct
 {
   void *    (*new)(void);
@@ -36,7 +55,7 @@ typedef struct
   void      (*DisableAutoRestart) (void *InstancePtr);
   uint32_t  (*Get_return) (void *InstancePtr);
 
-  void      (*Set_mode)       (void *InstancePtr, uint32_t Data);
+  void      (*Set_mode)       (void *InstancePtr, SbsHwMode mode);
   uint32_t  (*Get_mode)       (void *InstancePtr);
   void      (*Set_layerSize)  (void *InstancePtr, uint32_t Data);
   uint32_t  (*Get_layerSize)  (void *InstancePtr);

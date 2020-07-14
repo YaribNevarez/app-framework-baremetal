@@ -100,6 +100,7 @@ typedef struct
   size_t    stateBufferPaddingSize;
   size_t    weightBufferPaddingSize;
   size_t    spikeBufferPaddingSize;
+  size_t    spikeBatchBufferPaddingSize;
 
   void *    txBuffer[ACCELERATOR_MODES];
   size_t    txBufferSize[ACCELERATOR_MODES];
@@ -118,10 +119,11 @@ typedef struct
   SbsAcceleratorProfie *  profile;
 
 #ifdef DEBUG
-  uint16_t    txStateCounter;
-  uint16_t    txWeightCounter;
-  uint16_t    txSpikeCounter;
+  uint32_t    txStateCounter;
+  uint32_t    txWeightCounter;
 #endif
+
+  uint32_t    txSpikeCounter;
 
   void *      txBufferCurrentPtr;
   void *      txBuffer;
