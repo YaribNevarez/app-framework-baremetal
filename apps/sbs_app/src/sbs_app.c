@@ -93,10 +93,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .dmaDriver     = &DMAHardware_mover,
     .layerAssign   = ACCELERATOR_2,
     .hwDeviceID    = XPAR_XSBS_ACCELERATOR_UNIT_1_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_2_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_5_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_UNIT_1_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_2_S2MM_INTROUT_INTR,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_5_S2MM_INTROUT_INTR,
     .channelSize   = 4,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2C000000,
@@ -205,8 +205,6 @@ Result SnnApp_initialize(void)
 
 Result SnnApp_run (void)
 {
-  Timer * timer = Timer_new (1);
-  double inference_time = 0;
   int pattern_index;
   char string_text[128];
   float output_vector[10];
@@ -358,16 +356,9 @@ Result SnnApp_run (void)
                SBS_INPUT_PATTERN_FORMAT_NAME,
                pattern_index);
 
-
       network->loadInput (network, string_text);
 
-
-      Timer_start (timer);
-
       network->updateCycle (network, SBS_NETWORK_UPDATE_CYCLES);
-
-      inference_time = Timer_getCurrentTime (timer);
-      printf ("\nInference time = %f\n", inference_time);
 
       total_inference ++;
 

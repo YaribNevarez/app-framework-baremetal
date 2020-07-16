@@ -148,10 +148,10 @@ unsigned int sbs_pooling_layer (hls::stream<StreamChannel> &stream_in,
   static StreamChannel channel;
 
   static unsigned short input_spike_matrix[MAX_INPUT_SPIKE_MATRIX_SIZE];
-#pragma HLS array_partition variable=input_spike_matrix complete
+//#pragma HLS array_partition variable=input_spike_matrix complete
 
   static unsigned short spike_matrix[MAX_SPIKE_MATRIX_SIZE];
-#pragma HLS array_partition variable=spike_matrix block factor=4
+//#pragma HLS array_partition variable=spike_matrix block factor=4
 
   static float state_vector[MAX_VECTOR_SIZE];
 //#pragma HLS array_partition variable=state_vector block factor=4

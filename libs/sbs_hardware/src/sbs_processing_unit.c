@@ -314,53 +314,60 @@ void Accelerator_loadCoefficients (SbSUpdateAccelerator * accelerator,
                                    Multivector * weight_matrix,
                                    int row_vector)
 {
-  int status;
   ASSERT (accelerator != NULL);
-  ASSERT (profile != NULL);
-
   ASSERT (accelerator->hardwareConfig != NULL);
   ASSERT (accelerator->hardwareConfig->hwDriver != NULL);
+  ASSERT (profile != NULL);
+  ASSERT (weight_matrix != NULL);
 
-  static char buffer[52000] = { 0 };
-  void * weight_vector = NULL;
-  void * buffer_ptr = buffer;
-  size_t weight_vector_size = weight_matrix->dimension_size[3] * weight_matrix->format.size;
-
-  SbsHardwareProfile * hwProfile = (SbsHardwareProfile *) buffer_ptr;
-
-  hwProfile->layerSize = profile->layerSize;
-  hwProfile->kernelSize = profile->kernelSize;
-  hwProfile->vectorSize = profile->vectorSize;
-  hwProfile->epsilon = *((float *) &profile->epsilon);
-
-  hwProfile->weightRows = weight_matrix->dimension_size[0];
-  hwProfile->weightColumns = weight_matrix->dimension_size[1];
-  hwProfile->weightDepth = weight_matrix->dimension_size[2];
-
-  buffer_ptr += sizeof(SbsHardwareProfile);
-
-  for (int row = 0; row < weight_matrix->dimension_size[0]; row++)
-    for (int column = 0; column < weight_matrix->dimension_size[1]; column++)
-      for (int depth = 0; depth < weight_matrix->dimension_size[2]; depth++)
-      {
-        if (row_vector)
-        {
-          weight_vector = Multivector_3DAccess (weight_matrix, row, column, depth);
-        }
-        else
-        {
-          weight_vector = Multivector_3DAccess (weight_matrix, column, row, depth);
-        }
-        memcpy (buffer_ptr, weight_vector, weight_vector_size);
-        buffer_ptr += weight_vector_size;
-      }
-
-  if (accelerator->hardwareConfig->hwDriver->Set_mode)
+  if ((accelerator != NULL)
+      && (profile != NULL)
+      && (weight_matrix != NULL)
+      && (accelerator->hardwareConfig != NULL)
+      && (accelerator->hardwareConfig->hwDriver != NULL)
+      && (accelerator->hardwareConfig->hwDriver->Set_mode))
   {
+    int status;
+    static uint8_t buffer[52000] = { 0 };
+    void * weight_vector = NULL;
+    void * buffer_ptr = buffer;
+    size_t weight_vector_size = weight_matrix->dimension_size[3] * weight_matrix->format.size;
+    SbsHardwareProfile * hwProfile = (SbsHardwareProfile *) buffer_ptr;
+
+    ASSERT(weight_matrix->data_size + sizeof(SbsHardwareProfile) < sizeof(buffer));
+
+    hwProfile->layerSize = profile->layerSize;
+    hwProfile->kernelSize = profile->kernelSize;
+    hwProfile->vectorSize = profile->vectorSize;
+    hwProfile->epsilon = *((float *) &profile->epsilon);
+
+    hwProfile->weightRows = weight_matrix->dimension_size[0];
+    hwProfile->weightColumns = weight_matrix->dimension_size[1];
+    hwProfile->weightDepth = weight_matrix->dimension_size[2];
+
+    buffer_ptr += sizeof(SbsHardwareProfile);
+
+    for (int row = 0; row < weight_matrix->dimension_size[0]; row++)
+      for (int column = 0; column < weight_matrix->dimension_size[1]; column++)
+        for (int depth = 0; depth < weight_matrix->dimension_size[2]; depth++)
+        {
+          if (row_vector)
+          {
+            weight_vector = Multivector_3DAccess (weight_matrix, row, column, depth);
+          }
+          else
+          {
+            weight_vector = Multivector_3DAccess (weight_matrix, column, row, depth);
+          }
+          memcpy (buffer_ptr, weight_vector, weight_vector_size);
+          buffer_ptr += weight_vector_size;
+        }
+
     accelerator->hardwareConfig->hwDriver->Set_mode (accelerator->updateHardware, SBS_HW_INITIALIZE);
 
     while (!accelerator->acceleratorReady);
     while (!accelerator->txDone);
+
     accelerator->acceleratorReady = 0;
     accelerator->hardwareConfig->hwDriver->Start (accelerator->updateHardware);
 
@@ -381,8 +388,7 @@ void Accelerator_loadCoefficients (SbSUpdateAccelerator * accelerator,
 }
 
 void Accelerator_setup (SbSUpdateAccelerator * accelerator,
-                        SbsAcceleratorProfie * profile,
-                        AcceleratorMode mode)
+                        SbsAcceleratorProfie * profile)
 {
   ASSERT (accelerator != NULL);
   ASSERT (profile != NULL);
@@ -412,12 +418,12 @@ void Accelerator_setup (SbSUpdateAccelerator * accelerator,
   }
 
   /************************** Rx Setup **************************/
-  accelerator->rxBuffer = profile->rxBuffer[mode];
-  accelerator->rxBufferSize = profile->rxBufferSize[mode];
+  accelerator->rxBuffer = profile->rxBuffer;
+  accelerator->rxBufferSize = profile->rxBufferSize;
 
   /************************** Tx Setup **************************/
-  accelerator->txBuffer = profile->txBuffer[mode];
-  accelerator->txBufferSize = profile->txBufferSize[mode];
+  accelerator->txBuffer = profile->txBuffer;
+  accelerator->txBufferSize = profile->txBufferSize;
 
   ASSERT ((uint32_t)accelerator->hardwareConfig->ddrMem.baseAddress <= (uint32_t)accelerator->rxBuffer);
   ASSERT ((uint32_t)accelerator->rxBuffer + (uint32_t)accelerator->rxBufferSize <= (uint32_t)accelerator->hardwareConfig->ddrMem.highAddress);
@@ -557,7 +563,7 @@ int Accelerator_start(SbSUpdateAccelerator * accelerator)
   while (accelerator->txDone == 0);
   while (accelerator->rxDone == 0);
 
-  accelerator->memory_cmd = accelerator->profile->memory_cmd[accelerator->mode];
+  accelerator->memory_cmd = accelerator->profile->memory_cmd;
 
   accelerator->acceleratorReady = 0;
   accelerator->hardwareConfig->hwDriver->Start (accelerator->updateHardware);

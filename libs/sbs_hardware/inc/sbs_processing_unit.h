@@ -20,6 +20,7 @@ extern "C" {
 #include "dma_hardware.h"
 
 #include "memory_manager.h"
+#include "timer.h"
 
 #include "xil_types.h"
 /***************** Macros (Inline Functions) Definitions *********************/
@@ -64,13 +65,6 @@ typedef struct
 
 typedef enum
 {
-  SPIKE_MODE  = 0,
-  UPDATE_MODE = 1,
-  ACCELERATOR_MODES
-} AcceleratorMode;
-
-typedef enum
-{
   MEM_CMD_NONE = 0,
   MEM_CMD_COPY,
   MEM_CMD_MOVE,
@@ -84,6 +78,12 @@ typedef struct
   size_t      size;
   MemoryCmdID cmdID;
 } MemoryCmd;
+
+typedef struct
+{
+  Timer *   timer;
+  double    hwLatency;
+} SbsHwStatistics;
 
 typedef struct
 {
@@ -102,13 +102,15 @@ typedef struct
   size_t    spikeBufferPaddingSize;
   size_t    spikeBatchBufferPaddingSize;
 
-  void *    txBuffer[ACCELERATOR_MODES];
-  size_t    txBufferSize[ACCELERATOR_MODES];
+  void *    txBuffer;
+  size_t    txBufferSize;
 
-  void *    rxBuffer[ACCELERATOR_MODES];
-  size_t    rxBufferSize[ACCELERATOR_MODES];
+  void *    rxBuffer;
+  size_t    rxBufferSize;
 
-  MemoryCmd memory_cmd[ACCELERATOR_MODES];
+  MemoryCmd memory_cmd;
+
+  SbsHwStatistics statistics;
 } SbsAcceleratorProfie;
 
 typedef struct
@@ -131,8 +133,6 @@ typedef struct
 
   void *      rxBuffer;
   size_t      rxBufferSize;
-
-  AcceleratorMode mode;
 
   /*Below used by hardware interruption*/
   uint8_t     errorFlags;
@@ -160,8 +160,7 @@ SbSUpdateAccelerator * Accelerator_new (SbSHardwareConfig * hardware_config);
 void Accelerator_delete (SbSUpdateAccelerator ** accelerator);
 
 void Accelerator_setup (SbSUpdateAccelerator * accelerator,
-                        SbsAcceleratorProfie * profile,
-                        AcceleratorMode mode);
+                        SbsAcceleratorProfie * profile);
 
 void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
                                   uint32_t * state_vector);

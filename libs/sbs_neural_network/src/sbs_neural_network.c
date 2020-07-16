@@ -237,12 +237,6 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
 
     profile->stateBufferSize = profile->vectorSize * state_matrix->format.size;
 
-    /**************************** SPIKE_MODE *********************************/
-    profile->rxBuffer[SPIKE_MODE] = spike_matrix->data;
-    profile->rxBufferSize[SPIKE_MODE] = Multivector_dataSize(spike_matrix);
-//    profile->txBufferSize[SPIKE_MODE] = profile->layerSize
-//        * (sizeof(float) + profile->vectorSize * state_matrix->format.size);
-
     rand_num_size = sizeof(float);
 
     if (rand_num_size % state_matrix->memory_padding)
@@ -267,32 +261,29 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
       profile->stateBufferPaddingSize = 0;
     }
 
-    profile->txBufferSize[SPIKE_MODE] = profile->layerSize * (rand_num_size + state_vector_size);
+    if (layerType == HX_INPUT_LAYER)
+    {
+      profile->rxBuffer = spike_matrix->data;
+      profile->rxBufferSize = Multivector_dataSize (spike_matrix);
 
-    ASSERT (profile->txBuffer[SPIKE_MODE] == NULL);
-    profile->txBuffer[SPIKE_MODE] = MemoryBlock_alloc(state_matrix->memory_def_parent, profile->txBufferSize[SPIKE_MODE]);
-    ASSERT (profile->txBuffer[SPIKE_MODE] != NULL);
+      profile->txBufferSize = profile->layerSize
+          * (rand_num_size + state_vector_size);
 
-    /**************************** UPDATE_MODE ********************************/
-    if (weight_matrix != NULL)
+      ASSERT (profile->txBuffer == NULL);
+      profile->txBuffer = MemoryBlock_alloc (state_matrix->memory_def_parent,
+                                             profile->txBufferSize);
+      ASSERT (profile->txBuffer != NULL);
+    }
+    else
     {
       size_t spike_or_weight_vector_size = 0;
       size_t spike_or_weight_batch_size = 0;
 
-      profile->memory_cmd[UPDATE_MODE] = memory_cmd;
-      profile->rxBuffer[UPDATE_MODE] = state_matrix->data;
-      profile->rxBufferSize[UPDATE_MODE] = Multivector_dataSize(state_matrix) + Multivector_dataSize(spike_matrix);
+      ASSERT (weight_matrix != NULL)
 
-      state_vector_size = profile->vectorSize * state_matrix->format.size;
-      if (state_vector_size % state_matrix->memory_padding)
-      {
-        profile->stateBufferPaddingSize = state_matrix->memory_padding - state_vector_size % state_matrix->memory_padding;
-        state_vector_size += profile->stateBufferPaddingSize;
-      }
-      else
-      {
-        profile->stateBufferPaddingSize = 0;
-      }
+      profile->memory_cmd = memory_cmd;
+      profile->rxBuffer = state_matrix->data;
+      profile->rxBufferSize = Multivector_dataSize(state_matrix) + Multivector_dataSize(spike_matrix);
 
       switch (layerType)
       {
@@ -336,19 +327,8 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
             }
           }
           break;
-        default: ASSERT (0);
-      }
-
-      rand_num_size = sizeof(float);
-
-      if (rand_num_size % state_matrix->memory_padding)
-      {
-        profile->randBufferPaddingSize = state_matrix->memory_padding - rand_num_size % state_matrix->memory_padding;
-        rand_num_size += profile->randBufferPaddingSize;
-      }
-      else
-      {
-        profile->randBufferPaddingSize = 0;
+        default:
+          ASSERT (0);
       }
 
       spike_or_weight_batch_size = profile->kernelSize * spike_or_weight_vector_size;
@@ -363,18 +343,19 @@ void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
         profile->spikeBatchBufferPaddingSize = 0;
       }
 
-      profile->txBufferSize[UPDATE_MODE] = profile->layerSize * (rand_num_size + state_vector_size + spike_or_weight_batch_size);
+      profile->txBufferSize = profile->layerSize * (rand_num_size + state_vector_size + spike_or_weight_batch_size);
 
-      ASSERT (profile->txBuffer[UPDATE_MODE] == NULL);
-      profile->txBuffer[UPDATE_MODE] = MemoryBlock_alloc(state_matrix->memory_def_parent, profile->txBufferSize[UPDATE_MODE]);
-      ASSERT (profile->txBuffer[UPDATE_MODE] != NULL);
+      ASSERT (profile->txBuffer == NULL);
+      profile->txBuffer = MemoryBlock_alloc (state_matrix->memory_def_parent,
+                                             profile->txBufferSize);
+      ASSERT (profile->txBuffer != NULL);
     }
   }
 }
 
 static uint8_t SbsAcceleratorProfie_isInitialized(SbsAcceleratorProfie * profile)
 {
-  return (profile->txBuffer[SPIKE_MODE] != NULL);
+  return (profile->txBuffer != NULL);
 }
 
 /*****************************************************************************/
@@ -1151,7 +1132,7 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
     ASSERT (rows == state_matrix->dimension_size[0]);
     ASSERT (columns == state_matrix->dimension_size[1]);
 
-    Accelerator_setup (partition->accelerator, &partition->profile, SPIKE_MODE);
+    Accelerator_setup (partition->accelerator, &partition->profile);
 
     for (row = 0; row < rows; row++)
       for (column = 0; column < columns; column++)
@@ -1189,7 +1170,6 @@ static void SbsBaseLayer_initializeHardware (SbsBaseLayer * layer)
           update_partition_weight_matrix = update_partition->weight_matrix;
           ASSERT(update_partition_weight_matrix != NULL);
 
-          ASSERT (layer->num_partitions == 1);
           Accelerator_loadCoefficients (update_partition_accelerator,
                                         &update_partition->profile,
                                         update_partition_weight_matrix,
@@ -1247,7 +1227,7 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
 
     WeightShift layer_weight_shift = layer->weight_shift;
 
-    while (!spike_layer->partition_array[0]->accelerator->rxDone);
+    //while (!spike_layer->partition_array[0]->accelerator->rxDone);
 
     kernel_row_pos = 0, layer_row = 0;
     for (i = 0; i < layer->num_partitions; i ++)
@@ -1261,8 +1241,7 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
       update_partition_rows = update_partition_state_matrix->dimension_size[0];
 
       Accelerator_setup (update_partition_accelerator,
-                         &update_partition->profile,
-                         UPDATE_MODE);
+                         &update_partition->profile);
 
       /* Update begins */
       for (update_partition_row = 0;
@@ -1657,6 +1636,16 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
 
     input_layer = network->layer_array[0];
 
+    static Timer * timer = NULL;
+    double inference_time = 0;
+
+    if (timer == NULL)
+    {
+      timer = Timer_new (1);
+    }
+
+    Timer_start (timer);
+
     /************************ Begins Update cycle ****************************/
     while (cycles--)
     {
@@ -1669,6 +1658,9 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
       }
     }
     /************************ Ends Update cycle ******************************/
+
+    inference_time = Timer_getCurrentTime (timer);
+    printf ("\nInference time = %f\n", inference_time);
 
     /************************ Begins Learning cycle **************************/
     for (i = 1; i <= network->size - 1; i++)

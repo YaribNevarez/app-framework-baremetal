@@ -154,7 +154,7 @@ unsigned int sbs_convolution_layer (hls::stream<StreamChannel> &stream_in,
 #pragma HLS INTERFACE axis      port=stream_in
 #pragma HLS INTERFACE axis      port=stream_out
 
-#pragma HLS INTERFACE m_axi     port=debug       offset=slave    bundle=DEBUG
+//#pragma HLS INTERFACE m_axi     port=debug       offset=slave    bundle=DEBUG
 #pragma HLS INTERFACE s_axilite port=debug       bundle=CRTL_BUS
 
 #pragma HLS INTERFACE s_axilite port=mode        bundle=CRTL_BUS
@@ -166,16 +166,22 @@ unsigned int sbs_convolution_layer (hls::stream<StreamChannel> &stream_in,
   static SbsHardwareProfile hwProfile;
 
   static unsigned short input_spike_matrix[MAX_INPUT_SPIKE_MATRIX_SIZE];
+//#pragma HLS ARRAY_PARTITION variable=input_spike_matrix complete dim=1
 
   static ap_uint<WEIGHT_VECTOR_WIDTH> weight_matrix[52000];
+//#pragma HLS ARRAY_PARTITION variable=weight_matrix block factor=1 dim=1
 
   static unsigned short spike_matrix[MAX_SPIKE_MATRIX_SIZE];
+//#pragma HLS ARRAY_PARTITION variable=spike_matrix block factor=32 dim=1
 
   static float state_vector[MAX_VECTOR_SIZE];
+//#pragma HLS ARRAY_PARTITION variable=state_vector complete dim=1
 
   static float weight_vector[MAX_VECTOR_SIZE];
+//#pragma HLS ARRAY_PARTITION variable=weight_vector block factor=32 dim=1
 
   static float temp_data[MAX_VECTOR_SIZE];
+//#pragma HLS ARRAY_PARTITION variable=temp_data block factor=32 dim=1
 
 
   float epsion_over_sum;

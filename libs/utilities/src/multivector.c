@@ -993,6 +993,8 @@ Multivector * Multivector_reformat (MemoryBlock * memory_def,
         int mantissa_index;
         uint32_t data;
 
+        duplicate->data_size = data_size;
+
         switch (original->format.size)
         {
           case sizeof(float):

@@ -147,16 +147,16 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
   static StreamChannel channel;
 
   static unsigned short spike_matrix[MAX_SPIKE_MATRIX_SIZE];
-#pragma HLS array_partition variable=spike_matrix block factor=4
+//#pragma HLS array_partition variable=spike_matrix block factor=4
 
   static float state_vector[MAX_VECTOR_SIZE];
-#pragma HLS array_partition variable=state_vector block factor=246
+//#pragma HLS array_partition variable=state_vector block factor=246
 
   static float weight_vector[MAX_VECTOR_SIZE];
-#pragma HLS array_partition variable=weight_vector block factor=246
+//#pragma HLS array_partition variable=weight_vector block factor=246
 
   static float temp_data[MAX_VECTOR_SIZE];
-#pragma HLS array_partition variable=temp_data block factor=246
+//#pragma HLS array_partition variable=temp_data block factor=246
 
   static float epsion_over_sum;
   static float random_value;
