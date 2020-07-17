@@ -17,6 +17,7 @@
 #include "stdarg.h"
 
 #include "timer.h"
+#include "task.h"
 #include "miscellaneous.h"
 #include "memory_manager.h"
 
@@ -68,7 +69,8 @@ typedef struct
 typedef struct
 {
   SbSUpdateAccelerator *  accelerator;
-  SbsAcceleratorProfie    profile;
+  SbsAcceleratorProfie *  profile;
+  Task *                  task;
   uint16_t      x_pos;
   uint16_t      y_pos;
   Multivector * state_matrix;
@@ -97,6 +99,7 @@ typedef struct
   SbsLayer              vtbl;
   SbsLayerType          layer_type;
   SbsLayerPartition **  partition_array;
+  Task *                task;
   uint8_t               num_partitions;
   uint16_t              rows;
   uint16_t              columns;
@@ -116,6 +119,7 @@ typedef struct
   SbsBaseLayer **   layer_array;
   uint8_t           input_label;
   uint8_t           inferred_output;
+  Task *            task;
 } SbsBaseNetwork;
 
 #pragma pack(pop)   /* restore original alignment from stack */
@@ -205,166 +209,15 @@ static SbsSettings SbsSettings_ =
 #endif
 
 /*****************************************************************************/
-void SbsAcceleratorProfie_initialize(SbsAcceleratorProfie * profile,
-                                     SbsLayerType layerType,
-                                     Multivector * state_matrix,
-                                     Multivector * weight_matrix,
-                                     Multivector * spike_matrix,
-                                     uint32_t kernel_size,
-                                     Epsilon epsilon,
-                                     MemoryCmd memory_cmd)
-{
-  ASSERT (profile != NULL);
-  ASSERT (state_matrix != NULL);
-  ASSERT (state_matrix->dimensionality == 3);
-  ASSERT (state_matrix->data != NULL);
-
-  if ((profile != NULL)
-      && (state_matrix != NULL)
-      && (state_matrix->dimensionality == 3)
-      && (state_matrix->data != NULL))
-  {
-    size_t rand_num_size;
-    size_t state_vector_size;
-
-
-    profile->layerSize =
-        state_matrix->dimension_size[0] * state_matrix->dimension_size[1];
-    profile->vectorSize = state_matrix->dimension_size[2];
-
-    profile->kernelSize = kernel_size * kernel_size;
-    profile->epsilon = epsilon;
-
-    profile->stateBufferSize = profile->vectorSize * state_matrix->format.size;
-
-    rand_num_size = sizeof(float);
-
-    if (rand_num_size % state_matrix->memory_padding)
-    {
-      profile->randBufferPaddingSize = state_matrix->memory_padding - rand_num_size % state_matrix->memory_padding;
-      rand_num_size += profile->randBufferPaddingSize;
-    }
-    else
-    {
-      profile->randBufferPaddingSize = 0;
-    }
-
-    state_vector_size = profile->vectorSize * state_matrix->format.size;
-
-    if (state_vector_size % state_matrix->memory_padding)
-    {
-      profile->stateBufferPaddingSize = state_matrix->memory_padding - state_vector_size % state_matrix->memory_padding;
-      state_vector_size += profile->stateBufferPaddingSize;
-    }
-    else
-    {
-      profile->stateBufferPaddingSize = 0;
-    }
-
-    if (layerType == HX_INPUT_LAYER)
-    {
-      profile->rxBuffer = spike_matrix->data;
-      profile->rxBufferSize = Multivector_dataSize (spike_matrix);
-
-      profile->txBufferSize = profile->layerSize
-          * (rand_num_size + state_vector_size);
-
-      ASSERT (profile->txBuffer == NULL);
-      profile->txBuffer = MemoryBlock_alloc (state_matrix->memory_def_parent,
-                                             profile->txBufferSize);
-      ASSERT (profile->txBuffer != NULL);
-    }
-    else
-    {
-      size_t spike_or_weight_vector_size = 0;
-      size_t spike_or_weight_batch_size = 0;
-
-      ASSERT (weight_matrix != NULL)
-
-      profile->memory_cmd = memory_cmd;
-      profile->rxBuffer = state_matrix->data;
-      profile->rxBufferSize = Multivector_dataSize(state_matrix) + Multivector_dataSize(spike_matrix);
-
-      switch (layerType)
-      {
-        case HX_INPUT_LAYER:
-          break;
-        case H5_FULLY_CONNECTED_LAYER:
-        case HY_OUTPUT_LAYER:
-          {
-            ASSERT(weight_matrix->dimension_size[3] == state_matrix->dimension_size[2]);
-
-            profile->weightBufferSize = profile->vectorSize * weight_matrix->format.size;
-
-            spike_or_weight_vector_size = profile->weightBufferSize;
-            if (spike_or_weight_vector_size % weight_matrix->memory_padding)
-            {
-              profile->weightBufferPaddingSize = weight_matrix->memory_padding - spike_or_weight_vector_size % weight_matrix->memory_padding;
-              spike_or_weight_vector_size += profile->weightBufferPaddingSize;
-            }
-            else
-            {
-              profile->weightBufferPaddingSize = 0;
-            }
-          }
-          break;
-        case H1_CONVOLUTION_LAYER:
-        case H3_CONVOLUTION_LAYER:
-        case H2_POOLING_LAYER:
-        case H4_POOLING_LAYER:
-          {
-            profile->spikeBufferSize = state_matrix->format.size;
-
-            spike_or_weight_vector_size = profile->spikeBufferSize;
-            if (spike_matrix->memory_padding % spike_or_weight_vector_size)
-            {
-              profile->spikeBufferPaddingSize = spike_matrix->memory_padding % spike_or_weight_vector_size;
-              spike_or_weight_vector_size += profile->spikeBufferPaddingSize;
-            }
-            else
-            {
-              profile->spikeBufferPaddingSize = 0;
-            }
-          }
-          break;
-        default:
-          ASSERT (0);
-      }
-
-      spike_or_weight_batch_size = profile->kernelSize * spike_or_weight_vector_size;
-
-      if (spike_or_weight_batch_size % state_matrix->memory_padding)
-      {
-        profile->spikeBatchBufferPaddingSize = state_matrix->memory_padding - spike_or_weight_batch_size % state_matrix->memory_padding;
-        spike_or_weight_batch_size += profile->spikeBatchBufferPaddingSize;
-      }
-      else
-      {
-        profile->spikeBatchBufferPaddingSize = 0;
-      }
-
-      profile->txBufferSize = profile->layerSize * (rand_num_size + state_vector_size + spike_or_weight_batch_size);
-
-      ASSERT (profile->txBuffer == NULL);
-      profile->txBuffer = MemoryBlock_alloc (state_matrix->memory_def_parent,
-                                             profile->txBufferSize);
-      ASSERT (profile->txBuffer != NULL);
-    }
-  }
-}
-
-static uint8_t SbsAcceleratorProfie_isInitialized(SbsAcceleratorProfie * profile)
-{
-  return (profile->txBuffer != NULL);
-}
-
 /*****************************************************************************/
+
 static SbsLayerPartition * SbsLayerPartition_new (SbSUpdateAccelerator * accelerator,
                                                   uint16_t x_pos,
                                                   uint16_t y_pos,
                                                   uint16_t rows,
                                                   uint16_t columns,
-                                                  uint16_t vector_size)
+                                                  uint16_t vector_size,
+                                                  Task * parent_task)
 {
   SbsLayerPartition * partition = NULL;
 
@@ -427,6 +280,8 @@ static SbsLayerPartition * SbsLayerPartition_new (SbSUpdateAccelerator * acceler
 
     partition->x_pos = x_pos;
     partition->y_pos = y_pos;
+
+    partition->task = Task_new (parent_task);
   }
 
   return partition;
@@ -443,6 +298,12 @@ static void SbsLayerPartition_delete(SbsLayerPartition ** partition)
     Multivector_delete (&((*partition)->spike_matrix));
     if ((*partition)->weight_matrix != NULL)
       Multivector_delete (&((*partition)->weight_matrix));
+
+    if ((*partition)->profile != NULL)
+      SbsAcceleratorProfie_delete (&(*partition)->profile);
+
+    if ((*partition)->task != NULL)
+      Task_delete (&(*partition)->task);
 
     free (*partition);
 
@@ -507,15 +368,15 @@ static void SbsLayerPartition_initialize (SbsLayerPartition * partition,
                                           Multivector_2DAccess(state_matrix, row, column),
                                           neurons);
 
-    if (!SbsAcceleratorProfie_isInitialized (&partition->profile))
-      SbsAcceleratorProfie_initialize (&partition->profile,
-                                       layerType,
-                                       state_matrix,
-                                       partition->weight_matrix,
-                                       partition->spike_matrix,
-                                       kernel_size,
-                                       epsilon,
-                                       accelerator_memory_cmd);
+    if (partition->profile == NULL)
+      partition->profile = SbsAcceleratorProfie_new (layerType,
+                                                     state_matrix,
+                                                     partition->weight_matrix,
+                                                     partition->spike_matrix,
+                                                     kernel_size,
+                                                     epsilon,
+                                                     accelerator_memory_cmd,
+                                                     partition->task);
   }
 }
 
@@ -579,6 +440,8 @@ static SbsLayer * SbsBaseLayer_new(SbsLayerType layer_type,
 
     layer->vtbl = _SbsLayer;
 
+    layer->task = Task_new (NULL);
+
     layer->layer_type = layer_type;
     layer->num_partitions = SbSUpdateAccelerator_getGroupFromList (
         layer_type, accelerator_group, /*NUM_ACCELERATOR_INSTANCES*/10);
@@ -619,7 +482,8 @@ static SbsLayer * SbsBaseLayer_new(SbsLayerType layer_type,
                                                            pos_y,
                                                            rows_current_partition,
                                                            columns,
-                                                           neurons);
+                                                           neurons,
+                                                           layer->task);
 
         pos_y += rows_current_partition;
       }
@@ -671,6 +535,9 @@ static void SbsBaseLayer_delete(SbsLayer ** layer_ptr)
     if ((*layer)->partition_array != NULL)
       while ((*layer)->num_partitions)
         SbsLayerPartition_delete (&((*layer)->partition_array[--(*layer)->num_partitions]));
+
+    if ((*layer)->task != NULL)
+      Task_delete (&(*layer)->task);
 
     free (*layer);
     *layer = NULL;
@@ -1132,7 +999,9 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
     ASSERT (rows == state_matrix->dimension_size[0]);
     ASSERT (columns == state_matrix->dimension_size[1]);
 
-    Accelerator_setup (partition->accelerator, &partition->profile);
+    Task_start (layer->task);
+    Task_start (layer->partition_array[0]->task);
+    Accelerator_setup (partition->accelerator, partition->profile);
 
     for (row = 0; row < rows; row++)
       for (column = 0; column < columns; column++)
@@ -1140,6 +1009,8 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
                                      Multivector_2DAccess (state_matrix, row, column));
 
     Accelerator_start (partition->accelerator);
+    Task_stop (layer->partition_array[0]->task);
+    Task_stop (layer->task);
   }
 }
 
@@ -1171,7 +1042,7 @@ static void SbsBaseLayer_initializeHardware (SbsBaseLayer * layer)
           ASSERT(update_partition_weight_matrix != NULL);
 
           Accelerator_loadCoefficients (update_partition_accelerator,
-                                        &update_partition->profile,
+                                        update_partition->profile,
                                         update_partition_weight_matrix,
                                         layer->weight_shift == COLUMN_SHIFT);
           break;
@@ -1202,9 +1073,9 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
     Multivector * spike_layer_spike_matrix = spike_layer->spike_matrix;
 
 #ifdef DEBUG
-    SpikeID   spikeID       = 0;
-    Weight * weight_vector  = NULL;
-    NeuronState* state_vector;
+    SpikeID     spikeID       = 0;
+    Weight *    weight_vector = NULL;
+    uint32_t *  state_vector  = NULL;
 #endif
 
 
@@ -1227,6 +1098,7 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
 
     WeightShift layer_weight_shift = layer->weight_shift;
 
+    Task_start (layer->task);
     //while (!spike_layer->partition_array[0]->accelerator->rxDone);
 
     kernel_row_pos = 0, layer_row = 0;
@@ -1235,13 +1107,15 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
       update_partition = layer->partition_array[i];
       ASSERT(update_partition != NULL);
 
+      Task_start (update_partition->task);
+
       update_partition_weight_matrix = update_partition->weight_matrix;
       update_partition_accelerator = update_partition->accelerator;
       update_partition_state_matrix = update_partition->state_matrix;
       update_partition_rows = update_partition_state_matrix->dimension_size[0];
 
       Accelerator_setup (update_partition_accelerator,
-                         &update_partition->profile);
+                         update_partition->profile);
 
       /* Update begins */
       for (update_partition_row = 0;
@@ -1328,7 +1202,19 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
       }
       /* Update ends */
       Accelerator_start (update_partition_accelerator);
+      Task_stop (update_partition->task);
     }
+    Task_stop (layer->task);
+  }
+}
+
+static void SbsBaseLayer_setParentTask (SbsBaseLayer * layer,
+                                        Task * parent_task)
+{
+  ASSERT (layer != NULL);
+  if (layer != NULL)
+  {
+    Task_setParent (layer->task, parent_task);
   }
 }
 
@@ -1348,6 +1234,7 @@ static SbsNetwork * SbsBaseNetwork_new(void)
     network->vtbl = _SbsNetwork;
     network->input_label = (uint8_t) -1;
     network->inferred_output = (uint8_t) -1;
+    network->task = Task_new (NULL);
   }
 
   ASSERT(network->size == 0);
@@ -1366,6 +1253,9 @@ static void SbsBaseNetwork_delete(SbsNetwork ** network_ptr)
     SbsBaseNetwork ** network = (SbsBaseNetwork **) network_ptr;
     while (0 < (*network)->size)
       SbsBaseLayer_delete((SbsLayer **)&(*network)->layer_array[--((*network)->size)]);
+
+    if ((*network)->task != NULL)
+      Task_delete (&(*network)->task);
 
     free(*network);
     *network = NULL;
@@ -1392,6 +1282,8 @@ static void SbsBaseNetwork_giveLayer(SbsNetwork * network_ptr, SbsLayer * layer)
     if (layer_array != NULL)
     {
       layer_array[size] = (SbsBaseLayer *) layer;
+
+      SbsBaseLayer_setParentTask ((SbsBaseLayer *) layer, network->task);
 
       network->layer_array = layer_array;
       network->size++;
@@ -1649,6 +1541,7 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
     /************************ Begins Update cycle ****************************/
     while (cycles--)
     {
+      Task_start (network->task);
       SbsBaseLayer_generateSpikes (input_layer);
 
       for (i = 1; i <= network->size - 1; i++)
@@ -1656,6 +1549,7 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
         SbsBaseLayer_update (network->layer_array[i],
                              network->layer_array[i - 1]);
       }
+      Task_stop (network->task);
     }
     /************************ Ends Update cycle ******************************/
 

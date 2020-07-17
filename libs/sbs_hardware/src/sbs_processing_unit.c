@@ -13,7 +13,6 @@
 #include "stdio.h"
 
 #include "mt19937int.h"
-#include "multivector.h"
 
 /***************** Macros (Inline Functions) Definitions *********************/
 
@@ -140,6 +139,7 @@ static int sbs_accelerator_debug[100000] = { 0 };
 static void Accelerator_hardwareInterruptHandler (void * data)
 {
   SbSUpdateAccelerator * accelerator = (SbSUpdateAccelerator *) data;
+  SbsHardware * hwDriver = NULL;
   uint32_t status;
 
   ASSERT (accelerator != NULL);
@@ -148,18 +148,23 @@ static void Accelerator_hardwareInterruptHandler (void * data)
   ASSERT (accelerator->hardwareConfig->hwDriver->InterruptGetStatus != NULL);
   ASSERT (accelerator->hardwareConfig->hwDriver->InterruptClear != NULL);
 
+  ASSERT (accelerator->profile != NULL);
+  Task_stop (accelerator->profile->task);
+
+  hwDriver = accelerator->hardwareConfig->hwDriver;
+
 #ifdef DEBUG
-  if ((accelerator->hardwareConfig->hwDriver->Get_return)
-      && accelerator->hardwareConfig->hwDriver->Get_return(accelerator->updateHardware))
+  if (hwDriver->Get_return
+      && hwDriver->Get_return (accelerator->updateHardware))
   {
-    int size = accelerator->hardwareConfig->hwDriver->Get_return(accelerator->updateHardware);
+    int size = hwDriver->Get_return (accelerator->updateHardware);
     Xil_DCacheInvalidateRange ((INTPTR) sbs_accelerator_debug,
                                sizeof(int) * size);
   }
 #endif
 
-  status = accelerator->hardwareConfig->hwDriver->InterruptGetStatus (accelerator->updateHardware);
-  accelerator->hardwareConfig->hwDriver->InterruptClear (accelerator->updateHardware, status);
+  status = hwDriver->InterruptGetStatus (accelerator->updateHardware);
+  hwDriver->InterruptClear (accelerator->updateHardware, status);
   accelerator->acceleratorReady = status & 1;
 }
 
@@ -363,15 +368,17 @@ void Accelerator_loadCoefficients (SbSUpdateAccelerator * accelerator,
           buffer_ptr += weight_vector_size;
         }
 
-    accelerator->hardwareConfig->hwDriver->Set_mode (accelerator->updateHardware, SBS_HW_INITIALIZE);
+    Xil_DCacheFlushRange ((UINTPTR) buffer, (size_t) (buffer_ptr - (void*) buffer));
 
     while (!accelerator->acceleratorReady);
     while (!accelerator->txDone);
 
+    accelerator->profile = profile;
+    accelerator->hardwareConfig->hwDriver->Set_mode (accelerator->updateHardware, SBS_HW_INITIALIZE);
+
     accelerator->acceleratorReady = 0;
     accelerator->hardwareConfig->hwDriver->Start (accelerator->updateHardware);
-
-    Xil_DCacheFlushRange ((UINTPTR) buffer, (size_t) (buffer_ptr - (void*) buffer));
+    Task_start (accelerator->profile->task);
 
     accelerator->txDone = 0;
     status = accelerator->hardwareConfig->dmaDriver->Move (accelerator->dmaHardware,
@@ -567,6 +574,7 @@ int Accelerator_start(SbSUpdateAccelerator * accelerator)
 
   accelerator->acceleratorReady = 0;
   accelerator->hardwareConfig->hwDriver->Start (accelerator->updateHardware);
+  Task_start (accelerator->profile->task);
 
 
   accelerator->txDone = 0;
@@ -588,6 +596,187 @@ int Accelerator_start(SbSUpdateAccelerator * accelerator)
   }
 
   return status;
+}
+
+/*****************************************************************************/
+
+SbsAcceleratorProfie * SbsAcceleratorProfie_new (SbsLayerType layerType,
+                                                 Multivector * state_matrix,
+                                                 Multivector * weight_matrix,
+                                                 Multivector * spike_matrix,
+                                                 uint32_t kernel_size,
+                                                 uint32_t epsilon,
+                                                 MemoryCmd memory_cmd,
+                                                 Task * parent_task)
+{
+  SbsAcceleratorProfie * profile = NULL;
+
+  ASSERT (state_matrix != NULL);
+  ASSERT (state_matrix->dimensionality == 3);
+  ASSERT (state_matrix->data != NULL);
+
+  if ((state_matrix != NULL)
+      && (state_matrix->dimensionality == 3)
+      && (state_matrix->data != NULL))
+  {
+    size_t rand_num_size;
+    size_t state_vector_size;
+
+    profile = malloc (sizeof(SbsAcceleratorProfie));
+
+    ASSERT (profile != NULL);
+
+    if (profile == NULL)
+      return profile;
+
+    memset (profile, 0x00, sizeof(SbsAcceleratorProfie));
+
+    profile->task = Task_new (parent_task);
+
+    ASSERT (profile->task != NULL);
+
+    profile->layerSize =
+        state_matrix->dimension_size[0] * state_matrix->dimension_size[1];
+    profile->vectorSize = state_matrix->dimension_size[2];
+
+    profile->kernelSize = kernel_size * kernel_size;
+    profile->epsilon = epsilon;
+
+    profile->stateBufferSize = profile->vectorSize * state_matrix->format.size;
+
+    rand_num_size = sizeof(float);
+
+    if (rand_num_size % state_matrix->memory_padding)
+    {
+      profile->randBufferPaddingSize = state_matrix->memory_padding
+          - rand_num_size % state_matrix->memory_padding;
+      rand_num_size += profile->randBufferPaddingSize;
+    }
+    else
+    {
+      profile->randBufferPaddingSize = 0;
+    }
+
+    state_vector_size = profile->vectorSize * state_matrix->format.size;
+
+    if (state_vector_size % state_matrix->memory_padding)
+    {
+      profile->stateBufferPaddingSize = state_matrix->memory_padding
+          - state_vector_size % state_matrix->memory_padding;
+      state_vector_size += profile->stateBufferPaddingSize;
+    }
+    else
+    {
+      profile->stateBufferPaddingSize = 0;
+    }
+
+    if (layerType == HX_INPUT_LAYER)
+    {
+      profile->rxBuffer = spike_matrix->data;
+      profile->rxBufferSize = Multivector_dataSize (spike_matrix);
+
+      profile->txBufferSize = profile->layerSize
+          * (rand_num_size + state_vector_size);
+
+      ASSERT (profile->txBuffer == NULL);
+      profile->txBuffer = MemoryBlock_alloc (state_matrix->memory_def_parent,
+                                             profile->txBufferSize);
+      ASSERT (profile->txBuffer != NULL);
+    }
+    else
+    {
+      size_t spike_or_weight_vector_size = 0;
+      size_t spike_or_weight_batch_size = 0;
+
+      ASSERT (weight_matrix != NULL)
+
+      profile->memory_cmd = memory_cmd;
+      profile->rxBuffer = state_matrix->data;
+      profile->rxBufferSize = Multivector_dataSize(state_matrix) + Multivector_dataSize(spike_matrix);
+
+      switch (layerType)
+      {
+        case HX_INPUT_LAYER:
+          break;
+        case H5_FULLY_CONNECTED_LAYER:
+        case HY_OUTPUT_LAYER:
+          {
+            ASSERT(weight_matrix->dimension_size[3] == state_matrix->dimension_size[2]);
+
+            profile->weightBufferSize = profile->vectorSize * weight_matrix->format.size;
+
+            spike_or_weight_vector_size = profile->weightBufferSize;
+            if (spike_or_weight_vector_size % weight_matrix->memory_padding)
+            {
+              profile->weightBufferPaddingSize = weight_matrix->memory_padding - spike_or_weight_vector_size % weight_matrix->memory_padding;
+              spike_or_weight_vector_size += profile->weightBufferPaddingSize;
+            }
+            else
+            {
+              profile->weightBufferPaddingSize = 0;
+            }
+          }
+          break;
+        case H1_CONVOLUTION_LAYER:
+        case H3_CONVOLUTION_LAYER:
+        case H2_POOLING_LAYER:
+        case H4_POOLING_LAYER:
+          {
+            profile->spikeBufferSize = state_matrix->format.size;
+
+            spike_or_weight_vector_size = profile->spikeBufferSize;
+            if (spike_matrix->memory_padding % spike_or_weight_vector_size)
+            {
+              profile->spikeBufferPaddingSize = spike_matrix->memory_padding % spike_or_weight_vector_size;
+              spike_or_weight_vector_size += profile->spikeBufferPaddingSize;
+            }
+            else
+            {
+              profile->spikeBufferPaddingSize = 0;
+            }
+          }
+          break;
+        default:
+          ASSERT (0);
+      }
+
+      spike_or_weight_batch_size = profile->kernelSize * spike_or_weight_vector_size;
+
+      if (spike_or_weight_batch_size % state_matrix->memory_padding)
+      {
+        profile->spikeBatchBufferPaddingSize = state_matrix->memory_padding - spike_or_weight_batch_size % state_matrix->memory_padding;
+        spike_or_weight_batch_size += profile->spikeBatchBufferPaddingSize;
+      }
+      else
+      {
+        profile->spikeBatchBufferPaddingSize = 0;
+      }
+
+      profile->txBufferSize = profile->layerSize * (rand_num_size + state_vector_size + spike_or_weight_batch_size);
+
+      ASSERT (profile->txBuffer == NULL);
+      profile->txBuffer = MemoryBlock_alloc (state_matrix->memory_def_parent,
+                                             profile->txBufferSize);
+      ASSERT (profile->txBuffer != NULL);
+    }
+  }
+
+  return profile;
+}
+
+void SbsAcceleratorProfie_delete (SbsAcceleratorProfie ** profile)
+{
+  ASSERT(profile != NULL);
+  ASSERT(*profile != NULL);
+
+  if ((profile != NULL) && (*profile != NULL))
+  {
+    if ((*profile)->task)
+      Task_delete (&(*profile)->task);
+
+    free (*profile);
+    *profile = NULL;
+  }
 }
 
 /*****************************************************************************/

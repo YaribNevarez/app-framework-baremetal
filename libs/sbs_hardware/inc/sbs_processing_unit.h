@@ -18,9 +18,11 @@ extern "C" {
 #include <result.h>
 #include "sbs_hardware.h"
 #include "dma_hardware.h"
+#include "multivector.h"
 
 #include "memory_manager.h"
 #include "timer.h"
+#include "task.h"
 
 #include "xil_types.h"
 /***************** Macros (Inline Functions) Definitions *********************/
@@ -81,12 +83,6 @@ typedef struct
 
 typedef struct
 {
-  Timer *   timer;
-  double    hwLatency;
-} SbsHwStatistics;
-
-typedef struct
-{
   uint32_t  layerSize;
   uint32_t  kernelSize;
   uint32_t  vectorSize;
@@ -110,7 +106,7 @@ typedef struct
 
   MemoryCmd memory_cmd;
 
-  SbsHwStatistics statistics;
+  Task *    task;
 } SbsAcceleratorProfie;
 
 typedef struct
@@ -159,6 +155,11 @@ SbSUpdateAccelerator * Accelerator_new (SbSHardwareConfig * hardware_config);
 
 void Accelerator_delete (SbSUpdateAccelerator ** accelerator);
 
+void Accelerator_loadCoefficients (SbSUpdateAccelerator * accelerator,
+                                   SbsAcceleratorProfie * profile,
+                                   Multivector * weight_matrix,
+                                   int row_vector);
+
 void Accelerator_setup (SbSUpdateAccelerator * accelerator,
                         SbsAcceleratorProfie * profile);
 
@@ -171,6 +172,17 @@ void Accelerator_giveWeightVector (SbSUpdateAccelerator * accelerator,
 void Accelerator_giveSpike (SbSUpdateAccelerator * accelerator, uint16_t spike);
 
 int Accelerator_start (SbSUpdateAccelerator * accelerator);
+
+SbsAcceleratorProfie * SbsAcceleratorProfie_new (SbsLayerType layerType,
+                                                 Multivector * state_matrix,
+                                                 Multivector * weight_matrix,
+                                                 Multivector * spike_matrix,
+                                                 uint32_t kernel_size,
+                                                 uint32_t epsilon,
+                                                 MemoryCmd memory_cmd,
+                                                 Task * parent_task);
+
+void SbsAcceleratorProfie_delete (SbsAcceleratorProfie ** profile);
 
 Result SbsPlatform_initialize (SbSHardwareConfig * hardware_config_list,
                                uint32_t list_length,
