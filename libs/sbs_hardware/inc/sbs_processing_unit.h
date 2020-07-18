@@ -22,7 +22,7 @@ extern "C" {
 
 #include "memory_manager.h"
 #include "timer.h"
-#include "task.h"
+#include "event.h"
 
 #include "xil_types.h"
 /***************** Macros (Inline Functions) Definitions *********************/
@@ -106,7 +106,7 @@ typedef struct
 
   MemoryCmd memory_cmd;
 
-  Task *    task;
+  Event *   event;
 } SbsAcceleratorProfie;
 
 typedef struct
@@ -180,7 +180,7 @@ SbsAcceleratorProfie * SbsAcceleratorProfie_new (SbsLayerType layerType,
                                                  uint32_t kernel_size,
                                                  uint32_t epsilon,
                                                  MemoryCmd memory_cmd,
-                                                 Task * parent_task);
+                                                 Event * parent_event);
 
 void SbsAcceleratorProfie_delete (SbsAcceleratorProfie ** profile);
 
@@ -189,6 +189,9 @@ Result SbsPlatform_initialize (SbSHardwareConfig * hardware_config_list,
                                uint32_t MT19937_seed);
 
 void SbsPlatform_shutdown (void);
+
+char * SbsLayerType_string(SbsLayerType layerType);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

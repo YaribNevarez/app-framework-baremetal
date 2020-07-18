@@ -149,7 +149,7 @@ static void Accelerator_hardwareInterruptHandler (void * data)
   ASSERT (accelerator->hardwareConfig->hwDriver->InterruptClear != NULL);
 
   ASSERT (accelerator->profile != NULL);
-  Task_stop (accelerator->profile->task);
+  Event_stop (accelerator->profile->event);
 
   hwDriver = accelerator->hardwareConfig->hwDriver;
 
@@ -378,7 +378,7 @@ void Accelerator_loadCoefficients (SbSUpdateAccelerator * accelerator,
 
     accelerator->acceleratorReady = 0;
     accelerator->hardwareConfig->hwDriver->Start (accelerator->updateHardware);
-    Task_start (accelerator->profile->task);
+    Event_start (accelerator->profile->event);
 
     accelerator->txDone = 0;
     status = accelerator->hardwareConfig->dmaDriver->Move (accelerator->dmaHardware,
@@ -574,7 +574,7 @@ int Accelerator_start(SbSUpdateAccelerator * accelerator)
 
   accelerator->acceleratorReady = 0;
   accelerator->hardwareConfig->hwDriver->Start (accelerator->updateHardware);
-  Task_start (accelerator->profile->task);
+  Event_start (accelerator->profile->event);
 
 
   accelerator->txDone = 0;
@@ -607,7 +607,7 @@ SbsAcceleratorProfie * SbsAcceleratorProfie_new (SbsLayerType layerType,
                                                  uint32_t kernel_size,
                                                  uint32_t epsilon,
                                                  MemoryCmd memory_cmd,
-                                                 Task * parent_task)
+                                                 Event * parent_event)
 {
   SbsAcceleratorProfie * profile = NULL;
 
@@ -631,9 +631,9 @@ SbsAcceleratorProfie * SbsAcceleratorProfie_new (SbsLayerType layerType,
 
     memset (profile, 0x00, sizeof(SbsAcceleratorProfie));
 
-    profile->task = Task_new (parent_task);
+    profile->event = Event_new (parent_event, "Hardware");
 
-    ASSERT (profile->task != NULL);
+    ASSERT (profile->event != NULL);
 
     profile->layerSize =
         state_matrix->dimension_size[0] * state_matrix->dimension_size[1];
@@ -771,8 +771,8 @@ void SbsAcceleratorProfie_delete (SbsAcceleratorProfie ** profile)
 
   if ((profile != NULL) && (*profile != NULL))
   {
-    if ((*profile)->task)
-      Task_delete (&(*profile)->task);
+    if ((*profile)->event)
+      Event_delete (&(*profile)->event);
 
     free (*profile);
     *profile = NULL;
@@ -835,6 +835,35 @@ void SbsPlatform_shutdown (void)
 
     free (SbSUpdateAccelerator_list);
   }
+}
+
+char * SbsLayerType_string (SbsLayerType layerType)
+{
+  char * string = NULL;
+
+  typedef struct
+  {
+    SbsLayerType layerType;
+    char         string[40];
+  } SbsLayerTypeString;
+
+  static SbsLayerTypeString SbsLayerTypeString_array[] =
+  {
+      {NONE_LAYER,                "NONE_LAYER"                },
+      {HX_INPUT_LAYER,            "HX_INPUT_LAYER"            },
+      {H1_CONVOLUTION_LAYER,      "H1_CONVOLUTION_LAYER"      },
+      {H2_POOLING_LAYER,          "H2_POOLING_LAYER"          },
+      {H3_CONVOLUTION_LAYER,      "H3_CONVOLUTION_LAYER"      },
+      {H4_POOLING_LAYER,          "H4_POOLING_LAYER"          },
+      {H5_FULLY_CONNECTED_LAYER,  "H5_FULLY_CONNECTED_LAYER"  },
+      {HY_OUTPUT_LAYER,           "HY_OUTPUT_LAYER"           }
+  };
+
+  for (int i = 0; i < sizeof(SbsLayerTypeString_array) && string == NULL; i++)
+    if (layerType == SbsLayerTypeString_array[i].layerType)
+      string = SbsLayerTypeString_array[i].string;
+
+  return string;
 }
 
 /*****************************************************************************/

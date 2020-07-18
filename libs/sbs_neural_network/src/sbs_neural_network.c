@@ -17,7 +17,7 @@
 #include "stdarg.h"
 
 #include "timer.h"
-#include "task.h"
+#include "event.h"
 #include "miscellaneous.h"
 #include "memory_manager.h"
 
@@ -70,7 +70,7 @@ typedef struct
 {
   SbSUpdateAccelerator *  accelerator;
   SbsAcceleratorProfie *  profile;
-  Task *                  task;
+  Event *                  event;
   uint16_t      x_pos;
   uint16_t      y_pos;
   Multivector * state_matrix;
@@ -99,7 +99,7 @@ typedef struct
   SbsLayer              vtbl;
   SbsLayerType          layer_type;
   SbsLayerPartition **  partition_array;
-  Task *                task;
+  Event *               event;
   uint8_t               num_partitions;
   uint16_t              rows;
   uint16_t              columns;
@@ -119,7 +119,7 @@ typedef struct
   SbsBaseLayer **   layer_array;
   uint8_t           input_label;
   uint8_t           inferred_output;
-  Task *            task;
+  Event *           event;
 } SbsBaseNetwork;
 
 #pragma pack(pop)   /* restore original alignment from stack */
@@ -217,7 +217,7 @@ static SbsLayerPartition * SbsLayerPartition_new (SbSUpdateAccelerator * acceler
                                                   uint16_t rows,
                                                   uint16_t columns,
                                                   uint16_t vector_size,
-                                                  Task * parent_task)
+                                                  Event * parent_event)
 {
   SbsLayerPartition * partition = NULL;
 
@@ -281,7 +281,7 @@ static SbsLayerPartition * SbsLayerPartition_new (SbSUpdateAccelerator * acceler
     partition->x_pos = x_pos;
     partition->y_pos = y_pos;
 
-    partition->task = Task_new (parent_task);
+    partition->event = Event_new (parent_event, "Partition");
   }
 
   return partition;
@@ -302,8 +302,8 @@ static void SbsLayerPartition_delete(SbsLayerPartition ** partition)
     if ((*partition)->profile != NULL)
       SbsAcceleratorProfie_delete (&(*partition)->profile);
 
-    if ((*partition)->task != NULL)
-      Task_delete (&(*partition)->task);
+    if ((*partition)->event != NULL)
+      Event_delete (&(*partition)->event);
 
     free (*partition);
 
@@ -376,7 +376,7 @@ static void SbsLayerPartition_initialize (SbsLayerPartition * partition,
                                                      kernel_size,
                                                      epsilon,
                                                      accelerator_memory_cmd,
-                                                     partition->task);
+                                                     partition->event);
   }
 }
 
@@ -440,7 +440,7 @@ static SbsLayer * SbsBaseLayer_new(SbsLayerType layer_type,
 
     layer->vtbl = _SbsLayer;
 
-    layer->task = Task_new (NULL);
+    layer->event = Event_new (NULL, SbsLayerType_string (layer_type));
 
     layer->layer_type = layer_type;
     layer->num_partitions = SbSUpdateAccelerator_getGroupFromList (
@@ -483,7 +483,7 @@ static SbsLayer * SbsBaseLayer_new(SbsLayerType layer_type,
                                                            rows_current_partition,
                                                            columns,
                                                            neurons,
-                                                           layer->task);
+                                                           layer->event);
 
         pos_y += rows_current_partition;
       }
@@ -536,8 +536,8 @@ static void SbsBaseLayer_delete(SbsLayer ** layer_ptr)
       while ((*layer)->num_partitions)
         SbsLayerPartition_delete (&((*layer)->partition_array[--(*layer)->num_partitions]));
 
-    if ((*layer)->task != NULL)
-      Task_delete (&(*layer)->task);
+    if ((*layer)->event != NULL)
+      Event_delete (&(*layer)->event);
 
     free (*layer);
     *layer = NULL;
@@ -999,8 +999,8 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
     ASSERT (rows == state_matrix->dimension_size[0]);
     ASSERT (columns == state_matrix->dimension_size[1]);
 
-    Task_start (layer->task);
-    Task_start (layer->partition_array[0]->task);
+    Event_start (layer->event);
+    Event_start (layer->partition_array[0]->event);
     Accelerator_setup (partition->accelerator, partition->profile);
 
     for (row = 0; row < rows; row++)
@@ -1009,8 +1009,8 @@ static void SbsBaseLayer_generateSpikes (SbsBaseLayer * layer)
                                      Multivector_2DAccess (state_matrix, row, column));
 
     Accelerator_start (partition->accelerator);
-    Task_stop (layer->partition_array[0]->task);
-    Task_stop (layer->task);
+    Event_stop (layer->partition_array[0]->event);
+    Event_stop (layer->event);
   }
 }
 
@@ -1098,7 +1098,7 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
 
     WeightShift layer_weight_shift = layer->weight_shift;
 
-    Task_start (layer->task);
+    Event_start (layer->event);
     //while (!spike_layer->partition_array[0]->accelerator->rxDone);
 
     kernel_row_pos = 0, layer_row = 0;
@@ -1107,7 +1107,7 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
       update_partition = layer->partition_array[i];
       ASSERT(update_partition != NULL);
 
-      Task_start (update_partition->task);
+      Event_start (update_partition->event);
 
       update_partition_weight_matrix = update_partition->weight_matrix;
       update_partition_accelerator = update_partition->accelerator;
@@ -1202,19 +1202,19 @@ inline static void SbsBaseLayer_update(SbsBaseLayer * layer, SbsBaseLayer * spik
       }
       /* Update ends */
       Accelerator_start (update_partition_accelerator);
-      Task_stop (update_partition->task);
+      Event_stop (update_partition->event);
     }
-    Task_stop (layer->task);
+    Event_stop (layer->event);
   }
 }
 
-static void SbsBaseLayer_setParentTask (SbsBaseLayer * layer,
-                                        Task * parent_task)
+static void SbsBaseLayer_setParentEvent (SbsBaseLayer * layer,
+                                        Event * parent_event)
 {
   ASSERT (layer != NULL);
   if (layer != NULL)
   {
-    Task_setParent (layer->task, parent_task);
+    Event_setParent (layer->event, parent_event);
   }
 }
 
@@ -1234,7 +1234,7 @@ static SbsNetwork * SbsBaseNetwork_new(void)
     network->vtbl = _SbsNetwork;
     network->input_label = (uint8_t) -1;
     network->inferred_output = (uint8_t) -1;
-    network->task = Task_new (NULL);
+    network->event = Event_new (NULL, "SbS Network");
   }
 
   ASSERT(network->size == 0);
@@ -1254,8 +1254,8 @@ static void SbsBaseNetwork_delete(SbsNetwork ** network_ptr)
     while (0 < (*network)->size)
       SbsBaseLayer_delete((SbsLayer **)&(*network)->layer_array[--((*network)->size)]);
 
-    if ((*network)->task != NULL)
-      Task_delete (&(*network)->task);
+    if ((*network)->event != NULL)
+      Event_delete (&(*network)->event);
 
     free(*network);
     *network = NULL;
@@ -1283,7 +1283,7 @@ static void SbsBaseNetwork_giveLayer(SbsNetwork * network_ptr, SbsLayer * layer)
     {
       layer_array[size] = (SbsBaseLayer *) layer;
 
-      SbsBaseLayer_setParentTask ((SbsBaseLayer *) layer, network->task);
+      SbsBaseLayer_setParentEvent ((SbsBaseLayer *) layer, network->event);
 
       network->layer_array = layer_array;
       network->size++;
@@ -1528,20 +1528,10 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
 
     input_layer = network->layer_array[0];
 
-    static Timer * timer = NULL;
-    double inference_time = 0;
-
-    if (timer == NULL)
-    {
-      timer = Timer_new (1);
-    }
-
-    Timer_start (timer);
-
     /************************ Begins Update cycle ****************************/
     while (cycles--)
     {
-      Task_start (network->task);
+      Event_start (network->event);
       SbsBaseLayer_generateSpikes (input_layer);
 
       for (i = 1; i <= network->size - 1; i++)
@@ -1549,12 +1539,9 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
         SbsBaseLayer_update (network->layer_array[i],
                              network->layer_array[i - 1]);
       }
-      Task_stop (network->task);
+      Event_stop (network->event);
     }
     /************************ Ends Update cycle ******************************/
-
-    inference_time = Timer_getCurrentTime (timer);
-    printf ("\nInference time = %f\n", inference_time);
 
     /************************ Begins Learning cycle **************************/
     for (i = 1; i <= network->size - 1; i++)
@@ -1563,6 +1550,9 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
                              network->layer_array[i - 1]);
     }
     /************************ Ends Learning cycle ****************************/
+
+    sleep (1);
+    Event_print (network->event);
 
     /************************ Ends Update cycle ****************************/
 

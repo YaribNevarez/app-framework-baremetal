@@ -1,11 +1,11 @@
 /*
- * task.h
+ * event.h
  *
  *  Created on: Feb 24th, 2020
  *      Author: Yarib Nevarez
  */
-#ifndef LIBS_UTILITIES_TASK_H_
-#define LIBS_UTILITIES_TASK_H_
+#ifndef LIBS_UTILITIES_EVENT_H_
+#define LIBS_UTILITIES_EVENT_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,17 +17,17 @@ extern "C" {
 #include "xil_types.h"
 
 /***************** Macros (Inline Functions) Definitions *********************/
-typedef struct _Task Task;
+typedef struct _Event Event;
 /**************************** Type Definitions *******************************/
-struct  _Task
+struct  _Event
 {
-  Task *  parent;
-  Task *  next;
-  Task *  prev;
-  Task *  first_child;
-
+  Event * parent;
+  Event * next;
+  Event * prev;
+  Event * first_child;
+  void  * data;
   Timer * timer;
-  double  start_time;
+  double  offset;
   double  latency;
 };
 
@@ -37,15 +37,15 @@ struct  _Task
 
 /************************** Function Prototypes ******************************/
 
-Task *  Task_new             (Task * parent);
-void    Task_delete          (Task ** task);
-void    Task_setParent       (Task * task, Task * parent);
-void    Task_start           (Task * task);
-void    Task_stop            (Task * task);
-double  Task_getCurrentTime  (Task * task);
+Event * Event_new             (Event * parent, void * data);
+void    Event_delete          (Event ** event);
+void    Event_setParent       (Event * event, Event * parent);
+void    Event_start           (Event * event);
+void    Event_stop            (Event * event);
+double  Event_getCurrentTime  (Event * event);
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
-#endif /* LIBS_UTILITIES_TIMER_H_ */
+#endif /* LIBS_UTILITIES_EVENT_H_ */
