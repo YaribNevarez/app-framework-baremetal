@@ -142,11 +142,13 @@ void Event_start (Event * event)
   {
     if (event->parent != NULL)
     {
-      event->offset = Event_getCurrentTime (event->parent);
+      event->relative_offset = Event_getCurrentRelativeTime (event->parent);
+      event->absolute_offset = event->parent->absolute_offset + event->relative_offset;
     }
     else
     {
-      event->offset = 0;
+      event->relative_offset = 0;
+      event->absolute_offset = 0;
     }
 
     Timer_start (event->timer);
@@ -155,7 +157,7 @@ void Event_start (Event * event)
   }
 }
 
-double Event_getCurrentTime (Event * event)
+double Event_getCurrentRelativeTime (Event * event)
 {
   double current_time = 0;
 
@@ -165,7 +167,22 @@ double Event_getCurrentTime (Event * event)
   {
     current_time = Timer_getCurrentTime (event->timer);
   }
+
   return current_time;
+}
+
+double  Event_getCurrentAbsoluteTime (Event * event)
+{
+  double absolute_time = 0;
+
+  ASSERT (event != NULL);
+
+  if (event != NULL)
+  {
+    absolute_time = Event_getCurrentRelativeTime (event) + event->absolute_offset;
+  }
+
+  return absolute_time;
 }
 
 void Event_stop (Event * event)
@@ -174,35 +191,68 @@ void Event_stop (Event * event)
 
   if (event != NULL)
   {
-    event->latency = Event_getCurrentTime (event);
+    event->latency = Event_getCurrentRelativeTime (event);
   }
 }
 
-static void Event_navegatePrint (Event * event,
-                                 double carry_offset,
-                                 char * text_offset,
-                                 char * text_latency,
-                                 char * text_name)
+typedef enum
 {
+  NAV_CONTINUE,
+  NAV_ABORT,
+} NavigationReturn;
+
+typedef NavigationReturn (*EventFunctionP) (Event *, void *);
+
+static NavigationReturn Event_navegate (Event * event,
+                                        EventFunctionP function,
+                                        void * data)
+{
+  NavigationReturn result = NAV_ABORT;
   ASSERT (event != NULL);
+  ASSERT (function != NULL);
 
-  if (event != NULL)
+  if ((event != NULL) && (function != NULL))
   {
-    carry_offset += event->offset;
+    result = function (event, data);
 
-    sprintf (&text_offset[strlen (text_offset)], "%.8lf,", carry_offset);
-    sprintf (&text_latency[strlen (text_latency)], "%.8lf,", event->latency);
-    sprintf (&text_name[strlen (text_name)], "\"%s\",", (char*) event->data);
-
-    for (Event * child = event->first_child; child != NULL; child = child->next)
+    for (Event * child = event->first_child;
+        (result != NAV_ABORT) && (child != NULL);
+        child = child->next)
     {
-      Event_navegatePrint (child,
-                           carry_offset,
-                           text_offset,
-                           text_latency,
-                           text_name);
+      result = Event_navegate (child, function, data);
     }
   }
+
+  return result;
+}
+
+typedef struct
+{
+  char text_offset[512];
+  char text_latency[512];
+  char text_name[512];
+} EventScheduleData;
+
+static NavigationReturn Event_schedulePrint (Event * event, void * data)
+{
+  NavigationReturn result = NAV_ABORT;
+  ASSERT (event != NULL);
+  ASSERT (data != NULL);
+
+  if ((event != NULL) && (data != NULL))
+  {
+    EventScheduleData * scheduleData = (EventScheduleData*) data;
+    char * text_offset = scheduleData->text_offset;
+    char * text_latency = scheduleData->text_latency;
+    char * text_name = scheduleData->text_name;
+
+    sprintf (&text_offset[strlen (text_offset)], "%.3lf,", event->absolute_offset * 1000);
+    sprintf (&text_latency[strlen (text_latency)], "%.3lf,", event->latency * 1000);
+    sprintf (&text_name[strlen (text_name)], "\"%s\",", (char*) event->data);
+    result = NAV_CONTINUE;
+  }
+
+  return result;
 }
 
 void Event_print (Event * event)
@@ -211,18 +261,13 @@ void Event_print (Event * event)
 
   if (event != NULL)
   {
-    static char text_offset[512];
-    static char text_latency[512];
-    static char text_name[512];
+    EventScheduleData data;
+    memset (&data, 0, sizeof(data));
 
-    memset (text_offset, 0, sizeof(text_offset));
-    memset (text_latency, 0, sizeof(text_latency));
-    memset (text_name, 0, sizeof(text_name));
+    Event_navegate (event, Event_schedulePrint, &data);
 
-    Event_navegatePrint (event, 0, text_offset, text_latency, text_name);
-
-    printf ("[%s]\n", text_offset);
-    printf ("[%s]\n", text_latency);
-    printf ("[%s]\n", text_name);
+    printf ("[%s]\n", data.text_offset);
+    printf ("[%s]\n", data.text_latency);
+    printf ("[%s]\n", data.text_name);
   }
 }

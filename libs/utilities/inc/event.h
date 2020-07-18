@@ -27,7 +27,8 @@ struct  _Event
   Event * first_child;
   void  * data;
   Timer * timer;
-  double  offset;
+  double  absolute_offset;
+  double  relative_offset;
   double  latency;
 };
 
@@ -37,12 +38,13 @@ struct  _Event
 
 /************************** Function Prototypes ******************************/
 
-Event * Event_new             (Event * parent, void * data);
-void    Event_delete          (Event ** event);
-void    Event_setParent       (Event * event, Event * parent);
-void    Event_start           (Event * event);
-void    Event_stop            (Event * event);
-double  Event_getCurrentTime  (Event * event);
+Event * Event_new       (Event * parent, void * data);
+void    Event_delete    (Event ** event);
+void    Event_setParent (Event * event, Event * parent);
+void    Event_start     (Event * event);
+void    Event_stop      (Event * event);
+double  Event_getCurrentRelativeTime  (Event * event);
+double  Event_getCurrentAbsoluteTime  (Event * event);
 
 #ifdef __cplusplus
 }
