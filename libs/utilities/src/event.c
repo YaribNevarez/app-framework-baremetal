@@ -230,7 +230,7 @@ static NavigationReturn Event_navegate (Event * event,
 
 /*****************************************************************************/
 
-typedef char TextLines[3][512];
+typedef char TextLines[4][512];
 
 static NavigationReturn Event_collectScheduleData (Event * event, void * data)
 {
@@ -240,11 +240,26 @@ static NavigationReturn Event_collectScheduleData (Event * event, void * data)
 
   if ((event != NULL) && (data != NULL))
   {
-    TextLines * text = (TextLines*) data;
+    if ((event->first_child == NULL)
+        || (event->first_child->first_child == NULL)
+        || (event->parent == NULL))
+    {
+      TextLines * text = (TextLines*) data;
+      char * layer_name = "";
 
-    sprintf (&(*text)[0][strlen ((*text)[0])], "%.3lf, ", event->absolute_offset * 1000);
-    sprintf (&(*text)[1][strlen ((*text)[1])], "%.3lf, ", event->latency * 1000);
-    sprintf (&(*text)[2][strlen ((*text)[2])], "\"%s\", ", (char*) event->data);
+      if (event->first_child == NULL)
+      {
+        layer_name = event->parent->parent->data;
+      }
+      else if (event->first_child->first_child == NULL)
+      {
+        layer_name = event->parent->data;
+      }
+
+      sprintf (&(*text)[0][strlen ((*text)[0])], "%.3lf, ", event->absolute_offset * 1000);
+      sprintf (&(*text)[1][strlen ((*text)[1])], "%.3lf, ", event->latency * 1000);
+      sprintf (&(*text)[2][strlen ((*text)[2])], "\"%s_%s\", ", layer_name, (char*) event->data);
+    }
     result = NAV_CONTINUE;
   }
 
@@ -265,9 +280,10 @@ static NavigationReturn Event_collectLatencyData (Event * event, void * data)
     { /* Then is a hardware event */
       TextLines * text = (TextLines*) data;
 
-      sprintf (&(*text)[0][strlen ((*text)[0])], "%.3lf, ", event->latency * 1000);
+      sprintf (&(*text)[0][strlen ((*text)[0])], "%.3lf, ", event->parent->absolute_offset * 1000);
       sprintf (&(*text)[1][strlen ((*text)[1])], "%.3lf, ", event->parent->latency * 1000);
-      sprintf (&(*text)[2][strlen ((*text)[2])], "\"%s\", ", (char*) event->parent->parent->data);
+      sprintf (&(*text)[2][strlen ((*text)[2])], "%.3lf, ", event->latency * 1000);
+      sprintf (&(*text)[3][strlen ((*text)[3])], "\"%s\", ", (char*) event->parent->parent->data);
     }
     result = NAV_CONTINUE;
   }
@@ -293,8 +309,9 @@ void Event_print (Event * event)
     memset (data, 0, sizeof(data));
     Event_navegate (event, Event_collectLatencyData, data);
 
+    printf ("II offset:   [%s]\n", data[0]);
     printf ("SW Latency:  [%s]\n", data[1]);
-    printf ("HW Latency:  [%s]\n", data[0]);
-    printf ("Name:        [%s]\n", data[2]);
+    printf ("HW Latency:  [%s]\n", data[2]);
+    printf ("Name:        [%s]\n", data[3]);
   }
 }

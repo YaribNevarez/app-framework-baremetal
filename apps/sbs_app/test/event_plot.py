@@ -5,9 +5,9 @@ fig, (ax1, ax2) = plt.subplots(2, 1)
 
 fig.suptitle('Performance')
 
-begin   = np.array([0.000,0.001,0.001,0.595,0.599,0.600,1.424,1.428,1.428,1.813,1.817,1.818,2.733,2.737,2.737,3.484,3.488,3.488,3.637,3.640,3.641,3.645])
-latency = np.array([3.649,0.597,0.597,1.539,0.827,0.826,2.175,0.389,0.388,1.666,0.919,0.918,5.430,0.750,0.749,0.364,0.152,0.151,0.755,0.008,0.007,0.005])
-event   = ["SbS Network","HX_IN","Partition","Hardware","H1_CONV","Partition","Hardware","H2_POOL","Partition","Hardware","H3_CONV","Partition","Hardware","H4_POOL","Partition","Hardware","H5_DENSE","Partition","Hardware","HY_OUT","Partition","Hardware"]
+begin   = np.array([0.000, 0.001, 0.546, 0.551, 1.375, 1.380, 1.809, 1.814, 2.687, 2.691, 3.480, 3.484, 3.625, 3.629, 3.633])
+latency = np.array([3.637, 0.548, 1.541, 0.827, 2.141, 0.432, 1.666, 0.876, 5.430, 0.791, 0.364, 0.143, 0.755, 0.006, 0.005])
+event   = ["SbS Network", "HX_IN_Partition", "HX_IN_Hardware", "H1_CONV_Partition", "H1_CONV_Hardware", "H2_POOL_Partition", "H2_POOL_Hardware", "H3_CONV_Partition", "H3_CONV_Hardware", "H4_POOL_Partition", "H4_POOL_Hardware", "H5_DENSE_Partition", "H5_DENSE_Hardware", "HY_OUT_Partition", "HY_OUT_Hardware"]
 
 ax1.barh(range(len(begin)),  latency, left=begin)
 ax1.grid(linestyle = ':')
@@ -21,14 +21,15 @@ ax1.tick_params(axis='both', which='minor', labelsize=1)
 plt.xlabel("Schedule (mS)")
 plt.ylabel("Task")
 
-data = [[ 0.597,0.826,0.388,0.918,0.749,0.151,0.007],
-        [ 1.539,2.175,1.666,5.430,0.364,0.755,0.005]]
+data = [[ 0.001, 0.586, 1.404, 1.803, 2.717, 3.474, 3.625],
+        [ 0.583, 0.816, 0.398, 0.912, 0.756, 0.149, 0.007],
+        [ 1.540, 2.184, 1.667, 5.430, 0.364, 0.755, 0.005]]
 
 columns = ("HX_IN","H1_CONV","H2_POOL","H3_CONV","H4_POOL","H5_DENSE","HY_OUT")
-rows = ["HW", "CPU"]
+rows = ["HW", "CPU", "II OFFSET"]
 
 # Get some pastel shades for the colors
-colors = plt.cm.BuPu(np.linspace(0.5, .75, len(rows)))
+colors = plt.cm.Blues(np.linspace(0.5, .75, len(rows)))
 n_rows = len(data)
 
 index = np.arange(len(columns)) + 0.3
