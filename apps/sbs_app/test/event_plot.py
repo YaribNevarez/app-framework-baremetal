@@ -1,31 +1,34 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-begin   = np.array([0.000,0.001,0.001,0.583,0.587,0.587,1.404,1.408,1.408,1.799,1.803,1.803,5.282,5.285,5.286,5.336,5.340,5.340,5.431,5.435,5.435,5.438])
-latency = np.array([5.442,0.585,0.585,1.540,0.820,0.819,2.141,0.394,0.393,1.661,3.482,3.481,5.430,0.053,0.053,0.355,0.094,0.094,0.755,0.006,0.005,0.006])
-event   = ["SbS Network","HX_INPUT_LAYER","Partition","Hardware","H1_CONVOLUTION_LAYER","Partition","Hardware","H2_POOLING_LAYER","Partition","Hardware","H3_CONVOLUTION_LAYER","Partition","Hardware","H4_POOLING_LAYER","Partition","Hardware","H5_FULLY_CONNECTED_LAYER","Partition","Hardware","HY_OUTPUT_LAYER","Partition","Hardware"]
+fig, (ax1, ax2) = plt.subplots(2, 1)
 
-plt.barh(range(len(begin)),  latency, left=begin)
-plt.grid(color = 'g', linestyle = ':')
+fig.suptitle('Performance')
 
+begin   = np.array([0.000,0.001,0.001,0.595,0.599,0.600,1.424,1.428,1.428,1.813,1.817,1.818,2.733,2.737,2.737,3.484,3.488,3.488,3.637,3.640,3.641,3.645])
+latency = np.array([3.649,0.597,0.597,1.539,0.827,0.826,2.175,0.389,0.388,1.666,0.919,0.918,5.430,0.750,0.749,0.364,0.152,0.151,0.755,0.008,0.007,0.005])
+event   = ["SbS Network","HX_IN","Partition","Hardware","H1_CONV","Partition","Hardware","H2_POOL","Partition","Hardware","H3_CONV","Partition","Hardware","H4_POOL","Partition","Hardware","H5_DENSE","Partition","Hardware","HY_OUT","Partition","Hardware"]
+
+ax1.barh(range(len(begin)),  latency, left=begin)
+ax1.grid(linestyle = ':')
+
+
+plt.sca(ax1)
 plt.yticks(range(len(begin)), event)
-plt.show()
+ax1.tick_params(axis='both', which='major', labelsize=5)
+ax1.tick_params(axis='both', which='minor', labelsize=1)
 
+plt.xlabel("Schedule (mS)")
+plt.ylabel("Task")
 
-data = [[ 66386, 174296,  75131, 577908,  32015],
-        [ 58230, 381139,  78045,  99308, 160454],
-        [ 89135,  80552, 152558, 497981, 603535],
-        [ 78415,  81858, 150656, 193263,  69638],
-        [139361, 331509, 343164, 781380,  52269]]
+data = [[ 0.597,0.826,0.388,0.918,0.749,0.151,0.007],
+        [ 1.539,2.175,1.666,5.430,0.364,0.755,0.005]]
 
-columns = ('Freeze', 'Wind', 'Flood', 'Quake', 'Hail')
-rows = ['%d year' % x for x in (100, 50, 20, 10, 5)]
-
-values = np.arange(0, 2500, 500)
-value_increment = 1000
+columns = ("HX_IN","H1_CONV","H2_POOL","H3_CONV","H4_POOL","H5_DENSE","HY_OUT")
+rows = ["HW", "CPU"]
 
 # Get some pastel shades for the colors
-colors = plt.cm.BuPu(np.linspace(0, 0.5, len(rows)))
+colors = plt.cm.BuPu(np.linspace(0.5, .75, len(rows)))
 n_rows = len(data)
 
 index = np.arange(len(columns)) + 0.3
@@ -37,26 +40,34 @@ y_offset = np.zeros(len(columns))
 # Plot bars and create text labels for the table
 cell_text = []
 for row in range(n_rows):
-    plt.bar(index, data[row], bar_width, bottom=y_offset, color=colors[row])
+    ax2.bar(index, data[row], bar_width, bottom=y_offset, color=colors[row])
     y_offset = y_offset + data[row]
-    cell_text.append(['%1.1f' % x for x in data[row]])
+    cell_text.append(data[row])
 # Reverse colors and text labels to display the last value at the top.
 colors = colors[::-1]
 cell_text.reverse()
 
+plt.sca(ax2)
 # Add a table at the bottom of the axes
-the_table = plt.table(cellText=cell_text,
+the_table = ax2.table(cellText=cell_text,
                       rowLabels=rows,
                       rowColours=colors,
                       colLabels=columns,
-                      loc='bottom')
+                      loc='bottom',
+                      fontsize='xx-small')
+
+the_table.auto_set_font_size(False)
+the_table.set_fontsize(7)
+
 
 # Adjust layout to make room for the table:
+
 plt.subplots_adjust(left=0.2, bottom=0.2)
 
-plt.ylabel("Loss in ${0}'s".format(value_increment))
-plt.yticks(values * value_increment, ['%d' % val for val in values])
+plt.ylabel("Latency (mS)")
+
 plt.xticks([])
-plt.title('Loss by Disaster')
+ax2.grid(linestyle = ':')
+
 
 plt.show()

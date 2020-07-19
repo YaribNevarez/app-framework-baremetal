@@ -148,8 +148,8 @@ static void Accelerator_hardwareInterruptHandler (void * data)
   ASSERT (accelerator->hardwareConfig->hwDriver->InterruptGetStatus != NULL);
   ASSERT (accelerator->hardwareConfig->hwDriver->InterruptClear != NULL);
 
-  ASSERT (accelerator->profile != NULL);
-  Event_stop (accelerator->profile->event);
+  ASSERT (accelerator->hardwareConfig->profile != NULL);
+  Event_stop (accelerator->hardwareConfig->profile->event);
 
   hwDriver = accelerator->hardwareConfig->hwDriver;
 
@@ -165,6 +165,8 @@ static void Accelerator_hardwareInterruptHandler (void * data)
 
   status = hwDriver->InterruptGetStatus (accelerator->updateHardware);
   hwDriver->InterruptClear (accelerator->updateHardware, status);
+  /*!! Clear profile BEFORE making the accelerator ready !!*/
+  accelerator->hardwareConfig->profile = NULL;
   accelerator->acceleratorReady = status & 1;
 }
 
@@ -373,12 +375,12 @@ void Accelerator_loadCoefficients (SbSUpdateAccelerator * accelerator,
     while (!accelerator->acceleratorReady);
     while (!accelerator->txDone);
 
-    accelerator->profile = profile;
+    accelerator->hardwareConfig->profile = profile;
     accelerator->hardwareConfig->hwDriver->Set_mode (accelerator->updateHardware, SBS_HW_INITIALIZE);
 
     accelerator->acceleratorReady = 0;
     accelerator->hardwareConfig->hwDriver->Start (accelerator->updateHardware);
-    Event_start (accelerator->profile->event);
+    Event_start (profile->event);
 
     accelerator->txDone = 0;
     status = accelerator->hardwareConfig->dmaDriver->Move (accelerator->dmaHardware,
@@ -572,9 +574,11 @@ int Accelerator_start(SbSUpdateAccelerator * accelerator)
 
   accelerator->memory_cmd = accelerator->profile->memory_cmd;
 
+  accelerator->hardwareConfig->profile = accelerator->profile;
+  accelerator->profile = NULL;
   accelerator->acceleratorReady = 0;
   accelerator->hardwareConfig->hwDriver->Start (accelerator->updateHardware);
-  Event_start (accelerator->profile->event);
+  Event_start (accelerator->hardwareConfig->profile->event);
 
 
   accelerator->txDone = 0;
@@ -849,14 +853,14 @@ char * SbsLayerType_string (SbsLayerType layerType)
 
   static SbsLayerTypeString SbsLayerTypeString_array[] =
   {
-      {NONE_LAYER,                "NONE_LAYER"                },
-      {HX_INPUT_LAYER,            "HX_INPUT_LAYER"            },
-      {H1_CONVOLUTION_LAYER,      "H1_CONVOLUTION_LAYER"      },
-      {H2_POOLING_LAYER,          "H2_POOLING_LAYER"          },
-      {H3_CONVOLUTION_LAYER,      "H3_CONVOLUTION_LAYER"      },
-      {H4_POOLING_LAYER,          "H4_POOLING_LAYER"          },
-      {H5_FULLY_CONNECTED_LAYER,  "H5_FULLY_CONNECTED_LAYER"  },
-      {HY_OUTPUT_LAYER,           "HY_OUTPUT_LAYER"           }
+      {NONE_LAYER,                "NONE"    },
+      {HX_INPUT_LAYER,            "HX_IN"   },
+      {H1_CONVOLUTION_LAYER,      "H1_CONV" },
+      {H2_POOLING_LAYER,          "H2_POOL" },
+      {H3_CONVOLUTION_LAYER,      "H3_CONV" },
+      {H4_POOLING_LAYER,          "H4_POOL" },
+      {H5_FULLY_CONNECTED_LAYER,  "H5_DENSE"},
+      {HY_OUTPUT_LAYER,           "HY_OUT"  }
   };
 
   for (int i = 0; i < sizeof(SbsLayerTypeString_array) && string == NULL; i++)

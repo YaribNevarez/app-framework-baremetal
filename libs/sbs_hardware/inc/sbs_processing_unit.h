@@ -50,21 +50,6 @@ typedef enum
   SBS_HW_OUTPUT_LAYER
 } SbSHardwareType;
 
-typedef struct
-{
-  SbsHardware *       hwDriver;
-  DMAHardware *       dmaDriver;
-  uint32_t            layerAssign;
-  uint32_t            hwDeviceID;
-  uint32_t            dmaDeviceID;
-  uint32_t            hwIntVecID;
-  uint32_t            dmaTxIntVecID;
-  uint32_t            dmaRxIntVecID;
-  SbSHardwareType     hwType;
-  size_t              channelSize;
-  MemoryBlock         ddrMem;
-} SbSHardwareConfig;
-
 typedef enum
 {
   MEM_CMD_NONE = 0,
@@ -111,6 +96,22 @@ typedef struct
 
 typedef struct
 {
+  SbsHardware *       hwDriver;
+  DMAHardware *       dmaDriver;
+  uint32_t            layerAssign;
+  uint32_t            hwDeviceID;
+  uint32_t            dmaDeviceID;
+  uint32_t            hwIntVecID;
+  uint32_t            dmaTxIntVecID;
+  uint32_t            dmaRxIntVecID;
+  SbSHardwareType     hwType;
+  size_t              channelSize;
+  SbsAcceleratorProfie * profile;
+  MemoryBlock         ddrMem;
+} SbSHardwareConfig;
+
+typedef struct
+{
   SbSHardwareConfig *     hardwareConfig;
   void *                  updateHardware;
   void *                  dmaHardware;
@@ -131,10 +132,10 @@ typedef struct
   size_t      rxBufferSize;
 
   /*Below used by hardware interruption*/
-  uint8_t     errorFlags;
-  uint8_t     txDone;
-  uint8_t     rxDone;
-  uint8_t     acceleratorReady;
+  uint32_t    errorFlags;
+  uint32_t    txDone;
+  uint32_t    rxDone;
+  uint32_t    acceleratorReady;
   MemoryCmd   memory_cmd;
 } SbSUpdateAccelerator;
 /************************** Constant Definitions *****************************/

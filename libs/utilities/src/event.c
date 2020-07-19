@@ -195,6 +195,8 @@ void Event_stop (Event * event)
   }
 }
 
+/*****************************************************************************/
+
 typedef enum
 {
   NAV_CONTINUE,
@@ -226,14 +228,11 @@ static NavigationReturn Event_navegate (Event * event,
   return result;
 }
 
-typedef struct
-{
-  char text_offset[512];
-  char text_latency[512];
-  char text_name[512];
-} EventScheduleData;
+/*****************************************************************************/
 
-static NavigationReturn Event_schedulePrint (Event * event, void * data)
+typedef char TextLines[3][512];
+
+static NavigationReturn Event_collectScheduleData (Event * event, void * data)
 {
   NavigationReturn result = NAV_ABORT;
   ASSERT (event != NULL);
@@ -241,14 +240,35 @@ static NavigationReturn Event_schedulePrint (Event * event, void * data)
 
   if ((event != NULL) && (data != NULL))
   {
-    EventScheduleData * scheduleData = (EventScheduleData*) data;
-    char * text_offset = scheduleData->text_offset;
-    char * text_latency = scheduleData->text_latency;
-    char * text_name = scheduleData->text_name;
+    TextLines * text = (TextLines*) data;
 
-    sprintf (&text_offset[strlen (text_offset)], "%.3lf,", event->absolute_offset * 1000);
-    sprintf (&text_latency[strlen (text_latency)], "%.3lf,", event->latency * 1000);
-    sprintf (&text_name[strlen (text_name)], "\"%s\",", (char*) event->data);
+    sprintf (&(*text)[0][strlen ((*text)[0])], "%.3lf, ", event->absolute_offset * 1000);
+    sprintf (&(*text)[1][strlen ((*text)[1])], "%.3lf, ", event->latency * 1000);
+    sprintf (&(*text)[2][strlen ((*text)[2])], "\"%s\", ", (char*) event->data);
+    result = NAV_CONTINUE;
+  }
+
+  return result;
+}
+
+static NavigationReturn Event_collectLatencyData (Event * event, void * data)
+{
+  NavigationReturn result = NAV_ABORT;
+  ASSERT (event != NULL);
+  ASSERT (data != NULL);
+
+  if ((event != NULL) && (data != NULL))
+  {
+    if (   (event->first_child == NULL)
+        && (event->parent != NULL)
+        && (event->parent->parent != NULL))
+    { /* Then is a hardware event */
+      TextLines * text = (TextLines*) data;
+
+      sprintf (&(*text)[0][strlen ((*text)[0])], "%.3lf, ", event->latency * 1000);
+      sprintf (&(*text)[1][strlen ((*text)[1])], "%.3lf, ", event->parent->latency * 1000);
+      sprintf (&(*text)[2][strlen ((*text)[2])], "\"%s\", ", (char*) event->parent->parent->data);
+    }
     result = NAV_CONTINUE;
   }
 
@@ -261,13 +281,20 @@ void Event_print (Event * event)
 
   if (event != NULL)
   {
-    EventScheduleData data;
-    memset (&data, 0, sizeof(data));
+    TextLines data;
 
-    Event_navegate (event, Event_schedulePrint, &data);
+    memset (data, 0, sizeof(data));
+    Event_navegate (event, Event_collectScheduleData, data);
 
-    printf ("[%s]\n", data.text_offset);
-    printf ("[%s]\n", data.text_latency);
-    printf ("[%s]\n", data.text_name);
+    printf ("Absolute offset: [%s]\n", data[0]);
+    printf ("Latency:         [%s]\n", data[1]);
+    printf ("Name:            [%s]\n", data[2]);
+
+    memset (data, 0, sizeof(data));
+    Event_navegate (event, Event_collectLatencyData, data);
+
+    printf ("SW Latency:  [%s]\n", data[1]);
+    printf ("HW Latency:  [%s]\n", data[0]);
+    printf ("Name:        [%s]\n", data[2]);
   }
 }
