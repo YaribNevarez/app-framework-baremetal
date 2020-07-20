@@ -72,8 +72,8 @@ SbsHardware SbsHardware_convolutionLayer =
   .Get_vectorSize = (uint32_t(*) (void *))          NULL,
   .Set_epsilon =    (void (*) (void *, uint32_t ))  NULL,
   .Get_epsilon =    (uint32_t(*) (void *))          NULL,
-  .Set_debug =      (void (*) (void *, uint32_t ))  XSbs_convolution_layer_Set_debug_r,
-  .Get_debug =      (uint32_t(*) (void *))          XSbs_convolution_layer_Get_debug_r,
+  .Set_debug =      (void (*) (void *, uint32_t ))  XSbs_convolution_layer_Set_debug,
+  .Get_debug =      (uint32_t(*) (void *))          XSbs_convolution_layer_Get_debug,
 
   .InterruptGlobalEnable =  (void (*) (void *))             XSbs_convolution_layer_InterruptGlobalEnable,
   .InterruptGlobalDisable = (void (*) (void *))             XSbs_convolution_layer_InterruptGlobalDisable,

@@ -302,6 +302,7 @@ void Event_print (Event * event)
     memset (data, 0, sizeof(data));
     Event_navegate (event, Event_collectScheduleData, data);
 
+    printf ("\nSchedule\n");
     printf ("Absolute offset: [%s]\n", data[0]);
     printf ("Latency:         [%s]\n", data[1]);
     printf ("Name:            [%s]\n", data[2]);
@@ -309,6 +310,7 @@ void Event_print (Event * event)
     memset (data, 0, sizeof(data));
     Event_navegate (event, Event_collectLatencyData, data);
 
+    printf ("\nPerformance\n");
     printf ("II offset:   [%s]\n", data[0]);
     printf ("SW Latency:  [%s]\n", data[1]);
     printf ("HW Latency:  [%s]\n", data[2]);

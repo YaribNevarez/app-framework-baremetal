@@ -65,7 +65,7 @@ void MT19937_sgenrand(unsigned int seed)
         mt[mti] = (69069 * mt[mti-1]) & 0xffffffff;
 }
 
-unsigned int MT19937_genrand()
+unsigned int MT19937_genrand() /* LATENCY: 1.562901764675849E-7 Seconds */
 {
     unsigned int y;
     static unsigned int mag01[2]={0x0, MATRIX_A};

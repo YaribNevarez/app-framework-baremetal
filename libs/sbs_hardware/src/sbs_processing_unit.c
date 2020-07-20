@@ -373,7 +373,6 @@ void Accelerator_loadCoefficients (SbSUpdateAccelerator * accelerator,
     Xil_DCacheFlushRange ((UINTPTR) buffer, (size_t) (buffer_ptr - (void*) buffer));
 
     while (!accelerator->acceleratorReady);
-    while (!accelerator->txDone);
 
     accelerator->hardwareConfig->profile = profile;
     accelerator->hardwareConfig->hwDriver->Set_mode (accelerator->updateHardware, SBS_HW_INITIALIZE);
@@ -382,7 +381,6 @@ void Accelerator_loadCoefficients (SbSUpdateAccelerator * accelerator,
     accelerator->hardwareConfig->hwDriver->Start (accelerator->updateHardware);
     Event_start (profile->event);
 
-    accelerator->txDone = 0;
     status = accelerator->hardwareConfig->dmaDriver->Move (accelerator->dmaHardware,
                                                            buffer,
                                                            (size_t) (buffer_ptr - (void*) buffer),
@@ -390,7 +388,6 @@ void Accelerator_loadCoefficients (SbSUpdateAccelerator * accelerator,
     ASSERT(status == XST_SUCCESS);
 
     while (!accelerator->acceleratorReady);
-    while (!accelerator->txDone);
 
     accelerator->hardwareConfig->hwDriver->Set_mode (accelerator->updateHardware, SBS_HW_INFERENCE);
   }

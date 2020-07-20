@@ -1539,10 +1539,10 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
         SbsBaseLayer_update (network->layer_array[i],
                              network->layer_array[i - 1]);
       }
-      Event_stop (network->event);
-      sleep (1);
-      Event_print (network->event);
     }
+    Event_stop (network->event);
+    sleep (1);
+    Event_print (network->event);
     /************************ Ends Update cycle ******************************/
 
     /************************ Begins Learning cycle **************************/

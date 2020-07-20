@@ -5,9 +5,9 @@ fig, (ax1, ax2) = plt.subplots(2, 1)
 
 fig.suptitle('Performance')
 
-begin   = np.array([0.000, 0.001, 0.546, 0.551, 1.375, 1.380, 1.809, 1.814, 2.687, 2.691, 3.480, 3.484, 3.625, 3.629, 3.633])
-latency = np.array([3.637, 0.548, 1.541, 0.827, 2.141, 0.432, 1.666, 0.876, 5.430, 0.791, 0.364, 0.143, 0.755, 0.006, 0.005])
-event   = ["SbS Network", "HX_IN_Partition", "HX_IN_Hardware", "H1_CONV_Partition", "H1_CONV_Hardware", "H2_POOL_Partition", "H2_POOL_Hardware", "H3_CONV_Partition", "H3_CONV_Hardware", "H4_POOL_Partition", "H4_POOL_Hardware", "H5_DENSE_Partition", "H5_DENSE_Hardware", "HY_OUT_Partition", "HY_OUT_Hardware"]
+begin   = np.array([0.000, 0.000, 0.509, 0.513, 1.099, 1.103, 1.381, 1.385, 1.620, 1.623, 1.857, 1.860, 2.682, 2.686, 2.778, 2.782, 2.785])
+latency = np.array([2.789, 0.510, 1.540, 0.589, 1.944, 0.280, 1.297, 0.238, 2.673, 0.236, 2.677, 0.824, 0.266, 0.095, 0.755, 0.005, 0.006])
+event   = ["SbS_Network", "HX_IN_Partition", "HX_IN_Hardware", "H1_CONV_Partition", "H1_CONV_Hardware", "H2_POOL_Partition", "H2_POOL_Hardware", "H3_CONV_Partition", "H3_CONV_Hardware", "H3_CONV_Partition", "H3_CONV_Hardware", "H4_POOL_Partition", "H4_POOL_Hardware", "H5_DENSE_Partition", "H5_DENSE_Hardware", "HY_OUT_Partition", "HY_OUT_Hardware"]
 
 ax1.barh(range(len(begin)),  latency, left=begin)
 ax1.grid(linestyle = ':')
@@ -21,11 +21,11 @@ ax1.tick_params(axis='both', which='minor', labelsize=1)
 plt.xlabel("Schedule (mS)")
 plt.ylabel("Task")
 
-data = [[ 0.001, 0.586, 1.404, 1.803, 2.717, 3.474, 3.625],
-        [ 0.583, 0.816, 0.398, 0.912, 0.756, 0.149, 0.007],
-        [ 1.540, 2.184, 1.667, 5.430, 0.364, 0.755, 0.005]]
+data = [[ 0.000, 0.513, 1.103, 1.385, 1.623, 1.860, 2.686, 2.782],
+        [ 0.510, 0.589, 0.280, 0.238, 0.236, 0.824, 0.095, 0.005],
+        [ 1.540, 1.944, 1.297, 2.673, 2.677, 0.266, 0.755, 0.006]]
 
-columns = ("HX_IN","H1_CONV","H2_POOL","H3_CONV","H4_POOL","H5_DENSE","HY_OUT")
+columns = ("HX_IN", "H1_CONV", "H2_POOL", "H3_CONV", "H3_CONV", "H4_POOL", "H5_DENSE", "HY_OUT")
 rows = ["HW", "CPU", "II OFFSET"]
 
 # Get some pastel shades for the colors
