@@ -240,7 +240,7 @@ static NavigationReturn Event_collectScheduleData (Event * event, void * data)
 
   if ((event != NULL) && (data != NULL))
   {
-    if ((event->first_child == NULL)
+    if (((event->first_child == NULL) && (0.0 < event->latency))
         || (event->first_child->first_child == NULL)
         || (event->parent == NULL))
     {

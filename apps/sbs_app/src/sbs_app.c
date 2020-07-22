@@ -156,13 +156,13 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     }
   },
 #endif
-#ifdef HW_ACCELERATOR_UNIT_1
-  { .hwDriver      = &SbsHardware_custom,
+#ifdef HW_POOLING_LAYER_1
+  { .hwDriver      = &SbsHardware_poolingLayer,
     .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = HW_ACCELERATOR_UNIT_1,
-    .hwDeviceID    = XPAR_SBS_ACCELERATOR_UNIT_1_DEVICE_ID,
+    .layerAssign   = HW_POOLING_LAYER_1,
+    .hwDeviceID    = XPAR_SBS_POOLING_LAYER_1_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXI_DMA_6_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_UNIT_1_INTERRUPT_INTR,
+    .hwIntVecID    = XPAR_FABRIC_SBS_POOLING_LAYER_1_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_6_S2MM_INTROUT_INTR,
     .channelSize   = 4,

@@ -46,6 +46,9 @@ void    Event_stop      (Event * event);
 double  Event_getCurrentRelativeTime  (Event * event);
 double  Event_getCurrentAbsoluteTime  (Event * event);
 
+/************************* Print event tree hierachy *************************/
+void    Event_print (Event * event);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
