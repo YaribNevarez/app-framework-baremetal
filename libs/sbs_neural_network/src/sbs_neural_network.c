@@ -38,11 +38,11 @@
 
 #include "multivector.h"
 
-#define DATA16_TO_FLOAT32(d)   (0x30000000 | (((unsigned int)(0xFFFF & (d))) << 12))
-#define DATA8_TO_FLOAT32(d)   ((0x38000000 | (((unsigned int)(0x00FF & (d))) << 19)))
+#define DATA16_TO_FLOAT32(d)  ((d) ? (0x30000000 | (((unsigned int) (0xFFFF & (d))) << 12)) : 0)
+#define DATA08_TO_FLOAT32(d)  ((d) ? (0x38000000 | (((unsigned int) (0xFFFF & (d))) << 19)) : 0)
 
-#define FLOAT32_TO_DATA16(d)  (0x0000FFFF & (((unsigned int)(d)) >> 12))
-#define FLOAT32_TO_DATA8(d)   (0x000000FF & (((unsigned int)(d)) >> 19))
+#define FLOAT32_TO_DATA16(d)  (((0x30000000 & (unsigned int) (d)) == 0x30000000) ? (0x0000FFFF & (((unsigned int) (d)) >> 12)) : 0)
+#define FLOAT32_TO_DATA08(d)  (((0x38000000 & (unsigned int) (d)) == 0x38000000) ? (0x000000FF & (((unsigned int) (d)) >> 19)) : 0)
 
 /*****************************************************************************/
 #define   MEMORY_SIZE         (4771384)
@@ -1183,7 +1183,7 @@ inline static void SbsBaseLayer_updateIP (SbsBaseLayer * layer, uint32_t * state
     for (neuron = 0; neuron < size; neuron ++)
     {
       *(uint32_t*) (&h) = DATA16_TO_FLOAT32(state_vector_ptr[neuron]);
-      *(uint32_t*) (&p) = DATA8_TO_FLOAT32(weight_vector_ptr[neuron]);
+      *(uint32_t*) (&p) = DATA08_TO_FLOAT32(weight_vector_ptr[neuron]);
       h_p = h * p;
 
       temp_data[neuron] = h_p;
@@ -1203,14 +1203,7 @@ inline static void SbsBaseLayer_updateIP (SbsBaseLayer * layer, uint32_t * state
 
       h_new = reverse_epsilon * (h + h_p * epsion_over_sum);
 
-      if ((*(uint32_t*) (&h_new) & 0xf0000000) == 0x30000000)
-      {
-        state_vector_ptr[neuron] = FLOAT32_TO_DATA16(*(uint32_t* )(&h_new));
-      }
-      else
-      {
-        state_vector_ptr[neuron] = 0;;
-      }
+      state_vector_ptr[neuron] = FLOAT32_TO_DATA16(*(uint32_t* )(&h_new));
     }
   }
 }
@@ -1724,7 +1717,6 @@ static void SbsBaseNetwork_updateInferredOutput(SbsBaseNetwork * network)
 static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles)
 {
   SbsBaseNetwork * network = (SbsBaseNetwork *) network_ptr;
-  SbsBaseLayer * input_layer = NULL;
 
   ASSERT(network != NULL);
   ASSERT(3 <= network->size);
@@ -1744,8 +1736,6 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
       SbsBaseLayer_cacheFlush (network->layer_array[i]);
       SbsBaseLayer_initializeHardware (network->layer_array[i]);
     }
-
-    input_layer = network->layer_array[0];
 
     /************************ Begins Update cycle ****************************/
     while (cycles--)
