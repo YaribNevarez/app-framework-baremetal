@@ -118,14 +118,11 @@ typedef ap_axis<CHANNEL_WIDTH, 2, 5, 6> StreamChannel;
 
 #define MAX_VECTOR_SIZE   50
 
-#define DATA16_TO_FLOAT32(d)  ((0x30000000 | (((unsigned int)(0xFFFF & (d))) << 12)))
-#define DATA8_TO_FLOAT32(d)   ((0x38000000 | (((unsigned int)(0x00FF & (d))) << 19)))
+#define DATA16_TO_FLOAT32(d)  ((d) ? (0x30000000 | (((unsigned int) (0xFFFF & (d))) << 12)) : 0)
+#define DATA08_TO_FLOAT32(d)  ((d) ? (0x38000000 | (((unsigned int) (0x00FF & (d))) << 19)) : 0)
 
-#define FLOAT32_TO_DATA16(d)  (0xFFFF & (((unsigned int)(d)) >> 12))
-#define FLOAT32_TO_DATA8(d)   (  0xFF & (((unsigned int)(d)) >> 19))
-
-#define DATA_SIZE     sizeof(short) // Bytes
-#define BUFFER_SIZE   ((MAX_VECTOR_SIZE + 1) * DATA_SIZE) / sizeof(Data32) + 1
+#define FLOAT32_TO_DATA16(d)  (((0x30000000 & (unsigned int) (d)) == 0x30000000) ? (0x0000FFFF & (((unsigned int) (d)) >> 12)) : 0)
+#define FLOAT32_TO_DATA08(d)  (((0x38000000 & (unsigned int) (d)) == 0x38000000) ? (0x000000FF & (((unsigned int) (d)) >> 19)) : 0)
 
 void sbs_spike_unit (hls::stream<StreamChannel> &stream_in,
                      hls::stream<StreamChannel> &stream_out,
@@ -141,7 +138,7 @@ void sbs_spike_unit (hls::stream<StreamChannel> &stream_in,
 #pragma HLS INTERFACE s_axilite port=return      bundle=CRTL_BUS
 
   static float data[MAX_VECTOR_SIZE];
-#pragma HLS array_partition variable=data complete
+//#pragma HLS array_partition variable=data complete
 
   unsigned int debug_flags;
 
