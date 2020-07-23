@@ -164,6 +164,7 @@ unsigned int sbs_convolution_layer (hls::stream<StreamChannel> &stream_in,
   ap_uint<CHANNEL_WIDTH> input;
 
   static SbsHardwareProfile hwProfile;
+  static unsigned int       weightDepthSize;
 
   static unsigned short input_spike_matrix[MAX_INPUT_SPIKE_MATRIX_SIZE];
 //#pragma HLS ARRAY_PARTITION variable=input_spike_matrix complete dim=1
@@ -187,8 +188,8 @@ unsigned int sbs_convolution_layer (hls::stream<StreamChannel> &stream_in,
   float epsion_over_sum;
   float random_value;
 
-  static Data32 register_A;
-  static Data32 register_B;
+  Data32 stream_data;
+  Data32 data;
 
   static float reverse_epsilon;
   float sum;
@@ -215,8 +216,8 @@ unsigned int sbs_convolution_layer (hls::stream<StreamChannel> &stream_in,
         hwProfile.kernelSize = stream_in.read ().data;
         hwProfile.vectorSize = stream_in.read ().data;
 
-        register_A.u32 = stream_in.read ().data;
-        hwProfile.epsilon = register_A.f32;
+        stream_data.u32 = stream_in.read ().data;
+        hwProfile.epsilon = stream_data.f32;
 
         hwProfile.weightRows = stream_in.read ().data;
         hwProfile.weightColumns = stream_in.read ().data;
@@ -240,6 +241,8 @@ unsigned int sbs_convolution_layer (hls::stream<StreamChannel> &stream_in,
             weight_matrix[i + j] = input >> (WEIGHT_VECTOR_WIDTH * j);
           }
         }
+
+        weightDepthSize = hwProfile.weightDepth * hwProfile.vectorSize;
       }
       break;
     case SBS_HW_INFERENCE:
@@ -252,12 +255,12 @@ unsigned int sbs_convolution_layer (hls::stream<StreamChannel> &stream_in,
   #pragma HLS pipeline
 
   #if 32 <= CHANNEL_WIDTH
-          register_B.u32 = stream_in.read ().data;
+          stream_data.u32 = stream_in.read ().data;
   #else
-          register_B.u32 = DATA16_TO_FLOAT32(stream_in.read ().data);
+          stream_data.u32 = DATA16_TO_FLOAT32(stream_in.read ().data);
   #endif
 
-          random_value = register_B.f32;
+          random_value = stream_data.f32;
   #endif
 
           for (int i = 0; i < hwProfile.vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
@@ -272,8 +275,8 @@ unsigned int sbs_convolution_layer (hls::stream<StreamChannel> &stream_in,
               if (i + j < hwProfile.vectorSize)
               {
   #pragma HLS pipeline
-                register_B.u32 = DATA16_TO_FLOAT32(input >> (STATE_VECTOR_WIDTH * j));
-                state_vector[i + j] = register_B.f32;
+                data.u32 = DATA16_TO_FLOAT32(input >> (STATE_VECTOR_WIDTH * j));
+                state_vector[i + j] = data.f32;
               }
             }
           }
@@ -310,34 +313,26 @@ unsigned int sbs_convolution_layer (hls::stream<StreamChannel> &stream_in,
             }
           }
 
-          for (int batch = 0; batch < hwProfile.kernelSize; batch++)
+          for (int batch = 0, weight_matrix_index = 0;
+               batch < hwProfile.kernelSize;
+               batch++, weight_matrix_index += weightDepthSize)
           {
   #pragma HLS pipeline
-            int tensor_index = input_spike_matrix[batch] * hwProfile.vectorSize
-                + batch * hwProfile.weightDepth * hwProfile.vectorSize;
+            int tensor_index = input_spike_matrix[batch] * hwProfile.vectorSize + weight_matrix_index;
 
             for (int i = 0; i < hwProfile.vectorSize; i++)
             {
   #pragma HLS pipeline
-              register_B.u32 = DATA08_TO_FLOAT32(weight_matrix[tensor_index + i]);
-              weight_vector[i] = register_B.f32;
+              data.u32 = DATA08_TO_FLOAT32(weight_matrix[tensor_index + i]);
+              weight_vector[i] = data.f32;
             }
 
             sum = 0.0f;
             for (int i = 0; i < hwProfile.vectorSize; i++)
             {
   #pragma HLS pipeline
-              if ((state_vector[i] != 0) && (weight_vector[i] != 0))
-              {
-  #pragma HLS pipeline
-                temp_data[i] = state_vector[i] * weight_vector[i];
-                sum += temp_data[i];
-              }
-              else
-              {
-  #pragma HLS pipeline
-                temp_data[i] = 0;
-              }
+              temp_data[i] = state_vector[i] * weight_vector[i];
+              sum += temp_data[i];
             }
 
             if (NEGLECTING_CONSTANT < sum)
@@ -347,17 +342,7 @@ unsigned int sbs_convolution_layer (hls::stream<StreamChannel> &stream_in,
               for (int i = 0; i < hwProfile.vectorSize; i++)
               {
   #pragma HLS pipeline
-                if (temp_data[i] != 0)
-                {
-  #pragma HLS pipeline
-                  state_vector[i] = reverse_epsilon
-                      * (state_vector[i] + temp_data[i] * epsion_over_sum);
-                }
-                else if (state_vector[i] != 0)
-                {
-  #pragma HLS pipeline
-                  state_vector[i] = reverse_epsilon * state_vector[i];
-                }
+                state_vector[i] = reverse_epsilon * (state_vector[i] + temp_data[i] * epsion_over_sum);
               }
             }
           }
@@ -373,8 +358,8 @@ unsigned int sbs_convolution_layer (hls::stream<StreamChannel> &stream_in,
               if (i + j < hwProfile.vectorSize)
               {
   #pragma HLS pipeline
-                register_A.f32 = state_vector[i + j];
-                channel.data = (~(((ap_uint<CHANNEL_WIDTH> ) 0xFFFF) << (STATE_VECTOR_WIDTH * j)) & channel.data) | (((ap_uint<CHANNEL_WIDTH> ) (FLOAT32_TO_DATA16(register_A.u32))) << (STATE_VECTOR_WIDTH * j));
+                data.f32 = state_vector[i + j];
+                channel.data = (~(((ap_uint<CHANNEL_WIDTH> ) 0xFFFF) << (STATE_VECTOR_WIDTH * j)) & channel.data) | (((ap_uint<CHANNEL_WIDTH> ) (FLOAT32_TO_DATA16(data.u32))) << (STATE_VECTOR_WIDTH * j));
               }
             }
             stream_out.write (channel);
