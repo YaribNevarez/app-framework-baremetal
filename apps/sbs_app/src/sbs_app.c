@@ -93,10 +93,10 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .dmaDriver     = &DMAHardware_mover,
     .layerAssign   = HW_CONVOLUTION_LAYER_1,
     .hwDeviceID    = XPAR_SBS_CONVOLUTION_LAYER_1_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_3_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_2_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_CONVOLUTION_LAYER_1_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_3_S2MM_INTROUT_INTR,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_2_S2MM_INTROUT_INTR,
     .channelSize   = 4,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x2C000000,
@@ -110,14 +110,31 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .dmaDriver     = &DMAHardware_mover,
     .layerAssign   = HW_CONVOLUTION_LAYER_2,
     .hwDeviceID    = XPAR_SBS_CONVOLUTION_LAYER_2_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_4_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_3_DEVICE_ID,
     .hwIntVecID    = XPAR_FABRIC_SBS_CONVOLUTION_LAYER_2_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_4_S2MM_INTROUT_INTR,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_3_S2MM_INTROUT_INTR,
     .channelSize   = 4,
     .ddrMem =
     { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x30000000,
       .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x33FFFFFF,
+      .blockIndex  = 0
+    }
+  },
+#endif
+#ifdef HW_CONVOLUTION_LAYER_3
+  { .hwDriver      = &SbsHardware_convolutionLayer,
+    .dmaDriver     = &DMAHardware_mover,
+    .layerAssign   = HW_CONVOLUTION_LAYER_3,
+    .hwDeviceID    = XPAR_SBS_CONVOLUTION_LAYER_3_DEVICE_ID,
+    .dmaDeviceID   = XPAR_AXI_DMA_4_DEVICE_ID,
+    .hwIntVecID    = XPAR_FABRIC_SBS_CONVOLUTION_LAYER_3_INTERRUPT_INTR,
+    .dmaTxIntVecID = 0,
+    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_4_S2MM_INTROUT_INTR,
+    .channelSize   = 4,
+    .ddrMem =
+    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x34000000,
+      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x37FFFFFF,
       .blockIndex  = 0
     }
   },
@@ -127,25 +144,8 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     .dmaDriver     = &DMAHardware_mover,
     .layerAssign   = HW_POOLING_LAYER_0,
     .hwDeviceID    = XPAR_SBS_POOLING_LAYER_0_DEVICE_ID,
-    .dmaDeviceID   = XPAR_AXI_DMA_2_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_POOLING_LAYER_0_INTERRUPT_INTR,
-    .dmaTxIntVecID = 0,
-    .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_2_S2MM_INTROUT_INTR,
-    .channelSize   = 4,
-    .ddrMem =
-    { .baseAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x34000000,
-      .highAddress = XPAR_PS7_DDR_0_S_AXI_BASEADDR + 0x37FFFFFF,
-      .blockIndex  = 0
-    }
-  },
-#endif
-#ifdef HW_ACCELERATOR_UNIT_0
-  { .hwDriver      = &SbsHardware_custom,
-    .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = HW_ACCELERATOR_UNIT_0,
-    .hwDeviceID    = XPAR_SBS_ACCELERATOR_UNIT_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXI_DMA_5_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_UNIT_0_INTERRUPT_INTR,
+    .hwIntVecID    = XPAR_FABRIC_SBS_POOLING_LAYER_0_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_5_S2MM_INTROUT_INTR,
     .channelSize   = 4,
@@ -156,13 +156,13 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     }
   },
 #endif
-#ifdef HW_POOLING_LAYER_1
-  { .hwDriver      = &SbsHardware_poolingLayer,
+#ifdef HW_ACCELERATOR_UNIT_0
+  { .hwDriver      = &SbsHardware_custom,
     .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = HW_POOLING_LAYER_1,
-    .hwDeviceID    = XPAR_SBS_POOLING_LAYER_1_DEVICE_ID,
+    .layerAssign   = HW_ACCELERATOR_UNIT_0,
+    .hwDeviceID    = XPAR_SBS_ACCELERATOR_UNIT_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXI_DMA_6_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_POOLING_LAYER_1_INTERRUPT_INTR,
+    .hwIntVecID    = XPAR_FABRIC_SBS_ACCELERATOR_UNIT_0_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = XPAR_FABRIC_AXI_DMA_6_S2MM_INTROUT_INTR,
     .channelSize   = 4,

@@ -109,12 +109,11 @@ typedef union
 #define MAX_VECTOR_SIZE       (1024)
 #define MAX_SPIKE_MATRIX_SIZE (60*60)
 
-//static Data32 _d32;
-#define DATA16_TO_FLOAT32(d)  ((0x30000000 | (((unsigned int)(0xFFFF & (d))) << 12)))
-#define DATA8_TO_FLOAT32(d)   ((0x38000000 | (((unsigned int)(0x00FF & (d))) << 19)))
+#define DATA16_TO_FLOAT32(d)  ((0xFFFF & (d)) ? (0x30000000 | (((unsigned int) (0xFFFF & (d))) << 12)) : 0)
+#define DATA08_TO_FLOAT32(d)  ((0x00FF & (d)) ? (0x38000000 | (((unsigned int) (0x00FF & (d))) << 19)) : 0)
 
-#define FLOAT32_TO_DATA16(d)  (0x0000FFFF & (((unsigned int)(d)) >> 12))
-#define FLOAT32_TO_DATA8(d)   (0x000000FF & (((unsigned int)(d)) >> 19))
+#define FLOAT32_TO_DATA16(d)  (((0xF0000000 & (unsigned int) (d)) == 0x30000000) ? (0x0000FFFF & (((unsigned int) (d)) >> 12)) : 0)
+#define FLOAT32_TO_DATA08(d)  (((0xF8000000 & (unsigned int) (d)) == 0x38000000) ? (0x000000FF & (((unsigned int) (d)) >> 19)) : 0)
 
 #define NEGLECTING_CONSTANT   ((float)1e-20)
 
@@ -210,17 +209,8 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
         if (i + j < vectorSize)
         {
 #pragma HLS pipeline
-          if (0xFFFF & (input >> (STATE_VECTOR_WIDTH * j)))
-          {
-#pragma HLS pipeline
-            register_B.u32 = DATA16_TO_FLOAT32(input >> (STATE_VECTOR_WIDTH * j));
-            state_vector[i + j] = register_B.f32;
-          }
-          else
-          {
-#pragma HLS pipeline
-            state_vector[i + j] = 0;
-          }
+          register_B.u32 = DATA16_TO_FLOAT32(input >> (STATE_VECTOR_WIDTH * j));
+          state_vector[i + j] = register_B.f32;
         }
       }
     }
@@ -257,17 +247,8 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
           if (i + j < vectorSize)
           {
 #pragma HLS pipeline
-            if (0xFF & (input >> (WEIGHT_VECTOR_WIDTH * j)))
-            {
-#pragma HLS pipeline
-              register_B.u32 = DATA8_TO_FLOAT32(input >> (WEIGHT_VECTOR_WIDTH * j));
-              weight_vector[i + j] = register_B.f32;
-            }
-            else
-            {
-#pragma HLS pipeline
-              weight_vector[i + j] = 0;
-            }
+            register_B.u32 = DATA08_TO_FLOAT32(input >> (WEIGHT_VECTOR_WIDTH * j));
+            weight_vector[i + j] = register_B.f32;
           }
         }
       }
@@ -276,17 +257,8 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
       for (int i = 0; i < vectorSize; i++)
       {
 #pragma HLS pipeline
-        if ((state_vector[i] != 0) && (weight_vector[i] != 0))
-        {
-#pragma HLS pipeline
-          temp_data[i] = state_vector[i] * weight_vector[i];
-          sum += temp_data[i];
-        }
-        else
-        {
-#pragma HLS pipeline
-          temp_data[i] = 0;
-        }
+        temp_data[i] = state_vector[i] * weight_vector[i];
+        sum += temp_data[i];
       }
 
       if (NEGLECTING_CONSTANT < sum)
@@ -296,17 +268,7 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
         for (int i = 0; i < vectorSize; i++)
         {
 #pragma HLS pipeline
-          if (temp_data[i] != 0)
-          {
-#pragma HLS pipeline
-            state_vector[i] = reverse_epsilon
-                * (state_vector[i] + temp_data[i] * epsion_over_sum);
-          }
-          else if (state_vector[i] != 0)
-          {
-#pragma HLS pipeline
-            state_vector[i] = reverse_epsilon * state_vector[i];
-          }
+          state_vector[i] = reverse_epsilon * (state_vector[i] + temp_data[i] * epsion_over_sum);
         }
       }
     }
@@ -323,17 +285,8 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
         {
 #pragma HLS pipeline
           register_A.f32 = state_vector[i + j];
-          if ((register_A.u32 & 0xf0000000) == 0x30000000)
-          {
-#pragma HLS pipeline
-            channel.data = (~(((ap_uint<CHANNEL_WIDTH> ) 0xFFFF) << (STATE_VECTOR_WIDTH * j)) & channel.data)
-                           | (((ap_uint<CHANNEL_WIDTH> ) (FLOAT32_TO_DATA16(register_A.u32))) << (STATE_VECTOR_WIDTH * j));
-          }
-          else
-          {
-#pragma HLS pipeline
-            channel.data = (~(((ap_uint<CHANNEL_WIDTH> ) 0xFFFF) << (STATE_VECTOR_WIDTH * j)) & channel.data);
-          }
+          channel.data = (~(((ap_uint<CHANNEL_WIDTH> ) 0xFFFF) << (STATE_VECTOR_WIDTH * j)) & channel.data)
+                         | (((ap_uint<CHANNEL_WIDTH> ) (FLOAT32_TO_DATA16(register_A.u32))) << (STATE_VECTOR_WIDTH * j));
         }
       }
       stream_out.write (channel);

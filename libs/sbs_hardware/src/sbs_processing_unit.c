@@ -547,21 +547,25 @@ int Accelerator_start(SbSUpdateAccelerator * accelerator)
   ASSERT (accelerator->profile != NULL);
   ASSERT (0 < accelerator->profile->stateBufferSize);
   ASSERT (0 < accelerator->profile->layerSize);
-  ASSERT((size_t )accelerator->txBufferCurrentPtr == (size_t )accelerator->txBuffer + accelerator->txBufferSize);
 
-#ifdef DEBUG
-  if (accelerator->profile->spikeBufferSize)
+  if (accelerator->profile->epsilon)
   {
-    ASSERT (accelerator->txSpikeCounter == accelerator->profile->layerSize * accelerator->profile->kernelSize);
-  }
+    ASSERT((size_t )accelerator->txBufferCurrentPtr == (size_t )accelerator->txBuffer + accelerator->txBufferSize);
 
-  if (accelerator->profile->weightBufferSize)
-  {
-    ASSERT(accelerator->txWeightCounter == accelerator->profile->layerSize * accelerator->profile->kernelSize);
-  }
+  #ifdef DEBUG
+    if (accelerator->profile->spikeBufferSize)
+    {
+      ASSERT (accelerator->txSpikeCounter == accelerator->profile->layerSize * accelerator->profile->kernelSize);
+    }
 
-  ASSERT (accelerator->txStateCounter == accelerator->profile->layerSize);
-#endif
+    if (accelerator->profile->weightBufferSize)
+    {
+      ASSERT(accelerator->txWeightCounter == accelerator->profile->layerSize * accelerator->profile->kernelSize);
+    }
+
+    ASSERT (accelerator->txStateCounter == accelerator->profile->layerSize);
+  #endif
+  }
 
   Xil_DCacheFlushRange ((UINTPTR) accelerator->txBuffer, accelerator->txBufferSize);
 
@@ -676,6 +680,9 @@ SbsAcceleratorProfie * SbsAcceleratorProfie_new (SbsLayerType layerType,
       profile->rxBuffer = spike_matrix->data;
       profile->rxBufferSize = Multivector_dataSize (spike_matrix);
 
+      profile->txBufferSize = state_matrix->data_size;
+      profile->txBuffer = state_matrix->data;
+/*
       profile->txBufferSize = profile->layerSize
           * (rand_num_size + state_vector_size);
 
@@ -683,6 +690,7 @@ SbsAcceleratorProfie * SbsAcceleratorProfie_new (SbsLayerType layerType,
       profile->txBuffer = MemoryBlock_alloc (state_matrix->memory_def_parent,
                                              profile->txBufferSize);
       ASSERT (profile->txBuffer != NULL);
+*/
     }
     else
     {

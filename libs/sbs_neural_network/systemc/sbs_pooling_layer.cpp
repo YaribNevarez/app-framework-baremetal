@@ -110,11 +110,11 @@ typedef union
 #define MAX_SPIKE_MATRIX_SIZE       (60*60)
 #define MAX_INPUT_SPIKE_MATRIX_SIZE (2*2)
 
-#define DATA16_TO_FLOAT32(d)  ((d) ? (0x30000000 | (((unsigned int) (0xFFFF & (d))) << 12)) : 0)
-#define DATA08_TO_FLOAT32(d)  ((d) ? (0x38000000 | (((unsigned int) (0x00FF & (d))) << 19)) : 0)
+#define DATA16_TO_FLOAT32(d)  ((0xFFFF & (d)) ? (0x30000000 | (((unsigned int) (0xFFFF & (d))) << 12)) : 0)
+#define DATA08_TO_FLOAT32(d)  ((0x00FF & (d)) ? (0x38000000 | (((unsigned int) (0x00FF & (d))) << 19)) : 0)
 
-#define FLOAT32_TO_DATA16(d)  (((0x30000000 & (unsigned int) (d)) == 0x30000000) ? (0x0000FFFF & (((unsigned int) (d)) >> 12)) : 0)
-#define FLOAT32_TO_DATA08(d)  (((0x38000000 & (unsigned int) (d)) == 0x38000000) ? (0x000000FF & (((unsigned int) (d)) >> 19)) : 0)
+#define FLOAT32_TO_DATA16(d)  (((0xF0000000 & (unsigned int) (d)) == 0x30000000) ? (0x0000FFFF & (((unsigned int) (d)) >> 12)) : 0)
+#define FLOAT32_TO_DATA08(d)  (((0xF8000000 & (unsigned int) (d)) == 0x38000000) ? (0x000000FF & (((unsigned int) (d)) >> 19)) : 0)
 
 #define NEGLECTING_CONSTANT   ((float)1e-20)
 
