@@ -31,8 +31,8 @@ typedef uint32_t M32Bit_12_24_32[12][24][32];
 typedef uint32_t M32Bit_24_24_32[24][24][32];
 typedef uint16_t M16Bit_24_24_32[24][24][32];
 typedef uint32_t M32Bit_1_1_50_32[1][1][50][32];
-typedef uint16_t   M16Bit_1_1_50_32[1][1][50][32];
-typedef uint8_t   M8Bit_1_1_50_32[1][1][50][32];
+typedef uint16_t M16Bit_1_1_50_32[1][1][50][32];
+typedef uint8_t  M8Bit_1_1_50_32[1][1][50][32];
 typedef uint32_t M32Bit_6_12_32[6][12][32];
 typedef uint32_t M32Bit_12_12_32[12][12][32];
 typedef uint16_t M16Bit_12_12_32[12][12][32];
@@ -40,18 +40,22 @@ typedef uint32_t M32Bit_12_12[12][12];
 typedef uint16_t M16Bit_12_12[12][12];
 typedef uint32_t M32Bit_6_12[6][12];
 typedef uint32_t M32Bit_2_2_32_32[2][2][32][32];
-typedef uint16_t   M16Bit_2_2_32_32[2][2][32][32];
-typedef uint8_t   M8Bit_2_2_32_32[2][2][32][32];
+typedef uint16_t M16Bit_2_2_32_32[2][2][32][32];
+typedef uint8_t  M8Bit_2_2_32_32[2][2][32][32];
 typedef uint32_t M32Bit_8_8_64[8][8][64];
 typedef uint16_t M16Bit_8_8_64[8][8][64];
 typedef uint32_t M32Bit_4_8_64[4][8][64];
 typedef uint16_t M16Bit_4_8_64[4][8][64];
+typedef uint16_t M16Bit_3_8_64[3][8][64];
+typedef uint16_t M16Bit_2_8_64[2][8][64];
 typedef uint32_t M32Bit_8_8[8][8];
 typedef uint16_t M16Bit_8_8[8][8];
 typedef uint32_t M32Bit_4_8[8][8];
+typedef uint16_t M16Bit_3_8[8][8];
+typedef uint16_t M16Bit_2_8[8][8];
 typedef uint32_t M32Bit_5_5_32_64[5][5][32][64];
-typedef uint16_t   M16Bit_5_5_32_64[5][5][32][64];
-typedef uint8_t   M8Bit_5_5_32_64[5][5][32][64];
+typedef uint16_t M16Bit_5_5_32_64[5][5][32][64];
+typedef uint8_t  M8Bit_5_5_32_64[5][5][32][64];
 typedef uint32_t M32Bit_2_4_64[2][4][64];
 typedef uint32_t M32Bit_4_4_64[4][4][64];
 typedef uint16_t M16Bit_4_4_64[4][4][64];
@@ -59,20 +63,20 @@ typedef uint32_t M32Bit_4_4[4][4];
 typedef uint16_t M16Bit_4_4[4][4];
 typedef uint32_t M32Bit_2_4[2][4];
 typedef uint32_t M32Bit_2_2_64_64[2][2][64][64];
-typedef uint16_t   M16Bit_2_2_64_64[2][2][64][64];
-typedef uint8_t   M8Bit_2_2_64_64[2][2][64][64];
+typedef uint16_t M16Bit_2_2_64_64[2][2][64][64];
+typedef uint8_t  M8Bit_2_2_64_64[2][2][64][64];
 typedef uint32_t M32Bit_1_1_1024[1][1][1024];
 typedef uint16_t M16Bit_1_1_1024[1][1][1024];
 typedef uint32_t M32Bit_1_1[1][1];
 typedef uint16_t M16Bit_1_1[1][1];
 typedef uint32_t M32Bit_4_4_64_1024[4][4][64][1024];
-typedef uint16_t   M16Bit_4_4_64_1024[4][4][64][1024];
-typedef uint8_t   M8Bit_4_4_64_1024[4][4][64][1024];
+typedef uint16_t M16Bit_4_4_64_1024[4][4][64][1024];
+typedef uint8_t  M8Bit_4_4_64_1024[4][4][64][1024];
 typedef uint32_t M32Bit_1_1_10[1][1][10];
 typedef uint16_t M16Bit_1_1_10[1][1][10];
 typedef uint32_t M32Bit_1_1_1024_10[1][1][1024][10];
-typedef uint16_t   M16Bit_1_1_1024_10[1][1][1024][10];
-typedef uint8_t   M8Bit_1_1_1024_10[1][1][1024][10];
+typedef uint16_t M16Bit_1_1_1024_10[1][1][1024][10];
+typedef uint8_t  M8Bit_1_1_1024_10[1][1][1024][10];
 
 typedef struct
 {
@@ -241,6 +245,18 @@ M32BitFormat M32BitFormat_list[] =
         .dimension_size = {4, 8, 64, 0}
     },
     {
+        .type_id = M16BIT_3_8_64_ID,
+        .data_type_size = sizeof(uint16_t),
+        .dimensionality = 3,
+        .dimension_size = {3, 8, 64, 0}
+    },
+    {
+        .type_id = M16BIT_2_8_64_ID,
+        .data_type_size = sizeof(uint16_t),
+        .dimensionality = 3,
+        .dimension_size = {2, 8, 64, 0}
+    },
+    {
         .type_id = M32BIT_8_8_ID,
         .data_type_size = sizeof(uint32_t),
         .dimensionality = 2,
@@ -263,6 +279,18 @@ M32BitFormat M32BitFormat_list[] =
         .data_type_size = sizeof(uint16_t),
         .dimensionality = 2,
         .dimension_size = {4, 8, 0, 0}
+    },
+    {
+        .type_id = M16BIT_3_8_ID,
+        .data_type_size = sizeof(uint16_t),
+        .dimensionality = 2,
+        .dimension_size = {3, 8, 0, 0}
+    },
+    {
+        .type_id = M16BIT_2_8_ID,
+        .data_type_size = sizeof(uint16_t),
+        .dimensionality = 2,
+        .dimension_size = {2, 8, 0, 0}
     },
     {
         .type_id = M32BIT_5_5_32_64_ID,
@@ -705,6 +733,10 @@ void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uin
       return &(*(M32Bit_4_8_64*) multivector->data)[row][column];
     case M16BIT_4_8_64_ID:
       return &(*(M16Bit_4_8_64*) multivector->data)[row][column];
+    case M16BIT_3_8_64_ID:
+      return &(*(M16Bit_3_8_64*) multivector->data)[row][column];
+    case M16BIT_2_8_64_ID:
+      return &(*(M16Bit_2_8_64*) multivector->data)[row][column];
     case M32BIT_8_8_ID:
       return &(*(M32Bit_8_8*) multivector->data)[row][column];
     case M16BIT_8_8_ID:

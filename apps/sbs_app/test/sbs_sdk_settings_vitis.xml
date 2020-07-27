@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cdtprojectproperties>
+<section name="org.eclipse.cdt.internal.ui.wizards.settingswizards.IncludePaths">
+<language name="s">
+
+</language>
+<language name="c,S">
+<includepath>${resolvePlatformFile:project=app,fileType=bspInclude}</includepath>
+<includepath>/home/yarib/work/app-framework-baremetal/libs/utilities/inc</includepath>
+<includepath>/home/yarib/work/app-framework-baremetal/libs/arm/inc</includepath>
+<includepath>/home/yarib/work/app-framework-baremetal/libs/sbs_hardware/inc</includepath>
+<includepath>/home/yarib/work/app-framework-baremetal/libs/sbs_neural_network/inc</includepath>
+<includepath>/home/yarib/work/app-framework-baremetal/apps/sbs_app/inc</includepath>
+
+</language>
+<language name="Object File">
+
+</language>
+<language name="ld">
+
+</language>
+</section>
+<section name="org.eclipse.cdt.internal.ui.wizards.settingswizards.Macros">
+<language name="s">
+
+</language>
+<language name="c,S">
+<macro>
+<name>DEBUG</name><value/>
+</macro>
+<macro>
+<name>MULTIVECTOR_USE_POINTER_ARITHMETICS</name><value/>
+</macro>
+
+</language>
+<language name="Object File">
+
+</language>
+<language name="ld">
+
+</language>
+</section>
+</cdtprojectproperties>

@@ -6,7 +6,7 @@
  */
 
 
-//#define DEBUG
+//#define DEBUG //  -g3 -O0 -DDEBUG
 
 
 #include "stdlib.h"
@@ -1751,6 +1751,8 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
       sleep (1);
       Event_print (network->event);
     }
+
+
 
     /************************ Ends Update cycle ******************************/
 

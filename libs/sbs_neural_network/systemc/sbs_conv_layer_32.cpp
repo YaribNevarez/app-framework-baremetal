@@ -114,7 +114,7 @@ typedef union
   float           f32;
 } Data32;
 
-#define MAX_VECTOR_SIZE             (64)
+#define MAX_VECTOR_SIZE             (32)
 #define MAX_SPIKE_MATRIX_SIZE       (25*25)
 #define MAX_INPUT_SPIKE_MATRIX_SIZE (5*5)
 
@@ -146,7 +146,7 @@ typedef struct
   int weightDepth;
 } SbsHardwareProfile;
 
-unsigned int sbs_convolution_layer (hls::stream<StreamChannel> &stream_in,
+unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
                                     hls::stream<StreamChannel> &stream_out,
                                     int * debug,
                                     SbsHwMode mode)
@@ -169,7 +169,7 @@ unsigned int sbs_convolution_layer (hls::stream<StreamChannel> &stream_in,
   static unsigned short input_spike_matrix[MAX_INPUT_SPIKE_MATRIX_SIZE];
 //#pragma HLS ARRAY_PARTITION variable=input_spike_matrix complete dim=1
 
-  static ap_uint<WEIGHT_VECTOR_WIDTH> weight_matrix[52000];
+  static ap_uint<WEIGHT_VECTOR_WIDTH> weight_matrix[1600];
 //#pragma HLS ARRAY_PARTITION variable=weight_matrix block factor=1 dim=1
 
   static unsigned short spike_matrix[MAX_SPIKE_MATRIX_SIZE];
@@ -192,6 +192,7 @@ unsigned int sbs_convolution_layer (hls::stream<StreamChannel> &stream_in,
   Data32 data;
 
   static float reverse_epsilon;
+  static float low_pass_epsilon;
   float sum;
 
   unsigned int debug_index = 0;
@@ -339,10 +340,11 @@ unsigned int sbs_convolution_layer (hls::stream<StreamChannel> &stream_in,
             {
   #pragma HLS pipeline
               epsion_over_sum = hwProfile.epsilon / sum;
+              low_pass_epsilon = reverse_epsilon * epsion_over_sum;
               for (int i = 0; i < hwProfile.vectorSize; i++)
               {
   #pragma HLS pipeline
-                state_vector[i] = reverse_epsilon * (state_vector[i] + temp_data[i] * epsion_over_sum);
+                state_vector[i] = reverse_epsilon * state_vector[i] + low_pass_epsilon * temp_data[i];
               }
             }
           }

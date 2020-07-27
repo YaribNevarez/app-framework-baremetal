@@ -5,9 +5,9 @@ fig, (ax1, ax2) = plt.subplots(2, 1)
 
 fig.suptitle('Performance')
 
-begin   = np.array([0.000, 0.001, 0.054, 0.059, 0.870, 0.874, 1.266, 1.270, 1.595, 1.598, 1.926, 1.929, 2.144, 2.149, 2.924, 3.038, 3.042])
-latency = np.array([3.085, 0.056, 1.653, 0.813, 2.176, 0.395, 1.666, 0.327, 2.146, 0.330, 2.145, 0.218, 1.431, 0.774, 0.116, 0.820, 0.042])
-event   = ["SbS_Network", "HX_IN_Software", "HX_IN_Hardware", "H1_CONV_Software", "H1_CONV_Hardware", "H2_POOL_Software", "H2_POOL_Hardware", "H3_CONV_Software", "H3_CONV_Hardware", "H3_CONV_Software", "H3_CONV_Hardware", "H3_CONV_Software", "H3_CONV_Hardware", "H4_POOL_Software", "H5_DENSE_Software", "H5_DENSE_Hardware", "HY_OUT_Software"]
+begin   = np.array([0.000, 0.001, 1.170, 6.000, 9.970, 31.702, 32.572, 36.024])
+latency = np.array([36.029, 1.167, 4.829, 3.967, 21.731, 0.868, 3.450, 0.004])
+event   = ["SbS_Network", "HX_IN_Software", "H1_CONV_Software", "H2_POOL_Software", "H3_CONV_Software", "H4_POOL_Software", "H5_DENSE_Software", "HY_OUT_Software"]
 
 ax1.barh(range(len(begin)),  latency, left=begin)
 ax1.grid(linestyle = ':')
@@ -21,11 +21,11 @@ ax1.tick_params(axis='both', which='minor', labelsize=1)
 plt.xlabel("Schedule (mS)")
 plt.ylabel("Task")
 
-data = [[ 0.001, 0.059, 0.874, 1.270, 1.598, 1.929, 2.149, 2.924, 3.042],
-        [ 0.056, 0.813, 0.395, 0.327, 0.330, 0.218, 0.774, 0.116, 0.042],
-        [ 1.653, 2.176, 1.666, 2.146, 2.145, 1.431, 0.000, 0.820, 0.000]]
+data = [[ 0.001, 1.170, 6.000, 9.970, 31.702, 32.572, 36.024],
+        [ 1.167, 4.829, 3.967, 21.731, 0.868, 3.450, 0.004],
+        [ 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000]]
 
-columns = ("HX_IN", "H1_CONV", "H2_POOL", "H3_CONV", "H3_CONV", "H3_CONV", "H4_POOL", "H5_DENSE", "HY_OUT")
+columns = ("HX_IN", "H1_CONV", "H2_POOL", "H3_CONV", "H4_POOL", "H5_DENSE", "HY_OUT")
 rows = ["Hardware", "Software", "II OFFSET"]
 
 # Get some pastel shades for the colors

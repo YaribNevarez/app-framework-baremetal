@@ -61,6 +61,18 @@ int SbSUpdateAccelerator_getGroupFromList (SbsLayerType layerType,
 
 #define ACCELERATOR_DMA_RESET_TIMEOUT 10000
 
+inline static void Accelerator_txISR (SbSUpdateAccelerator * accelerator) __attribute__((always_inline));
+
+inline static void Accelerator_txISR (SbSUpdateAccelerator * accelerator)
+{
+  ASSERT(accelerator != NULL);
+
+  if (accelerator != NULL)
+  {
+    accelerator->txDone = 1;
+  }
+}
+
 static void Accelerator_txInterruptHandler (void * data)
 {
   DMAHardware * driver  = ((SbSUpdateAccelerator *) data)->hardwareConfig->dmaDriver;
@@ -88,7 +100,29 @@ static void Accelerator_txInterruptHandler (void * data)
     return;
   }
 
-  if (irq_status & DMA_IRQ_IOC) ((SbSUpdateAccelerator *) data)->txDone = 1;
+  if (irq_status & DMA_IRQ_IOC)
+    Accelerator_txISR ((SbSUpdateAccelerator *) data);
+}
+
+
+inline static void Accelerator_rxISR (SbSUpdateAccelerator * accelerator) __attribute__((always_inline));
+
+inline static void Accelerator_rxISR (SbSUpdateAccelerator * accelerator)
+{
+  ASSERT (accelerator != NULL);
+
+  if (accelerator != NULL)
+  {
+    Xil_DCacheInvalidateRange ((INTPTR) accelerator->rxBuffer,
+			       accelerator->rxBufferSize);
+
+    accelerator->rxDone = 1;
+
+    if (accelerator->memory_cmd.cmdID == MEM_CMD_MOVE)
+      memcpy (accelerator->memory_cmd.dest,
+	      accelerator->memory_cmd.src,
+	      accelerator->memory_cmd.size);
+  }
 }
 
 static void Accelerator_rxInterruptHandler (void * data)
@@ -120,18 +154,7 @@ static void Accelerator_rxInterruptHandler (void * data)
   }
 
   if (irq_status & DMA_IRQ_IOC)
-  {
-    Xil_DCacheInvalidateRange ((INTPTR) accelerator->rxBuffer,
-                               accelerator->rxBufferSize);
-
-    accelerator->txDone = 1;
-    accelerator->rxDone = 1;
-
-    if (accelerator->memory_cmd.cmdID == MEM_CMD_MOVE)
-      memcpy (accelerator->memory_cmd.dest,
-              accelerator->memory_cmd.src,
-              accelerator->memory_cmd.size);
-  }
+    Accelerator_rxISR (accelerator);
 }
 
 static int sbs_accelerator_debug[100000] = { 0 };
@@ -165,6 +188,13 @@ static void Accelerator_hardwareInterruptHandler (void * data)
 
   status = hwDriver->InterruptGetStatus (accelerator->updateHardware);
   hwDriver->InterruptClear (accelerator->updateHardware, status);
+
+  if (!accelerator->hardwareConfig->dmaTxIntVecID)
+    Accelerator_txISR (accelerator);
+
+  if (!accelerator->hardwareConfig->dmaRxIntVecID)
+    Accelerator_rxISR (accelerator);
+
   /*!! Clear profile BEFORE making the accelerator ready !!*/
   accelerator->hardwareConfig->profile = NULL;
   accelerator->acceleratorReady = status & 1;

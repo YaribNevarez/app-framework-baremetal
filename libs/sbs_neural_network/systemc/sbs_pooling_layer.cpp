@@ -107,7 +107,7 @@ typedef union
 } Data32;
 
 #define MAX_VECTOR_SIZE             (64)
-#define MAX_SPIKE_MATRIX_SIZE       (60*60)
+#define MAX_SPIKE_MATRIX_SIZE       (12*12)
 #define MAX_INPUT_SPIKE_MATRIX_SIZE (2*2)
 
 #define DATA16_TO_FLOAT32(d)  ((0xFFFF & (d)) ? (0x30000000 | (((unsigned int) (0xFFFF & (d))) << 12)) : 0)
@@ -147,13 +147,13 @@ unsigned int sbs_pooling_layer (hls::stream<StreamChannel> &stream_in,
   static StreamChannel channel;
 
   static unsigned short input_spike_matrix[MAX_INPUT_SPIKE_MATRIX_SIZE];
-//#pragma HLS array_partition variable=input_spike_matrix complete
+//#pragma HLS array_partition variable=input_spike_matrix block factor=1
 
   static unsigned short spike_matrix[MAX_SPIKE_MATRIX_SIZE];
-//#pragma HLS array_partition variable=spike_matrix block factor=4
+//#pragma HLS array_partition variable=spike_matrix block factor=2
 
   static float state_vector[MAX_VECTOR_SIZE];
-//#pragma HLS array_partition variable=state_vector block factor=4
+#pragma HLS array_partition variable=state_vector block factor=1
 
   static float random_value;
 
@@ -163,6 +163,7 @@ unsigned int sbs_pooling_layer (hls::stream<StreamChannel> &stream_in,
   static Data32 register_B;
 
   float reverse_epsilon = 1.0f / (1.0f + epsilon);
+  float epsilon_reverse_epsilon = epsilon * reverse_epsilon;
   float weight = 1.0f / ((float) kernelSize);
   float sum = 0.0;
   float h;
@@ -275,7 +276,7 @@ unsigned int sbs_pooling_layer (hls::stream<StreamChannel> &stream_in,
           if (input_spike == i)
           {
 #pragma HLS pipeline
-            state_vector[i] = reverse_epsilon * (h + epsilon);
+            state_vector[i] = reverse_epsilon * h + epsilon_reverse_epsilon;
           }
           else if (h != 0)
           {

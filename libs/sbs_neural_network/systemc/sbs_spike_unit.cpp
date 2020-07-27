@@ -5,19 +5,6 @@
 #define MT19937_HW true
 
 #if MT19937_HW
-typedef unsigned int MT19937;
-
-static unsigned int MT19937_flags_ = 0;
-
-typedef enum
-{
-  INITIALIZED = 1 << 0
-} MT19937Flags;
-
-static unsigned int MT19937_initialized (unsigned int instance)
-{
-  return MT19937_flags_ & INITIALIZED;
-}
 
 /* Period parameters */
 #define N 624
@@ -34,31 +21,19 @@ static unsigned int MT19937_initialized (unsigned int instance)
 #define TEMPERING_SHIFT_T(y)  (y << 15)
 #define TEMPERING_SHIFT_L(y)  (y >> 18)
 
-static unsigned int mt[N]; /* the array for the state vector  */
-static unsigned int mti=N+1; /* mti==N+1 means mt[N] is not initialized */
+#define MT19937_SEED 666
 
-/* initializing the array with a NONZERO seed */
-static void MT19937_sgenrand (unsigned int instance, unsigned int seed)
-{
-  /* setting initial seeds to mt[N] using         */
-  /* the generator Line 25 of Table 1 in          */
-  /* [KNUTH 1981, The Art of Computer Programming */
-  /*    Vol. 2 (2nd Ed.), pp102]                  */
-  mt[0] = seed & 0xffffffff;
-  for (mti = 1; mti < N; mti++)
-  {
-#pragma HLS pipeline
-    mt[mti] = (69069 * mt[mti - 1]) & 0xffffffff;
-  }
-
-  MT19937_flags_ |= INITIALIZED;
-}
-
-static unsigned int MT19937_rand (unsigned int instance)
+static unsigned int MT19937_rand (void)
 {
 #pragma HLS inline off
+  static unsigned int mt[N]; /* the array for the state vector  */
+#pragma HLS ARRAY_PARTITION variable=mt block factor=1 dim=1
+
+  static unsigned int mti = N + 1; /* mti==N+1 means mt[N] is not initialized */
+
   unsigned int y;
   static unsigned int mag01[2] = { 0x0, MATRIX_A };
+#pragma HLS array_partition variable=mag01 complete
   /* mag01[x] = x * MATRIX_A  for x=0,1 */
 
   if (mti >= N)
@@ -66,8 +41,13 @@ static unsigned int MT19937_rand (unsigned int instance)
     int kk;
 
     if (mti == N + 1)
-    {/* if sgenrand() has not been called, */
-      MT19937_sgenrand (instance, 4357); /* a default initial seed is used   */
+    {
+	  mt[0] = MT19937_SEED & 0xffffffff;
+	  for (mti = 1; mti < N; mti++)
+	  {
+#pragma HLS pipeline
+		mt[mti] = (69069 * mt[mti - 1]) & 0xffffffff;
+	  }
     }
 
     for (kk = 0; kk < N - M; kk++)
@@ -138,7 +118,7 @@ void sbs_spike_unit (hls::stream<StreamChannel> &stream_in,
 #pragma HLS INTERFACE s_axilite port=return      bundle=CRTL_BUS
 
   static float data[MAX_VECTOR_SIZE];
-//#pragma HLS array_partition variable=data complete
+#pragma HLS array_partition variable=data complete
 
   unsigned int debug_flags;
 
@@ -153,17 +133,10 @@ void sbs_spike_unit (hls::stream<StreamChannel> &stream_in,
   channel.keep = -1;
   channel.strb = -1;
 
-#if MT19937_HW
-  if (!MT19937_initialized (0))
-  {
-    MT19937_sgenrand (0, 666);
-  }
-#endif
-
   for (int ip_index = 0; ip_index < layerSize; ip_index++)
   {
 #if MT19937_HW
-    random_value = ((float) MT19937_rand (0)) / ((float) 0xFFFFFFFF);
+    random_value = ((float) MT19937_rand ()) / ((float) 0xFFFFFFFF);
 #else
 #pragma HLS pipeline
 
