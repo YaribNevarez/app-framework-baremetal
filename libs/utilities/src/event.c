@@ -245,20 +245,29 @@ static NavigationReturn Event_collectScheduleData (Event * event, void * data)
         || (event->parent == NULL))
     {
       TextLines * text = (TextLines*) data;
-      char * layer_name = "";
+      char * layer_name;
+      char * color;
 
       if (event->first_child == NULL)
-      {
+      { // Hardware
         layer_name = event->parent->parent->data;
+        color = "#1864ab";
       }
       else if (event->first_child->first_child == NULL)
-      {
+      { // Software
         layer_name = event->parent->data;
+        color = "#4a98c9";
+      }
+      else
+      { // Network
+        layer_name = "";
+        color = "#94c4df";
       }
 
       sprintf (&(*text)[0][strlen ((*text)[0])], "%.3lf, ", event->absolute_offset * 1000);
       sprintf (&(*text)[1][strlen ((*text)[1])], "%.3lf, ", event->latency * 1000);
       sprintf (&(*text)[2][strlen ((*text)[2])], "\"%s_%s\", ", layer_name, (char*) event->data);
+      sprintf (&(*text)[3][strlen ((*text)[3])], "\"%s\", ", color);
     }
     result = NAV_CONTINUE;
   }
@@ -306,6 +315,7 @@ void Event_print (Event * event)
     printf ("Absolute offset: [%s]\n", data[0]);
     printf ("Latency:         [%s]\n", data[1]);
     printf ("Name:            [%s]\n", data[2]);
+    printf ("Color:           [%s]\n", data[3]);
 
     memset (data, 0, sizeof(data));
     Event_navegate (event, Event_collectLatencyData, data);

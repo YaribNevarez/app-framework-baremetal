@@ -5,11 +5,13 @@ fig, (ax1, ax2) = plt.subplots(2, 1)
 
 fig.suptitle('Performance')
 
-begin   = np.array([0.000, 0.001, 1.170, 6.000, 9.970, 31.702, 32.572, 36.024])
-latency = np.array([36.029, 1.167, 4.829, 3.967, 21.731, 0.868, 3.450, 0.004])
-event   = ["SbS_Network", "HX_IN_Software", "H1_CONV_Software", "H2_POOL_Software", "H3_CONV_Software", "H4_POOL_Software", "H5_DENSE_Software", "HY_OUT_Software"]
+begin   = np.array([0.000, 0.001, 0.053, 0.057, 1.305, 1.309, 1.565, 1.569, 1.780, 1.783, 1.988, 1.991, 2.127, 2.131, 2.166, 2.170, 2.254, 2.259])
+latency = np.array([2.264, 0.055, 2.242, 1.250, 2.268, 0.259, 2.131, 0.213, 1.978, 0.208, 1.979, 0.138, 1.319, 0.038, 0.445, 0.087, 0.915, 0.004])
+event   = ["SbS_Network", "HX_IN_Software", "HX_IN_Hardware", "H1_CONV_Software", "H1_CONV_Hardware", "H2_POOL_Software", "H2_POOL_Hardware", "H3_CONV_Software", "H3_CONV_Hardware", "H3_CONV_Software", "H3_CONV_Hardware", "H3_CONV_Software", "H3_CONV_Hardware", "H4_POOL_Software", "H4_POOL_Hardware", "H5_DENSE_Software", "H5_DENSE_Hardware", "HY_OUT_Software"]
+colors = ["#94c4df", "#4a98c9", "#1864ab", "#4a98c9", "#1864ab", "#4a98c9", "#1864ab", "#4a98c9", "#1864ab", "#4a98c9", "#1864ab", "#4a98c9", "#1864ab", "#4a98c9", "#1864ab", "#4a98c9", "#1864ab", "#4a98c9"]
 
-ax1.barh(range(len(begin)),  latency, left=begin)
+
+ax1.barh(range(len(begin)),  latency, left=begin, color=colors)
 ax1.grid(linestyle = ':')
 
 
@@ -21,15 +23,15 @@ ax1.tick_params(axis='both', which='minor', labelsize=1)
 plt.xlabel("Schedule (mS)")
 plt.ylabel("Task")
 
-data = [[ 0.001, 1.170, 6.000, 9.970, 31.702, 32.572, 36.024],
-        [ 1.167, 4.829, 3.967, 21.731, 0.868, 3.450, 0.004],
-        [ 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000]]
+data = [[ 0.001, 0.057, 1.309, 1.569, 1.783, 1.991, 2.131, 2.170, 2.259],
+        [ 0.055, 1.250, 0.259, 0.213, 0.208, 0.138, 0.038, 0.087, 0.004],
+        [ 2.242, 2.268, 2.131, 1.978, 1.979, 1.319, 0.445, 0.915, 0.000]]
 
-columns = ("HX_IN", "H1_CONV", "H2_POOL", "H3_CONV", "H4_POOL", "H5_DENSE", "HY_OUT")
+columns = ("HX_IN", "H1_CONV", "H2_POOL", "H3_CONV", "H3_CONV", "H3_CONV", "H4_POOL", "H5_DENSE", "HY_OUT")
 rows = ["Hardware", "Software", "II OFFSET"]
 
 # Get some pastel shades for the colors
-colors = plt.cm.Blues(np.linspace(0.5, .75, len(rows)))
+colors = plt.cm.Blues(np.linspace(0.4, 0.8, len(rows)))
 n_rows = len(data)
 
 index = np.arange(len(columns)) + 0.3

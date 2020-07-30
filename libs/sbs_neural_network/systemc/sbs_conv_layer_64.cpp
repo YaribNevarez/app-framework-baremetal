@@ -178,7 +178,7 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
   static float state_vector[MAX_VECTOR_SIZE];
 //#pragma HLS ARRAY_PARTITION variable=state_vector complete dim=1
 
-  static float weight_vector[MAX_VECTOR_SIZE];
+//  static float weight_vector[MAX_VECTOR_SIZE];
 //#pragma HLS ARRAY_PARTITION variable=weight_vector block factor=32 dim=1
 
   static float temp_data[MAX_VECTOR_SIZE];
@@ -192,6 +192,7 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
   Data32 data;
 
   static float reverse_epsilon;
+  static float low_pass_epsilon;
   float sum;
 
   unsigned int debug_index = 0;
@@ -320,18 +321,12 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
   #pragma HLS pipeline
             int tensor_index = input_spike_matrix[batch] * hwProfile.vectorSize + weight_matrix_index;
 
-            for (int i = 0; i < hwProfile.vectorSize; i++)
-            {
-  #pragma HLS pipeline
-              data.u32 = DATA08_TO_FLOAT32(weight_matrix[tensor_index + i]);
-              weight_vector[i] = data.f32;
-            }
-
             sum = 0.0f;
             for (int i = 0; i < hwProfile.vectorSize; i++)
             {
   #pragma HLS pipeline
-              temp_data[i] = state_vector[i] * weight_vector[i];
+              data.u32 = DATA08_TO_FLOAT32(weight_matrix[tensor_index + i]);
+              temp_data[i] = state_vector[i] * data.f32;
               sum += temp_data[i];
             }
 
@@ -339,10 +334,11 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
             {
   #pragma HLS pipeline
               epsion_over_sum = hwProfile.epsilon / sum;
-              for (int i = 0; i < hwProfile.vectorSize; i++)
+              low_pass_epsilon = reverse_epsilon * epsion_over_sum;
+              update_loop: for (int i = 0; i < hwProfile.vectorSize; i++)
               {
   #pragma HLS pipeline
-                state_vector[i] = reverse_epsilon * (state_vector[i] + temp_data[i] * epsion_over_sum);
+                state_vector[i] = reverse_epsilon * state_vector[i] + low_pass_epsilon * temp_data[i];
               }
             }
           }

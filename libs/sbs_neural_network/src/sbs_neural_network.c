@@ -1747,10 +1747,10 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
                                           i ? network->layer_array[i - 1] : NULL);
       }
       Event_stop (network->event);
-
-      sleep (1);
-      Event_print (network->event);
     }
+
+    sleep (1);
+    Event_print (network->event);
 
 
 

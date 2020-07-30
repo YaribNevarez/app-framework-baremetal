@@ -176,10 +176,10 @@ unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
 //#pragma HLS ARRAY_PARTITION variable=spike_matrix block factor=32 dim=1
 
   static float state_vector[MAX_VECTOR_SIZE];
-//#pragma HLS ARRAY_PARTITION variable=state_vector complete dim=1
+//#pragma HLS ARRAY_PARTITION variable=state_vector factor=4 dim=1
 
-  static float weight_vector[MAX_VECTOR_SIZE];
-//#pragma HLS ARRAY_PARTITION variable=weight_vector block factor=32 dim=1
+//  static float weight_vector[MAX_VECTOR_SIZE];
+//#pragma HLS ARRAY_PARTITION variable=weight_vector block factor=4 dim=1
 
   static float temp_data[MAX_VECTOR_SIZE];
 //#pragma HLS ARRAY_PARTITION variable=temp_data block factor=32 dim=1
@@ -321,18 +321,12 @@ unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
   #pragma HLS pipeline
             int tensor_index = input_spike_matrix[batch] * hwProfile.vectorSize + weight_matrix_index;
 
-            for (int i = 0; i < hwProfile.vectorSize; i++)
-            {
-  #pragma HLS pipeline
-              data.u32 = DATA08_TO_FLOAT32(weight_matrix[tensor_index + i]);
-              weight_vector[i] = data.f32;
-            }
-
             sum = 0.0f;
             for (int i = 0; i < hwProfile.vectorSize; i++)
             {
   #pragma HLS pipeline
-              temp_data[i] = state_vector[i] * weight_vector[i];
+              data.u32 = DATA08_TO_FLOAT32(weight_matrix[tensor_index + i]);
+              temp_data[i] = state_vector[i] * data.f32;
               sum += temp_data[i];
             }
 
@@ -341,8 +335,9 @@ unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
   #pragma HLS pipeline
               epsion_over_sum = hwProfile.epsilon / sum;
               low_pass_epsilon = reverse_epsilon * epsion_over_sum;
-              for (int i = 0; i < hwProfile.vectorSize; i++)
+              for (int i = 0; i < MAX_VECTOR_SIZE; i++)
               {
+  #pragma HLS unroll
   #pragma HLS pipeline
                 state_vector[i] = reverse_epsilon * state_vector[i] + low_pass_epsilon * temp_data[i];
               }
