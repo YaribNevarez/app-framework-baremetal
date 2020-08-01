@@ -1954,6 +1954,20 @@ static SbsWeightMatrix SbsWeightMatrix_new (uint16_t rows,
         ASSERT((rc == FR_OK) && (read_size == data_size));
         f_close (&fil);
 
+        ///////////////////////////////////////////////////////////////////////
+        Histogram histogram;
+        Multivector_getHistogram (weight_watrix, &histogram);
+        if (histogram.bin_array_len < 32)
+        {
+          for (int i = 0; i < histogram.bin_array_len; i ++)
+          {
+            printf ("'-%d':%.2f, ", i, 100.0 * ((float) histogram.bin_array[i]) / ((float) histogram.total_samples));
+          }
+
+          printf ("\n");
+        }
+        ///////////////////////////////////////////////////////////////////////
+
         if (memcmp(&weight_watrix->format,
                    &SbsSettings_.weight_matrix_format,
                    sizeof(SbsSettings_.weight_matrix_format)) != 0)

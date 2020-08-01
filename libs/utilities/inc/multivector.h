@@ -14,6 +14,7 @@ extern "C" {
 /***************************** Include Files *********************************/
 #include "memory_manager.h"
 #include "stdio.h"
+#include "result.h"
 
 /***************** Macros (Inline Functions) Definitions *********************/
 typedef enum
@@ -141,6 +142,16 @@ Multivector * Multivector_reformat (MemoryBlock * memory_def,
                                     Multivector * original,
                                     Format * new_format,
                                     size_t memory_padding);
+
+typedef struct
+{
+  int total_samples;
+  int bin_array_len;
+  int bin_array[32];
+} Histogram;
+
+Result Multivector_getHistogram (Multivector * multivector, Histogram * histogram);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

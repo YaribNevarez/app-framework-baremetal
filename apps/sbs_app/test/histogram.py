@@ -1,38 +1,15 @@
 import matplotlib.pyplot as plt
-import numpy as np
-from matplotlib import colors
-from matplotlib.ticker import PercentFormatter
 
-# Fixing random state for reproducibility
-np.random.seed(19680801)
+data_X_H1  = {'0':0.00, '-1':0.00, '-2':0.12, '-3':1.00, '-4':2.75, '-5':16.50, '-6':29.00, '-7':14.12, '-8':6.44, '-9':3.38, '-10':2.38, '-11':1.69, '-12':2.31, '-13':6.25}
+data_H2_H3 = {'0':0.00, '-1':0.00, '-2':0.00, '-3':0.00, '-4':0.07, '-5':0.24, '-6':0.93, '-7':2.55, '-8':4.08, '-9':5.24, '-10':6.02, '-11':7.91, '-12':10.17, '-13':17.15}
+data_H4_H5 = {'0':0.00, '-1':0.00, '-2':0.00, '-3':0.00, '-4':0.00, '-5':0.01, '-6':0.15, '-7':1.15, '-8':4.47, '-9':8.53, '-10':10.96, '-11':12.16, '-12':14.15, '-13':20.68}
+data_H5_HY = {'0':0.00, '-1':0.00, '-2':0.00, '-3':0.00, '-4':0.00, '-5':0.12, '-6':0.34, '-7':0.81, '-8':2.20, '-9':6.28, '-10':14.79, '-11':23.58, '-12':21.67, '-13':14.13}
 
-N_points = 1600
-n_bins = 8
-
-# Generate a normal distribution, center at x=0 and y=5
-a = np.random.randn(N_points)
-b = np.random.randn(N_points)
-
-fig, axs = plt.subplots(1, 2, tight_layout=True)
-
-# N is the count in each bin, bins is the lower-limit of the bin
-N, bins, patches = axs[0].hist(a, bins=n_bins)
-
-# We'll color code by height, but you could use any scalar
-fracs = N / N.max()
-
-# we need to normalize the data to 0..1 for the full range of the colormap
-norm = colors.Normalize(fracs.min(), fracs.max())
-
-# Now, we'll loop through our objects and set the color of each accordingly
-for thisfrac, thispatch in zip(fracs, patches):
-    color = plt.cm.viridis(norm(thisfrac))
-    thispatch.set_facecolor(color)
-
-# We can also normalize our inputs by the total number of counts
-axs[1].hist(a, bins=n_bins, density=True)
-
-# Now we format the y-axis to display percentage
-axs[1].yaxis.set_major_formatter(PercentFormatter(xmax=1))
+fig, axs = plt.subplots(1, 4, figsize=(9, 3), sharey=True)
+axs[0].bar(list(data_X_H1.keys()), list(data_X_H1.values()))
+axs[1].bar(list(data_H2_H3.keys()), list(data_H2_H3.values()))
+axs[2].bar(list(data_H4_H5.keys()), list(data_H4_H5.values()))
+axs[3].bar(list(data_H5_HY.keys()), list(data_H5_HY.values()))
+fig.suptitle('Weight histogram')
 
 plt.show()

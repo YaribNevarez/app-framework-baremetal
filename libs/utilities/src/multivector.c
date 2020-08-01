@@ -1084,3 +1084,69 @@ Multivector * Multivector_reformat (MemoryBlock * memory_def,
   return duplicate;
 }
 
+Result Multivector_getHistogram (Multivector * multivector, Histogram * histogram)
+{
+  ASSERT (multivector != NULL);
+  ASSERT (multivector->format.representation == FLOAT);
+  ASSERT (multivector->format.size == sizeof(float));
+  ASSERT (histogram != NULL);
+
+  if ((multivector != NULL)
+      && (multivector->format.representation == FLOAT)
+      && (multivector->format.size == sizeof(float))
+      && (histogram != NULL))
+  {
+    typedef union
+    {
+      float     f32;
+      uint32_t  i32;
+    } Data32;
+
+    int total_samples = 1;
+    int8_t exponent;
+    Data32 * data = multivector->data;
+
+    memset (histogram, 0, sizeof(Histogram));
+
+    ASSERT (0 < multivector->dimensionality);
+
+    for (int i = 0; i < multivector->dimensionality; i ++)
+    {
+      ASSERT (0 < multivector->dimension_size[i]);
+      total_samples *= multivector->dimension_size[i];
+    }
+
+    for (int i = 0; i < total_samples; i ++)
+    {
+      exponent = 0xFF & (data[i].i32 >> 23);
+
+      ASSERT (exponent < 0x80);
+      if (!(exponent < 0x80))
+        return ERROR;
+
+      exponent -= 127;
+
+      ASSERT (exponent < 0);
+      if (exponent < 0)
+      {
+        histogram->bin_array[-exponent] ++;
+        if (histogram->bin_array_len < -exponent)
+        {
+          histogram->bin_array_len = -exponent;
+        }
+      }
+      else
+      {
+        return ERROR;
+      }
+    }
+
+    histogram->total_samples = total_samples;
+  }
+  else
+  {
+    return ERROR;
+  }
+
+  return OK;
+}
