@@ -1,5 +1,5 @@
 #  Accelerator Framework of Spike-by-Spike Neural Networks in Embedded Systems (Xilinx FPGA)
-This repository contains a heterogeneous collection of specialized hardware accelerators for inference of SbS NN in embedded systems. Ths implementation achieves 2.3 latency for inference in cyclic operation.
+This repository contains a heterogeneous collection of specialized hardware accelerators for inference of SbS NN in embedded systems. Ths implementation achieves 2.3 mS latency for inference in cyclic operation (434.8 fps), 15x performance enhancement compared with pure software.
 
 ## Functional features
 The following is a list of the specialized hardware:
