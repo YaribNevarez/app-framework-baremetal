@@ -62,7 +62,7 @@ SbsHardware SbsHardware_custom =
   .DisableAutoRestart = (void (*) (void *))     XSbs_accelerator_unit_DisableAutoRestart,
   .Get_return =         (uint32_t(*) (void *))  XSbs_accelerator_unit_Get_return,
 
-  .Set_mode =       (void (*) (void *, uint32_t ))  NULL,
+  .Set_mode =       (void (*) (void *, SbsHwMode )) NULL,
   .Get_mode =       (uint32_t(*) (void *))          NULL,
   .Set_layerSize =  (void (*) (void *, uint32_t ))  XSbs_accelerator_unit_Set_layerSize,
   .Get_layerSize =  (uint32_t(*) (void *))          XSbs_accelerator_unit_Get_layerSize,

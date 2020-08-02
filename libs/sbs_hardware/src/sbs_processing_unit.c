@@ -346,11 +346,12 @@ void Accelerator_delete (SbSUpdateAccelerator ** accelerator)
   }
 }
 
-void Accelerator_loadCoefficients (SbSUpdateAccelerator * accelerator,
-                                   SbsAcceleratorProfie * profile,
-                                   Multivector * weight_matrix,
-                                   int row_vector)
+Result Accelerator_loadCoefficients (SbSUpdateAccelerator * accelerator,
+                                     SbsAcceleratorProfie * profile,
+                                     Multivector * weight_matrix,
+                                     int row_vector)
 {
+  Result result = ERROR;
   ASSERT (accelerator != NULL);
   ASSERT (accelerator->hardwareConfig != NULL);
   ASSERT (accelerator->hardwareConfig->hwDriver != NULL);
@@ -364,7 +365,6 @@ void Accelerator_loadCoefficients (SbSUpdateAccelerator * accelerator,
       && (accelerator->hardwareConfig->hwDriver != NULL)
       && (accelerator->hardwareConfig->hwDriver->Set_mode))
   {
-    int status;
     static uint8_t buffer[52000] = { 0 };
     void * weight_vector = NULL;
     void * buffer_ptr = buffer;
@@ -411,16 +411,18 @@ void Accelerator_loadCoefficients (SbSUpdateAccelerator * accelerator,
     accelerator->hardwareConfig->hwDriver->Start (accelerator->updateHardware);
     Event_start (profile->event);
 
-    status = accelerator->hardwareConfig->dmaDriver->Move (accelerator->dmaHardware,
+    result = accelerator->hardwareConfig->dmaDriver->Move (accelerator->dmaHardware,
                                                            buffer,
                                                            (size_t) (buffer_ptr - (void*) buffer),
                                                            MEMORY_TO_HARDWARE);
-    ASSERT(status == XST_SUCCESS);
+    ASSERT(result == XST_SUCCESS);
 
     while (!accelerator->acceleratorReady);
 
     accelerator->hardwareConfig->hwDriver->Set_mode (accelerator->updateHardware, SBS_HW_INFERENCE);
   }
+
+  return result;
 }
 
 void Accelerator_setup (SbSUpdateAccelerator * accelerator,
@@ -640,7 +642,7 @@ SbsAcceleratorProfie * SbsAcceleratorProfie_new (SbsLayerType layerType,
                                                  Multivector * weight_matrix,
                                                  Multivector * spike_matrix,
                                                  uint32_t kernel_size,
-                                                 uint32_t epsilon,
+                                                 float epsilon,
                                                  MemoryCmd memory_cmd,
                                                  Event * parent_event)
 {
@@ -675,7 +677,7 @@ SbsAcceleratorProfie * SbsAcceleratorProfie_new (SbsLayerType layerType,
     profile->vectorSize = state_matrix->dimension_size[2];
 
     profile->kernelSize = kernel_size * kernel_size;
-    profile->epsilon = epsilon;
+    profile->epsilon = *(uint32_t*) &epsilon;
 
     profile->stateBufferSize = profile->vectorSize * state_matrix->format.size;
 

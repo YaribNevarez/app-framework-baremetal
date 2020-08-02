@@ -15,48 +15,12 @@ extern "C" {
 #include <stddef.h>
 
 #include <result.h>
+#include "sbs_layer.h"
+#include "sbs_weight_matrix.h"
 #include "sbs_processing_unit.h"
 
 #pragma pack(push)
 #pragma pack(1)
-
-typedef enum
-{
-  SBS_LEARNING_NONE,
-  SBS_LEARNING_DELTA_MSE,
-  SBS_LEARNING_RELATIVE_ENTROPY
-} SbsLearningRule;
-
-typedef enum
-{
-  ROW_SHIFT,
-  COLUMN_SHIFT
-} WeightShift;
-
-typedef float     	NeuronState;
-typedef uint32_t    Epsilon;
-typedef void * 		  SbsWeightMatrix;
-
-typedef struct SbsLayer_VTable SbsLayer;
-struct SbsLayer_VTable
-{
-  SbsLayer * (*new)        (SbsLayerType layer_type,
-                            uint16_t rows,
-                            uint16_t columns,
-                            uint16_t neurons,
-                            uint16_t kernel_size,
-                            uint16_t kernel_stride,
-                            WeightShift weight_shift);
-  void       (*delete)     (SbsLayer ** layer);
-  void       (*setEpsilon) (SbsLayer * layer, float epsilon);
-  void       (*setLearningRule) (SbsLayer * layer,
-                                 SbsLearningRule rule,
-                                 double gama,
-                                 int number_of_patterns);
-  void       (*giveWeights)(SbsLayer * layer, SbsWeightMatrix weight_matrix);
-};
-extern struct SbsLayer_VTable _SbsLayer;
-
 
 typedef struct SbsNetwork_VTable SbsNetwork;
 struct SbsNetwork_VTable
@@ -128,8 +92,6 @@ typedef struct
 extern SbsNew sbs_new;
 
 #pragma pack(pop)
-
-void SbsStatistics_initialize (void);
 
 #ifdef __cplusplus
 }

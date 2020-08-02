@@ -116,6 +116,8 @@ Multivector * Multivector_new (MemoryBlock * memory_def,
                                uint8_t dimensionality,
                                ...);
 
+void Multivector_delete (Multivector ** multivector);
+
 void * Multivector_2DAccess (Multivector * multivector,
                              uint16_t row,
                              uint16_t column);
@@ -130,11 +132,11 @@ Multivector * Multivector_duplicate (MemoryBlock * memory_def,
 
 size_t Multivector_dataSize (Multivector * multivector);
 
+void Multivector_clear (Multivector * multivector);
+
 void Multivector_cacheFlush (Multivector * multivector);
 
 void Multivector_cacheInvalidate (Multivector * multivector);
-
-void Multivector_delete (Multivector ** multivector);
 
 void Multivector_float2Fixed (Multivector * multivector, Format * new_format);
 
@@ -142,6 +144,8 @@ Multivector * Multivector_reformat (MemoryBlock * memory_def,
                                     Multivector * original,
                                     Format * new_format,
                                     size_t memory_padding);
+
+Result Multivector_copy (Multivector * destination, Multivector * source);
 
 typedef struct
 {

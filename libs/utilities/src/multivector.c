@@ -901,6 +901,17 @@ size_t Multivector_dataSize (Multivector * multivector)
   return data_size;
 }
 
+void Multivector_clear (Multivector * multivector)
+{
+  ASSERT(multivector != NULL);
+  ASSERT(0 < multivector->dimensionality);
+
+  if ((multivector != NULL) && (0 < multivector->dimensionality))
+  {
+    memset (multivector->data, 0x00, multivector->data_size);
+  }
+}
+
 void Multivector_cacheFlush (Multivector * multivector)
 {
   ASSERT(multivector != NULL);
@@ -964,6 +975,81 @@ void Multivector_delete (Multivector ** multivector)
 //    multivector->format = *new_format;
 //  }
 //}
+
+Result Multivector_copy (Multivector * destination, Multivector * source)
+{
+  Result result = ERROR;
+
+  ASSERT(destination != NULL);
+  ASSERT(source != NULL);
+  ASSERT(destination->data != NULL);
+  ASSERT(source->data != NULL);
+  ASSERT(source->dimensionality == destination->dimensionality);
+
+  if (   (destination != NULL)
+      && (destination->data != NULL)
+      && (source != NULL)
+      && (source->data != NULL)
+      && (source->dimensionality == destination->dimensionality))
+  {
+    int matrix_size = 1;
+    int mantissa_index;
+    uint32_t data;
+
+    result = OK;
+    for (int i = 0; (result == OK) && (i < source->dimensionality); i++)
+    {
+      matrix_size *= source->dimension_size[i];
+      result = (source->dimension_size[i] == destination->dimension_size[i]) ? OK : ERROR;
+      ASSERT(source->dimension_size[i] == destination->dimension_size[i]);
+    }
+
+    ASSERT(matrix_size == (source->data_size / source->format.size));
+
+    memset (destination->data, 0x00, destination->data_size);
+
+    switch (source->format.size)
+    {
+      case sizeof(float):
+        mantissa_index = 23 - destination->format.mantissa_bitlength;
+        break;
+      case sizeof(double):
+        mantissa_index = 52 - destination->format.mantissa_bitlength;
+        break;
+      default:
+        ASSERT(0);
+    }
+
+    for (int i = 0; i < matrix_size; i++)
+    {
+      switch (source->format.size)
+      {
+        case sizeof(float):
+          data = (((uint32_t*) source->data)[i] >> mantissa_index);
+          break;
+        case sizeof(double):
+          data = (((uint64_t*) source->data)[i] >> mantissa_index);
+          break;
+        default:
+          ASSERT(0);
+      }
+
+      switch (destination->format.size)
+      {
+        case sizeof(uint8_t):
+          ((uint8_t *) destination->data)[i] = (uint8_t) (0xFF & data);
+          break;
+        case sizeof(uint16_t):
+          ((uint16_t *) destination->data)[i] = (uint16_t) (0xFFFF & data);
+          break;
+        default:
+          ASSERT(0);
+      }
+    }
+  }
+
+  return result;
+}
 
 Multivector * Multivector_reformat (MemoryBlock * memory_def,
                                     Multivector * original,

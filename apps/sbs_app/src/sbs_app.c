@@ -39,7 +39,7 @@
 #include "sbs_conv_layer_64.h"
 #include "sbs_conv_layer_32.h"
 #include "dma_hardware_mover.h"
-#include "sbs_hardware_emulator.h"
+
 // FORWARD DECLARATIONS --------------------------------------------------------
 
 // FORWARD DECLARATIONS --------------------------------------------------------
@@ -250,8 +250,8 @@ Result SnnApp_run (void)
 
   // ********** Create SBS Neural Network **********
   printf ("\n==========  SbS Neural Network  ===============\n");
-  printf ("\n==========  MNIST example  ====================\n");
-
+  printf ("\n==============  MNIST test  ===================\n");
+  printf ("\n Building ...\n");
   /*_________________________________________________________________________*/
 
   SbsNetwork * network = sbs_new.Network ();
@@ -376,9 +376,7 @@ Result SnnApp_run (void)
 
   /*_________________________________________________________________________*/
 
-  HY->setLearningRule(HY, SBS_LEARNING_DELTA_MSE, 0.05, SBS_INPUT_PATTERN_LAST - SBS_INPUT_PATTERN_FIRST + 1);
-
-  /*_________________________________________________________________________*/
+  printf ("\n Inference ...\n");
 
   for (int loop = 0;; loop ++)
   {
@@ -402,33 +400,35 @@ Result SnnApp_run (void)
       if (output_label == input_label)
       {
         correct_inference ++;
-        //ToolCom_instance ()->textMsg (0, "PASS");
         printf ("\nPASS\n");
       }
       else
       {
-        //ToolCom_instance ()->textMsg (0, "Misclassification");
-        printf ("\nMisclassification\n");
+        printf ("\nMisclassification [label = %d]\n", input_label);
       }
 
       output_vector_size = sizeof(output_vector) / sizeof(float);
       network->getOutputVector (network, output_vector, output_vector_size);
 
-      //ToolCom_instance ()->sendByteBuffer (output_vector, sizeof(float) * output_vector_size);
-
       while (output_vector_size--)
       {
-        NeuronState h = output_vector[output_vector_size];  //Ensure data alignment
-
-        sprintf(string_text,"[%d] = %f", output_vector_size, h);
-        printf ("%s\n", string_text);
-        //ToolCom_instance ()->textMsg (0, string_text);
+        float h = output_vector[output_vector_size];  //Ensure data alignment
+        printf ("[%d] = %f\n", output_vector_size, h);
       }
-      sprintf(string_text,"Accuracy %f", ((float)correct_inference)/((float)total_inference));
-      printf ("%s\n", string_text);
-      //ToolCom_instance ()->textMsg (0, string_text);
+
+      printf ("Accuracy: %.2f (%d/%d)\n",
+              ((float)correct_inference)/((float)total_inference),
+              correct_inference,
+              total_inference);
+
+      printf ("Loop: %d, pattern: %d ( '%s' )\n", loop, pattern_index, string_text);
+
+      network->printStatistics (network);
+
+      printf ("\n________________________________________________________________\n");
     }
   }
+
   network->delete (&network);
 
   return OK;

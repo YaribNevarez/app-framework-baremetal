@@ -52,7 +52,7 @@ SbsHardware SbsHardware_fixedpoint_spike = {
   .DisableAutoRestart = (void (*) (void *)) XSbs_spike_unit_DisableAutoRestart,
   .Get_return =         (uint32_t(*) (void *))  NULL,
 
-  .Set_mode = (void (*) (void *, uint32_t )) NULL,
+  .Set_mode = (void (*) (void *, SbsHwMode )) NULL,
   .Get_mode = (uint32_t(*) (void *)) NULL,
   .Set_layerSize = (void (*) (void *, uint32_t )) XSbs_spike_unit_Set_layerSize,
   .Get_layerSize = (uint32_t(*) (void *)) XSbs_spike_unit_Get_layerSize,

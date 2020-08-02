@@ -156,10 +156,10 @@ SbSUpdateAccelerator * Accelerator_new (SbSHardwareConfig * hardware_config);
 
 void Accelerator_delete (SbSUpdateAccelerator ** accelerator);
 
-void Accelerator_loadCoefficients (SbSUpdateAccelerator * accelerator,
-                                   SbsAcceleratorProfie * profile,
-                                   Multivector * weight_matrix,
-                                   int row_vector);
+Result Accelerator_loadCoefficients (SbSUpdateAccelerator * accelerator,
+                                     SbsAcceleratorProfie * profile,
+                                     Multivector * weight_matrix,
+                                     int row_vector);
 
 void Accelerator_setup (SbSUpdateAccelerator * accelerator,
                         SbsAcceleratorProfie * profile);
@@ -179,7 +179,7 @@ SbsAcceleratorProfie * SbsAcceleratorProfie_new (SbsLayerType layerType,
                                                  Multivector * weight_matrix,
                                                  Multivector * spike_matrix,
                                                  uint32_t kernel_size,
-                                                 uint32_t epsilon,
+                                                 float epsilon,
                                                  MemoryCmd memory_cmd,
                                                  Event * parent_event);
 
