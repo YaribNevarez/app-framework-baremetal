@@ -267,20 +267,26 @@ void SbsBaseLayer_setEpsilon (SbsLayer * layer, float epsilon)
   }
 }
 
-void SbsBaseLayer_loadInput (SbsBaseLayer * layer,
-                             char * file_name,
-                             uint8_t * input_label)
+Result SbsBaseLayer_loadInput (SbsBaseLayer * layer,
+                               char * file_name,
+                               uint8_t * input_label)
 {
+  Result result = ERROR;
+
   ASSERT(layer != NULL);
   ASSERT(file_name != NULL);
   ASSERT(input_label != NULL);
   ASSERT(layer->layer_type == HX_INPUT_LAYER);
   ASSERT(layer->num_partitions == 1);
+
   if ((layer != NULL) && (file_name != NULL) && (input_label != NULL))
   {
-    SbsLayerPartition_loadInput (layer->partition_array[0], file_name,
-                                 input_label);
+    result = SbsLayerPartition_loadInput (layer->partition_array[0],
+                                          file_name,
+                                          input_label);
   }
+
+  return result;
 }
 
 void SbsBaseLayer_getOutputVector (SbsBaseLayer * layer,
@@ -404,8 +410,9 @@ static void SbsBaseLayer_generateSpikesHw (SbsBaseLayer * layer,
   }
 }
 
-void SbsBaseLayer_initializeHardware (SbsBaseLayer * layer)
+Result SbsBaseLayer_initializeProcessingUnit (SbsBaseLayer * layer)
 {
+  Result result = ERROR;
   ASSERT (layer != NULL);
   if (layer != NULL)
   {
@@ -413,7 +420,9 @@ void SbsBaseLayer_initializeHardware (SbsBaseLayer * layer)
     SbsLayerPartition *  update_partition = NULL;
     Multivector * update_partition_weight_matrix = NULL;
 
-    for (i = 0; i < layer->num_partitions; i ++)
+    result = OK;
+
+    for (i = 0; (result == OK) && (i < layer->num_partitions); i++)
     {
       update_partition = layer->partition_array[i];
       ASSERT(update_partition != NULL);
@@ -430,10 +439,10 @@ void SbsBaseLayer_initializeHardware (SbsBaseLayer * layer)
             update_partition_weight_matrix = update_partition->weight_matrix;
             ASSERT(update_partition_weight_matrix != NULL);
 
-            Accelerator_loadCoefficients (update_partition_accelerator,
-                                          update_partition->profile,
-                                          update_partition_weight_matrix,
-                                          layer->weight_shift == COLUMN_SHIFT);
+            result = Accelerator_loadCoefficients (update_partition_accelerator,
+                                                   update_partition->profile,
+                                                   update_partition_weight_matrix,
+                                                   layer->weight_shift == COLUMN_SHIFT);
             break;
           case H2_POOLING_LAYER:
           case H4_POOLING_LAYER:
@@ -447,6 +456,8 @@ void SbsBaseLayer_initializeHardware (SbsBaseLayer * layer)
       }
     }
   }
+
+  return result;
 }
 
 static void SbsBaseLayer_generateSpikesSw (SbsBaseLayer * layer,

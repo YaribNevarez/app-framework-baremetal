@@ -100,9 +100,12 @@ static void SbsBaseNetwork_giveLayer (SbsNetwork * network_ptr, SbsLayer * layer
   }
 }
 
-static void SbsBaseNetwork_loadInput(SbsNetwork * network_ptr, char * file_name)
+static Result SbsBaseNetwork_loadInput (SbsNetwork * network_ptr,
+                                        char * file_name)
 {
   SbsBaseNetwork * network = (SbsBaseNetwork *) network_ptr;
+  Result result = ERROR;
+
   ASSERT(network != NULL);
   ASSERT(1 <= network->size);
   ASSERT(network->layer_array != NULL);
@@ -115,10 +118,12 @@ static void SbsBaseNetwork_loadInput(SbsNetwork * network_ptr, char * file_name)
       && (*network->layer_array != NULL)
       && (file_name != NULL))
   {
-    SbsBaseLayer_loadInput (network->layer_array[0],
-                            file_name,
-                            &network->input_label);
+    result = SbsBaseLayer_loadInput (network->layer_array[0],
+                                     file_name,
+                                     &network->input_label);
   }
+
+  return result;
 }
 
 static void SbsBaseNetwork_updateInferredOutput(SbsBaseNetwork * network)
@@ -174,7 +179,7 @@ static void SbsBaseNetwork_updateCycle(SbsNetwork * network_ptr, uint16_t cycles
       ASSERT(network->layer_array[i] != NULL);
       SbsBaseLayer_initialize (network->layer_array[i]);
       SbsBaseLayer_cacheFlush (network->layer_array[i]);
-      SbsBaseLayer_initializeHardware (network->layer_array[i]);
+      SbsBaseLayer_initializeProcessingUnit (network->layer_array[i]);
     }
 
     /************************ Begins Update cycle ****************************/

@@ -28,7 +28,7 @@ struct SbsNetwork_VTable
   SbsNetwork * (*new)               (void);
   void         (*delete)            (SbsNetwork ** network);
   void         (*giveLayer)         (SbsNetwork * network, SbsLayer * layer);
-  void         (*loadInput)         (SbsNetwork * network, char * file_name);
+  Result       (*loadInput)         (SbsNetwork * network, char * file_name);
   void         (*updateCycle)       (SbsNetwork * network, uint16_t cycles);
   uint8_t      (*getInferredOutput) (SbsNetwork * network);
   uint8_t      (*getInputLabel)     (SbsNetwork * network);

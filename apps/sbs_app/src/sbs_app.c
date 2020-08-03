@@ -237,6 +237,73 @@ Result SnnApp_initialize(void)
   return OK;
 }
 
+typedef struct
+{
+  int input_pattern_first;
+  int input_pattern_last;
+  int number_of_spikes;
+  int result_correct_inferences;
+  int result_total_inferences;
+  float result_accuracy;
+} SbsStatistics;
+
+static SbsStatistics statistics[] =
+  {
+    { .input_pattern_first = 1,
+      .input_pattern_last = 100,
+      .number_of_spikes = 10
+    },
+    { .input_pattern_first = 1,
+      .input_pattern_last = 100,
+      .number_of_spikes = 100
+    },
+    { .input_pattern_first = 1,
+      .input_pattern_last = 100,
+      .number_of_spikes = 200
+    },
+    { .input_pattern_first = 1,
+      .input_pattern_last = 100,
+      .number_of_spikes = 300
+    },
+    { .input_pattern_first = 1,
+      .input_pattern_last = 100,
+      .number_of_spikes = 400
+    },
+    { .input_pattern_first = 1,
+      .input_pattern_last = 100,
+      .number_of_spikes = 500
+    },
+    { .input_pattern_first = 1,
+      .input_pattern_last = 100,
+      .number_of_spikes = 600
+    },
+    { .input_pattern_first = 1,
+      .input_pattern_last = 100,
+      .number_of_spikes = 700
+    },
+    { .input_pattern_first = 1,
+      .input_pattern_last = 100,
+      .number_of_spikes = 800
+    },
+    { .input_pattern_first = 1,
+      .input_pattern_last = 100,
+      .number_of_spikes = 900
+    },
+    { .input_pattern_first = 1,
+      .input_pattern_last = 100,
+      .number_of_spikes = 1000
+    },
+    { .input_pattern_first = 1,
+      .input_pattern_last = 100,
+      .number_of_spikes = 1100
+    },
+    { .input_pattern_first = 1,
+      .input_pattern_last = 100,
+      .number_of_spikes = 1200
+    },
+  };
+
+
 Result SnnApp_run (void)
 {
   int pattern_index;
@@ -245,8 +312,7 @@ Result SnnApp_run (void)
   uint16_t output_vector_size = 10;
   uint8_t input_label;
   uint8_t output_label;
-  int total_inference = 0;
-  int correct_inference = 0;
+  Result result;
 
   // ********** Create SBS Neural Network **********
   printf ("\n==========  SbS Neural Network  ===============\n");
@@ -378,34 +444,51 @@ Result SnnApp_run (void)
 
   printf ("\n Inference ...\n");
 
-  for (int loop = 0;; loop ++)
+  for (int loop = 0;
+      loop < sizeof(statistics) / sizeof(SbsStatistics);
+      loop++)
   {
-    for (pattern_index = SBS_INPUT_PATTERN_FIRST;
-         pattern_index <= SBS_INPUT_PATTERN_LAST;
+    statistics[loop].result_accuracy = 0;
+    statistics[loop].result_correct_inferences = 0;
+    statistics[loop].result_total_inferences = 0;
+
+    for (pattern_index = statistics[loop].input_pattern_first;
+         pattern_index <= statistics[loop].input_pattern_last;
          pattern_index++)
     {
       sprintf (string_text,
                SBS_INPUT_PATTERN_FORMAT_NAME,
                pattern_index);
 
-      network->loadInput (network, string_text);
+      result = network->loadInput (network, string_text);
 
-      network->updateCycle (network, SBS_NETWORK_UPDATE_CYCLES);
+      if (result != OK)
+      {
+        printf ("\nError: loading pattern '%s'\n", string_text);
+        continue;
+      }
 
-      total_inference ++;
+      printf ("\nSpikes: %d\n", statistics[loop].number_of_spikes);
+      network->updateCycle (network, statistics[loop].number_of_spikes);
+
+      statistics[loop].result_total_inferences ++;
 
       output_label = network->getInferredOutput (network);
       input_label = network->getInputLabel (network);
 
       if (output_label == input_label)
       {
-        correct_inference ++;
+        statistics[loop].result_correct_inferences ++;
         printf ("\nPASS\n");
       }
       else
       {
         printf ("\nMisclassification [label = %d]\n", input_label);
       }
+
+      statistics[loop].result_accuracy =
+          ((float) statistics[loop].result_correct_inferences)
+              / ((float) statistics[loop].result_total_inferences);
 
       output_vector_size = sizeof(output_vector) / sizeof(float);
       network->getOutputVector (network, output_vector, output_vector_size);
@@ -417,17 +500,19 @@ Result SnnApp_run (void)
       }
 
       printf ("Accuracy: %.2f (%d/%d)\n",
-              ((float)correct_inference)/((float)total_inference),
-              correct_inference,
-              total_inference);
+              statistics[loop].result_accuracy,
+              statistics[loop].result_correct_inferences,
+              statistics[loop].result_total_inferences);
 
       printf ("Loop: %d, pattern: %d ( '%s' )\n", loop, pattern_index, string_text);
 
-      network->printStatistics (network);
+      //network->printStatistics (network);
 
       printf ("\n________________________________________________________________\n");
     }
   }
+
+  printf ("\nEND\n");
 
   network->delete (&network);
 

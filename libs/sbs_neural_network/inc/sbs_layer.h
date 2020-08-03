@@ -121,9 +121,9 @@ void SbsBaseLayer_giveWeights (SbsLayer * layer, SbsWeightMatrix weight_matrix);
 void SbsBaseLayer_setParentEvent (SbsBaseLayer * layer,
                                   Event * parent_event);
 
-void SbsBaseLayer_loadInput (SbsBaseLayer * layer,
-                             char * file_name,
-                             uint8_t * input_label);
+Result SbsBaseLayer_loadInput (SbsBaseLayer * layer,
+                               char * file_name,
+                               uint8_t * input_label);
 
 void SbsBaseLayer_getOutputVector (SbsBaseLayer * layer,
                                    float * output_vector,
@@ -133,7 +133,7 @@ void SbsBaseLayer_initialize (SbsBaseLayer * layer);
 
 void SbsBaseLayer_cacheFlush (SbsBaseLayer * layer);
 
-void SbsBaseLayer_initializeHardware (SbsBaseLayer * layer);
+Result SbsBaseLayer_initializeProcessingUnit (SbsBaseLayer * layer);
 
 #ifdef __cplusplus
 }
