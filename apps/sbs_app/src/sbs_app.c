@@ -58,9 +58,9 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
   { .hwDriver      = &SbsHardware_fixedpoint_spike,
     .dmaDriver     = &DMAHardware_mover,
     .layerAssign   = HW_SPIKE_UNIT_0,
-    .hwDeviceID    = XPAR_SBS_SPIKE_UNIT_0_DEVICE_ID,
+    .hwDeviceID    = XPAR_SBS_SPIKE_FIXP_0_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXI_DMA_0_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_SPIKE_UNIT_0_INTERRUPT_INTR,
+    .hwIntVecID    = XPAR_FABRIC_SBS_SPIKE_FIXP_0_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = 0,
     .channelSize   = 4,
@@ -247,61 +247,87 @@ typedef struct
   float result_accuracy;
 } SbsStatistics;
 
+#if SBS_TAKE_ACCURACY_STATISTICS
 static SbsStatistics statistics[] =
   {
-    { .input_pattern_first = 1,
-      .input_pattern_last = 100,
-      .number_of_spikes = 10
-    },
-    { .input_pattern_first = 1,
-      .input_pattern_last = 100,
-      .number_of_spikes = 100
-    },
-    { .input_pattern_first = 1,
-      .input_pattern_last = 100,
+    { .input_pattern_first = SBS_INPUT_PATTERN_FIRST,
+      .input_pattern_last = SBS_INPUT_PATTERN_LAST,
       .number_of_spikes = 200
     },
-    { .input_pattern_first = 1,
-      .input_pattern_last = 100,
+    { .input_pattern_first = SBS_INPUT_PATTERN_FIRST,
+      .input_pattern_last = SBS_INPUT_PATTERN_LAST,
       .number_of_spikes = 300
     },
-    { .input_pattern_first = 1,
-      .input_pattern_last = 100,
+    { .input_pattern_first = SBS_INPUT_PATTERN_FIRST,
+      .input_pattern_last = SBS_INPUT_PATTERN_LAST,
       .number_of_spikes = 400
     },
-    { .input_pattern_first = 1,
-      .input_pattern_last = 100,
+    { .input_pattern_first = SBS_INPUT_PATTERN_FIRST,
+      .input_pattern_last = SBS_INPUT_PATTERN_LAST,
       .number_of_spikes = 500
     },
-    { .input_pattern_first = 1,
-      .input_pattern_last = 100,
+    { .input_pattern_first = SBS_INPUT_PATTERN_FIRST,
+      .input_pattern_last = SBS_INPUT_PATTERN_LAST,
       .number_of_spikes = 600
     },
-    { .input_pattern_first = 1,
-      .input_pattern_last = 100,
+    { .input_pattern_first = SBS_INPUT_PATTERN_FIRST,
+      .input_pattern_last = SBS_INPUT_PATTERN_LAST,
       .number_of_spikes = 700
     },
-    { .input_pattern_first = 1,
-      .input_pattern_last = 100,
+    { .input_pattern_first = SBS_INPUT_PATTERN_FIRST,
+      .input_pattern_last = SBS_INPUT_PATTERN_LAST,
       .number_of_spikes = 800
     },
-    { .input_pattern_first = 1,
-      .input_pattern_last = 100,
+    { .input_pattern_first = SBS_INPUT_PATTERN_FIRST,
+      .input_pattern_last = SBS_INPUT_PATTERN_LAST,
       .number_of_spikes = 900
     },
-    { .input_pattern_first = 1,
-      .input_pattern_last = 100,
+    { .input_pattern_first = SBS_INPUT_PATTERN_FIRST,
+      .input_pattern_last = SBS_INPUT_PATTERN_LAST,
       .number_of_spikes = 1000
     },
-    { .input_pattern_first = 1,
-      .input_pattern_last = 100,
+    { .input_pattern_first = SBS_INPUT_PATTERN_FIRST,
+      .input_pattern_last = SBS_INPUT_PATTERN_LAST,
       .number_of_spikes = 1100
     },
-    { .input_pattern_first = 1,
-      .input_pattern_last = 100,
+    { .input_pattern_first = SBS_INPUT_PATTERN_FIRST,
+      .input_pattern_last = SBS_INPUT_PATTERN_LAST,
       .number_of_spikes = 1200
     },
   };
+#else
+static SbsStatistics statistics[] =
+  {
+    { .input_pattern_first = SBS_INPUT_PATTERN_FIRST,
+      .input_pattern_last = SBS_INPUT_PATTERN_LAST,
+      .number_of_spikes = 1000
+    }
+  };
+#endif //TAKE_ACCURACY_STATISTICS
+
+static void SnnApp_printStatistics ()
+{
+  int number_of_samples = sizeof(statistics) / sizeof(SbsStatistics);
+  printf ("\nspikes = [");
+
+  for (int loop = 0; loop < number_of_samples; loop++)
+  {
+    printf (" %d%c", statistics[loop].number_of_spikes,
+            (loop + 1 < number_of_samples) ? ',' : ' ');
+  }
+
+  printf ("]\n");
+
+  printf ("\naccuracy = [");
+
+  for (int loop = 0; loop < number_of_samples; loop++)
+  {
+    printf (" %.2f%c", statistics[loop].result_accuracy,
+            (loop + 1 < number_of_samples) ? ',' : ' ');
+  }
+
+  printf ("]\n");
+}
 
 
 Result SnnApp_run (void)
@@ -444,9 +470,7 @@ Result SnnApp_run (void)
 
   printf ("\n Inference ...\n");
 
-  for (int loop = 0;
-      loop < sizeof(statistics) / sizeof(SbsStatistics);
-      loop++)
+  for (int loop = 0; loop < sizeof(statistics) / sizeof(SbsStatistics); loop++)
   {
     statistics[loop].result_accuracy = 0;
     statistics[loop].result_correct_inferences = 0;
@@ -513,6 +537,8 @@ Result SnnApp_run (void)
   }
 
   printf ("\nEND\n");
+
+  SnnApp_printStatistics ();
 
   network->delete (&network);
 

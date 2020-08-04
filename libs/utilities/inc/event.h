@@ -25,7 +25,7 @@ struct  _Event
   Event * next;
   Event * prev;
   Event * first_child;
-  void  * data;
+  char  * data;
   Timer * timer;
   double  absolute_offset;
   double  relative_offset;

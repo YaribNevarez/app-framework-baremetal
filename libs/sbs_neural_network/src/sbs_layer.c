@@ -122,6 +122,7 @@ SbsLayer * SbsBaseLayer_new(SbsLayerType layer_type,
         }
 
         layer->partition_array[i] = SbsLayerPartition_new (accelerator,
+                                                           layer_type,
                                                            pos_x,
                                                            pos_y,
                                                            rows_current_partition,
@@ -213,7 +214,6 @@ void SbsBaseLayer_initialize (SbsBaseLayer * layer)
       accelerator_memory_cmd.size = Multivector_dataSize(layer->partition_array[i]->spike_matrix);
 
       SbsLayerPartition_initialize (layer->partition_array[i],
-                                    layer->layer_type,
                                     layer->kernel_size,
                                     layer->epsilon,
                                     accelerator_memory_cmd);
@@ -543,14 +543,65 @@ static void SbsBaseLayer_updateIP (SbsBaseLayer * layer,
     float p;
     float h_p;
     float h_new;
+//Accuracy 0.989130
+#define DATA08_GET_EXPONENT(x) ((0x70 | ((x) >> 4)) - 0x7F)
+
+#define DATA32_GET_EXPONENT(x) ((0xFF & ((x) >> 23)) - 0x7F)
+#define DATA32_GET_MANTISSA(x) ((0x7FFFFF) & (x))
+
+    int h_mantisa;
+    int8_t h_exponent;
+    int8_t h16_exponent;
+    int p_mantisa;
+    int8_t p_exponent;
+    int8_t p08_exponent;
+    int hp_mantisa;
+    int8_t hp_exponent;
+    int8_t h_p_hw_exponent;
+    uint32_t h_p_hw_mantissa;
+    float h_p_hw;
+
 
     for (neuron = 0; neuron < size; neuron ++)
     {
       *(uint32_t*) (&h) = DATA16_TO_FLOAT32(state_vector_ptr[neuron]);
-      *(uint32_t*) (&p) = DATA08_TO_FLOAT32(weight_vector_ptr[neuron]);
+      *(uint32_t*) (&p) = DATA08_TO_FLOAT32((weight_vector_ptr[neuron] & 0xF0) | 0x8);
+
+      h_exponent = DATA32_GET_EXPONENT(*(uint32_t*)&h);
+      h_mantisa = DATA32_GET_MANTISSA(*(uint32_t*)&h);
+
+      p_exponent = DATA32_GET_EXPONENT(*(uint32_t*)&p);
+      p_mantisa = DATA32_GET_MANTISSA(*(uint32_t*)&p);
+
+      if (-0x7F < h_exponent)
+      {
+        p08_exponent = DATA08_GET_EXPONENT(weight_vector_ptr[neuron]);
+        h_p_hw_exponent = h_exponent + p08_exponent;
+
+        h_p_hw_mantissa = (0x00800000 | h_mantisa) + ((0x00800000 | h_mantisa) >> 1);
+
+        if (h_p_hw_mantissa & 0x01000000)
+        {
+          h_p_hw_exponent++;
+          h_p_hw_mantissa >>= 1;
+        }
+
+        *((uint32_t *) &h_p_hw) = ((h_p_hw_exponent + 0x7F) << 23) | (h_p_hw_mantissa & 0x7FFFFF);
+      }
+      else
+        h_p_hw = 0; // Underflow
+
       h_p = h * p;
 
-      temp_data[neuron] = h_p;
+      hp_exponent = DATA32_GET_EXPONENT(*(uint32_t*)&h_p);
+      hp_mantisa = DATA32_GET_MANTISSA(*(uint32_t*)&h_p);
+
+      if (h_p_hw != h_p)
+      {
+        printf ("x");
+      }
+
+      temp_data[neuron] = h_p_hw;
       sum += h_p;
     }
 

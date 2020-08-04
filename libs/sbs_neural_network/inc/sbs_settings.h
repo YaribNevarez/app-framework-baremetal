@@ -18,8 +18,8 @@ typedef struct
   Format state_matrix_format;
   Format weight_matrix_format;
   Format spike_matrix_format;
-  Format learning_matrix_format;
   Format weight_matrix_format_file_system;
+  Format input_matrix_format;
   Format input_matrix_format_file_system;
 } SbsSettings;
 

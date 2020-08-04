@@ -39,7 +39,7 @@
 #define SBS_P_H5_HY_WEIGHTS_FILE "/MNIST/W_H5_HY.bin"
 
 // Update cycles ______________________________________________________________
-#define SBS_NETWORK_UPDATE_CYCLES               1000
+#define SBS_TAKE_ACCURACY_STATISTICS            0
 
 // INPUT LAYER ________________________________________________________________
 #define SBS_INPUT_LAYER_ROWS                    24

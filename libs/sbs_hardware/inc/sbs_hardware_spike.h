@@ -13,7 +13,7 @@ extern "C" {
 
 /***************************** Include Files *********************************/
 #include "sbs_hardware.h"
-#include "xsbs_spike_unit.h"
+#include "xsbs_spike_fixp.h"
 /***************** Macros (Inline Functions) Definitions *********************/
 
 /**************************** Type Definitions *******************************/

@@ -35,16 +35,16 @@ SbsSettings SbsSettings_ =
         .size = sizeof(uint16_t),
         .mantissa_bitlength = 0
     },
-    .learning_matrix_format =
-    {
-        .representation = FLOAT,
-        .size = sizeof(double),
-        .mantissa_bitlength = 0
-    },
     .weight_matrix_format_file_system =
     {
         .representation = FLOAT,
         .size = sizeof(float),
+        .mantissa_bitlength = 0
+    },
+    .input_matrix_format =
+    {
+        .representation = FIXED_POINT,
+        .size = sizeof(uint16_t),
         .mantissa_bitlength = 0
     },
     .input_matrix_format_file_system =

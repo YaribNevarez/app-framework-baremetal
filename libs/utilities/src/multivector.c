@@ -993,8 +993,10 @@ Result Multivector_copy (Multivector * destination, Multivector * source)
       && (source->dimensionality == destination->dimensionality))
   {
     int matrix_size = 1;
-    int mantissa_index;
-    uint32_t data;
+    int mantissa_index = 0;
+    int fixed_point_coefficient = 0;
+    uint32_t data = 0;
+    void * data_ptr = NULL;
 
     result = OK;
     for (int i = 0; (result == OK) && (i < source->dimensionality); i++)
@@ -1020,15 +1022,32 @@ Result Multivector_copy (Multivector * destination, Multivector * source)
         ASSERT(0);
     }
 
+    fixed_point_coefficient = ((1 << (8 * destination->format.size)) - 1);
+
     for (int i = 0; i < matrix_size; i++)
     {
       switch (source->format.size)
       {
         case sizeof(float):
-          data = (((uint32_t*) source->data)[i] >> mantissa_index);
+            data_ptr = &(((uint32_t*) source->data)[i]);
           break;
-        case sizeof(double):
-          data = (((uint64_t*) source->data)[i] >> mantissa_index);
+        case sizeof(uint16_t):
+            data_ptr = &(((uint16_t*) source->data)[i]);
+          break;
+        case sizeof(uint8_t):
+            data_ptr = &(((uint8_t*) source->data)[i]);
+          break;
+        default:
+          ASSERT(0);
+      }
+
+      switch (destination->format.representation)
+      {
+        case FLOAT:
+          data = (*((uint32_t*) data_ptr)) >> mantissa_index;
+          break;
+        case FIXED_POINT:
+          data = (*((float*) data_ptr)) * fixed_point_coefficient;
           break;
         default:
           ASSERT(0);

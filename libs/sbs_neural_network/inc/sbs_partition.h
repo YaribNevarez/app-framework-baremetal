@@ -27,6 +27,7 @@ typedef struct
 {
   SbSUpdateAccelerator *  accelerator;
   SbsAcceleratorProfie *  profile;
+  SbsLayerType            layerType;
   Event *                 event;
   Event *                 hw_processing_event;
   uint16_t      x_pos;
@@ -39,17 +40,17 @@ typedef struct
 #pragma pack(pop)   /* restore original alignment from stack */
 
 SbsLayerPartition * SbsLayerPartition_new (SbSUpdateAccelerator * accelerator,
-                                            uint16_t x_pos,
-                                            uint16_t y_pos,
-                                            uint16_t rows,
-                                            uint16_t columns,
-                                            uint16_t vector_size,
-                                            Event * parent_event);
+                                           SbsLayerType layerType,
+                                           uint16_t x_pos,
+                                           uint16_t y_pos,
+                                           uint16_t rows,
+                                           uint16_t columns,
+                                           uint16_t vector_size,
+                                           Event * parent_event);
 
 void SbsLayerPartition_delete (SbsLayerPartition ** partition);
 
 void SbsLayerPartition_initialize (SbsLayerPartition * partition,
-                                   SbsLayerType layerType,
                                    uint32_t kernel_size,
                                    float epsilon,
                                    MemoryCmd accelerator_memory_cmd);

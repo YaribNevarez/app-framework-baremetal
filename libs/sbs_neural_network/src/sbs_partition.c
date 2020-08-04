@@ -22,12 +22,13 @@
 /*****************************************************************************/
 
 SbsLayerPartition * SbsLayerPartition_new (SbSUpdateAccelerator * accelerator,
-                                            uint16_t x_pos,
-                                            uint16_t y_pos,
-                                            uint16_t rows,
-                                            uint16_t columns,
-                                            uint16_t vector_size,
-                                            Event * parent_event)
+                                           SbsLayerType layerType,
+                                           uint16_t x_pos,
+                                           uint16_t y_pos,
+                                           uint16_t rows,
+                                           uint16_t columns,
+                                           uint16_t vector_size,
+                                           Event * parent_event)
 {
   SbsLayerPartition * partition = NULL;
 
@@ -41,6 +42,7 @@ SbsLayerPartition * SbsLayerPartition_new (SbSUpdateAccelerator * accelerator,
     Multivector * spike_matrix = NULL;
     MemoryBlock * memory_def = NULL;
     size_t        channelSize = 4; // Padding size in bytes
+    Format *      state_format = NULL;
 
     memset (partition, 0x00, sizeof(SbsLayerPartition));
 
@@ -56,9 +58,27 @@ SbsLayerPartition * SbsLayerPartition_new (SbSUpdateAccelerator * accelerator,
       }
     }
 
+    partition->layerType = layerType;
+
+    switch(layerType)
+    {
+      case HX_INPUT_LAYER:
+        state_format = &SbsSettings_.input_matrix_format;
+        break;
+      case H1_CONVOLUTION_LAYER:
+      case H2_POOLING_LAYER:
+      case H3_CONVOLUTION_LAYER:
+      case H4_POOLING_LAYER:
+      case H5_FULLY_CONNECTED_LAYER:
+      case HY_OUTPUT_LAYER:
+        state_format = &SbsSettings_.state_matrix_format;
+        break;
+      default: ASSERT(0);
+    }
+
     /* Instantiate state_matrix */
     state_matrix = Multivector_new (memory_def,
-                                    &SbsSettings_.state_matrix_format,
+                                    state_format,
                                     channelSize,
                                     3,
                                     rows,
@@ -107,7 +127,6 @@ void SbsLayerPartition_delete(SbsLayerPartition ** partition)
   if ((partition != NULL) && (*partition != NULL))
   {
     Multivector_delete (&((*partition)->state_matrix));
-    Multivector_delete (&((*partition)->spike_matrix));
     if ((*partition)->weight_matrix != NULL)
       Multivector_delete (&((*partition)->weight_matrix));
 
@@ -158,7 +177,6 @@ static void SbsLayerPartition_initializeIP (SbsLayerPartition * partition,
 }
 
 void SbsLayerPartition_initialize (SbsLayerPartition * partition,
-                                   SbsLayerType layerType,
                                    uint32_t kernel_size,
                                    float epsilon,
                                    MemoryCmd accelerator_memory_cmd)
@@ -175,7 +193,7 @@ void SbsLayerPartition_initialize (SbsLayerPartition * partition,
     uint16_t row;
     uint16_t column;
 
-    if (layerType != HX_INPUT_LAYER)
+    if (partition->layerType != HX_INPUT_LAYER)
       for (row = 0; row < rows; row++)
         for (column = 0; column < columns; column++)
           SbsLayerPartition_initializeIP (partition,
@@ -187,7 +205,7 @@ void SbsLayerPartition_initialize (SbsLayerPartition * partition,
     {
       if (partition->profile == NULL)
       {
-        partition->profile = SbsAcceleratorProfie_new (layerType,
+        partition->profile = SbsAcceleratorProfie_new (partition->layerType,
                                                        state_matrix,
                                                        partition->weight_matrix,
                                                        partition->spike_matrix,
