@@ -346,8 +346,10 @@ Result SbsLayerPartition_loadInput (SbsLayerPartition * partition,
   return result;
 }
 
-SpikeID SbsLayerPartition_stateVector_generateSpikeSw (uint32_t * state_vector,
-                                                       uint16_t size)
+SpikeID SbsLayerPartition_generateSpikeSw (SbsLayerPartition * partition,
+                                           void * state_vector,
+                                           Format format,
+                                           uint16_t size)
 {
   ASSERT (state_vector != NULL);
   ASSERT (0 < size);
@@ -355,22 +357,94 @@ SpikeID SbsLayerPartition_stateVector_generateSpikeSw (uint32_t * state_vector,
   if ((state_vector != NULL) && (0 < size))
   {
     uint16_t *state_vector_ptr = (uint16_t *) state_vector;
-    float random_s = (float) MT19937_genrand () / (float) 0xFFFFFFFF;
-    float temp;
-    float sum = 0;
     uint16_t spikeID;
+    if (format.representation == FIXED_POINT)
+    {
+      uint16_t random_s = MT19937_genrand () >> (8 * (sizeof(uint32_t) - format.size));
+      uint16_t sum = 0;
 
-    ASSERT(random_s <= 1.0);
+      for (spikeID = 0; spikeID < size; spikeID++)
+      {
+        sum += state_vector_ptr[spikeID];
 
-    for (spikeID = 0; spikeID < size; spikeID++)
-    { // promote
-      *(uint32_t*) (&temp) = DATA16_TO_FLOAT32(state_vector_ptr[spikeID]);
-      sum += temp;
+        if (random_s <= sum)
+          return spikeID;
+      }
+    }
+    else
+    {
+      float random_s = (float) MT19937_genrand () / (float) 0xFFFFFFFF;
+      float temp;
+      float sum = 0;
 
-      if (random_s <= sum)
-        return spikeID;
+      ASSERT(random_s <= 1.0);
+
+      for (spikeID = 0; spikeID < size; spikeID++)
+      { // promote
+        *(uint32_t*) (&temp) = DATA16_TO_FLOAT32(state_vector_ptr[spikeID]);
+        sum += temp;
+
+        if (random_s <= sum)
+          return spikeID;
+      }
     }
   }
 
   return size - 1;
+}
+
+void SbsLayerPartition_updateIP (SbsLayerPartition * partition,
+                                 void * state_vector,
+                                 void * weight_vector,
+                                 uint16_t size,
+                                 float epsilon)
+{
+  ASSERT(state_vector != NULL);
+  ASSERT(weight_vector != NULL);
+  ASSERT(0 < size);
+
+  if ((state_vector != NULL) && (weight_vector != NULL) && (0 < size))
+  {
+    uint16_t *state_vector_ptr = (uint16_t *) state_vector;
+    uint8_t * weight_vector_ptr = (uint8_t *) weight_vector;
+
+    static float temp_data[1024];
+
+    float sum             = 0.0f;
+    float reverse_epsilon = 1.0f / (1.0f + epsilon);
+    float epsion_over_sum = 0.0f;
+    uint16_t    neuron;
+
+    /* Support for unaligned accesses in ARM architecture */
+    float h;
+    float p;
+    float h_p;
+    float h_new;
+
+    for (neuron = 0; neuron < size; neuron ++)
+    {
+      *(uint32_t*) (&h) = DATA16_TO_FLOAT32(state_vector_ptr[neuron]);
+      *(uint32_t*) (&p) = DATA08_TO_FLOAT32(weight_vector_ptr[neuron]);
+      h_p = h * p;
+
+      temp_data[neuron] = h_p;
+      sum += h_p;
+    }
+
+    if (sum < 1e-20) // TODO: DEFINE constant
+      return;
+
+    epsion_over_sum = epsilon / sum;
+
+    for (neuron = 0; neuron < size; neuron ++)
+    {
+      h_p = temp_data[neuron];
+
+      *(uint32_t*) (&h) = DATA16_TO_FLOAT32(state_vector_ptr[neuron]);
+
+      h_new = reverse_epsilon * (h + h_p * epsion_over_sum);
+
+      state_vector_ptr[neuron] = FLOAT32_TO_DATA16(*(uint32_t* )(&h_new));
+    }
+  }
 }

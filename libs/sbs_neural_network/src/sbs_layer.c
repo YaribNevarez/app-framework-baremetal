@@ -506,120 +506,15 @@ static void SbsBaseLayer_generateSpikesSw (SbsBaseLayer * layer,
           spike = Multivector_2DAccess (layer_spike_matrix, row, column);
           state_vector = Multivector_2DAccess (partition_state_matrix,
                                                partition_row, column);
-          *spike = SbsLayerPartition_stateVector_generateSpikeSw (state_vector,
-                                                                  neurons);
+          *spike = SbsLayerPartition_generateSpikeSw (partition,
+                                                      state_vector,
+                                                      partition_state_matrix->format,
+                                                      neurons);
         }
       }
       Event_stop (partition->event);
     }
     Event_stop (layer->event);
-  }
-}
-
-static void SbsBaseLayer_updateIP (SbsBaseLayer * layer,
-                                   uint32_t * state_vector,
-                                   Weight * weight_vector,
-                                   uint16_t size,
-                                   float epsilon)
-{
-  ASSERT(state_vector != NULL);
-  ASSERT(weight_vector != NULL);
-  ASSERT(0 < size);
-
-  if ((state_vector != NULL) && (weight_vector != NULL) && (0 < size))
-  {
-    uint16_t *state_vector_ptr = (uint16_t *) state_vector;
-    uint8_t * weight_vector_ptr = (uint8_t *) weight_vector;
-
-    static float temp_data[1024];
-
-    float sum             = 0.0f;
-    float reverse_epsilon = 1.0f / (1.0f + epsilon);
-    float epsion_over_sum = 0.0f;
-    uint16_t    neuron;
-
-    /* Support for unaligned accesses in ARM architecture */
-    float h;
-    float p;
-    float h_p;
-    float h_new;
-//Accuracy 0.989130
-#define DATA08_GET_EXPONENT(x) ((0x70 | ((x) >> 4)) - 0x7F)
-
-#define DATA32_GET_EXPONENT(x) ((0xFF & ((x) >> 23)) - 0x7F)
-#define DATA32_GET_MANTISSA(x) ((0x7FFFFF) & (x))
-
-    int h_mantisa;
-    int8_t h_exponent;
-    int8_t h16_exponent;
-    int p_mantisa;
-    int8_t p_exponent;
-    int8_t p08_exponent;
-    int hp_mantisa;
-    int8_t hp_exponent;
-    int8_t h_p_hw_exponent;
-    uint32_t h_p_hw_mantissa;
-    float h_p_hw;
-
-
-    for (neuron = 0; neuron < size; neuron ++)
-    {
-      *(uint32_t*) (&h) = DATA16_TO_FLOAT32(state_vector_ptr[neuron]);
-      *(uint32_t*) (&p) = DATA08_TO_FLOAT32((weight_vector_ptr[neuron] & 0xF0) | 0x8);
-
-      h_exponent = DATA32_GET_EXPONENT(*(uint32_t*)&h);
-      h_mantisa = DATA32_GET_MANTISSA(*(uint32_t*)&h);
-
-      p_exponent = DATA32_GET_EXPONENT(*(uint32_t*)&p);
-      p_mantisa = DATA32_GET_MANTISSA(*(uint32_t*)&p);
-
-      if (-0x7F < h_exponent)
-      {
-        p08_exponent = DATA08_GET_EXPONENT(weight_vector_ptr[neuron]);
-        h_p_hw_exponent = h_exponent + p08_exponent;
-
-        h_p_hw_mantissa = (0x00800000 | h_mantisa) + ((0x00800000 | h_mantisa) >> 1);
-
-        if (h_p_hw_mantissa & 0x01000000)
-        {
-          h_p_hw_exponent++;
-          h_p_hw_mantissa >>= 1;
-        }
-
-        *((uint32_t *) &h_p_hw) = ((h_p_hw_exponent + 0x7F) << 23) | (h_p_hw_mantissa & 0x7FFFFF);
-      }
-      else
-        h_p_hw = 0; // Underflow
-
-      h_p = h * p;
-
-      hp_exponent = DATA32_GET_EXPONENT(*(uint32_t*)&h_p);
-      hp_mantisa = DATA32_GET_MANTISSA(*(uint32_t*)&h_p);
-
-      if (h_p_hw != h_p)
-      {
-        printf ("x");
-      }
-
-      temp_data[neuron] = h_p_hw;
-      sum += h_p;
-    }
-
-    if (sum < 1e-20) // TODO: DEFINE constant
-      return;
-
-    epsion_over_sum = epsilon / sum;
-
-    for (neuron = 0; neuron < size; neuron ++)
-    {
-      h_p = temp_data[neuron];
-
-      *(uint32_t*) (&h) = DATA16_TO_FLOAT32(state_vector_ptr[neuron]);
-
-      h_new = reverse_epsilon * (h + h_p * epsion_over_sum);
-
-      state_vector_ptr[neuron] = FLOAT32_TO_DATA16(*(uint32_t* )(&h_new));
-    }
   }
 }
 
@@ -689,7 +584,10 @@ static void SbsBaseLayer_updateSw (SbsBaseLayer * layer, SbsBaseLayer * spike_la
           new_spike = Multivector_2DAccess (layer_spike_matrix, update_partition_row, layer_column);
           state_vector = Multivector_2DAccess(update_partition_state_matrix, update_partition_row, layer_column);
 
-          *new_spike = SbsLayerPartition_stateVector_generateSpikeSw (state_vector, vector_size);
+          *new_spike = SbsLayerPartition_generateSpikeSw (update_partition,
+                                                          state_vector,
+                                                          update_partition_state_matrix->format,
+                                                          vector_size);
 
           for (kernel_row = 0; kernel_row < kernel_size; kernel_row++)
           {
@@ -710,7 +608,11 @@ static void SbsBaseLayer_updateSw (SbsBaseLayer * layer, SbsBaseLayer * spike_la
                 weight_vector = Multivector_3DAccess (update_partition_weight_matrix, kernel_column, kernel_row, spikeID);
               }
 
-              SbsBaseLayer_updateIP (layer, state_vector, weight_vector, vector_size, epsilon);
+              SbsLayerPartition_updateIP (update_partition,
+                                          state_vector,
+                                          weight_vector,
+                                          vector_size,
+                                          epsilon);
             }
           }
         }

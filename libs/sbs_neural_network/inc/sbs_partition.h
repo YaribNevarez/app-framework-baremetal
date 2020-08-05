@@ -64,8 +64,16 @@ Result SbsLayerPartition_loadInput (SbsLayerPartition * partition,
                                     char * file_name,
                                     uint8_t * input_label);
 
-SpikeID SbsLayerPartition_stateVector_generateSpikeSw (uint32_t * state_vector,
-                                                       uint16_t size);
+SpikeID SbsLayerPartition_generateSpikeSw (SbsLayerPartition * partition,
+                                           void * state_vector,
+                                           Format format,
+                                           uint16_t size);
+
+void SbsLayerPartition_updateIP (SbsLayerPartition * partition,
+                                 void * state_vector,
+                                 void * weight_vector,
+                                 uint16_t size,
+                                 float epsilon);
 
 
 #ifdef __cplusplus

@@ -118,6 +118,12 @@ typedef union
 #define MAX_SPIKE_MATRIX_SIZE       (25*25)
 #define MAX_INPUT_SPIKE_MATRIX_SIZE (5*5)
 
+#define DATA08_GET_EXPONENT(x) ((0x70 | ((x) >> 4  )) - 0x7F)
+#define DATA04_GET_EXPONENT(x) ((0x70 | (0x0F & (x))) - 0x7F)
+
+#define DATA32_GET_EXPONENT(x) ((0xFF & ((x) >> 23)) - 0x7F)
+#define DATA32_GET_MANTISSA(x) ((0x7FFFFF) & (x))
+
 #define DATA16_TO_FLOAT32(d)  ((0xFFFF & (d)) ? (0x30000000 | (((unsigned int) (0xFFFF & (d))) << 12)) : 0)
 #define DATA08_TO_FLOAT32(d)  ((0x00FF & (d)) ? (0x38000000 | (((unsigned int) (0x00FF & (d))) << 19)) : 0)
 
@@ -131,6 +137,9 @@ typedef union
 #define STATE_VECTOR_WIDTH    16
 #define WEIGHT_VECTOR_WIDTH   8
 #define SPIKE_VECTOR_WIDTH    16
+
+#define WEIGHT_BIT_WIDTH      4
+#define WEIGHT_MATRIX_SIZE    1600
 
 typedef ap_axis<CHANNEL_WIDTH, 2, 5, 6> StreamChannel;
 
@@ -169,7 +178,7 @@ unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
   static unsigned short input_spike_matrix[MAX_INPUT_SPIKE_MATRIX_SIZE];
 //#pragma HLS ARRAY_PARTITION variable=input_spike_matrix complete dim=1
 
-  static ap_uint<WEIGHT_VECTOR_WIDTH> weight_matrix[1600];
+  static ap_uint<WEIGHT_BIT_WIDTH> weight_matrix[WEIGHT_MATRIX_SIZE];
 //#pragma HLS ARRAY_PARTITION variable=weight_matrix block factor=1 dim=1
 
   static unsigned short spike_matrix[MAX_SPIKE_MATRIX_SIZE];
@@ -190,12 +199,21 @@ unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
 
   Data32 stream_data;
   Data32 data;
+  Data32 hw;
 
   static float reverse_epsilon;
   static float low_pass_epsilon;
   float sum;
 
   unsigned int debug_index = 0;
+
+  ap_int<8> w_exponent;
+  ap_int<8> h_exponent;
+  ap_int<32> h_mantissa;
+  ap_int<8> hw_exponent;
+
+  ap_uint<32> hw_mantissa;
+
 
   channel.keep = -1;
   channel.strb = -1;
@@ -239,7 +257,7 @@ unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
           {
 #pragma HLS unroll
 #pragma HLS pipeline
-            weight_matrix[i + j] = input >> (WEIGHT_VECTOR_WIDTH * j);
+            weight_matrix[i + j] = (0x0F) & (input >> ((WEIGHT_VECTOR_WIDTH * j) + WEIGHT_BIT_WIDTH));
           }
         }
 
@@ -322,11 +340,35 @@ unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
             int tensor_index = input_spike_matrix[batch] * hwProfile.vectorSize + weight_matrix_index;
 
             sum = 0.0f;
-            for (int i = 0; i < hwProfile.vectorSize; i++)
+            HW_MUL: for (int i = 0; i < hwProfile.vectorSize; i++)
             {
-  #pragma HLS pipeline
-              data.u32 = DATA08_TO_FLOAT32(weight_matrix[tensor_index + i]);
-              temp_data[i] = state_vector[i] * data.f32;
+#pragma HLS pipeline
+              data.f32 = state_vector[i];
+              h_exponent = DATA32_GET_EXPONENT(data.u32);
+              h_mantissa = DATA32_GET_MANTISSA(data.u32);
+              if (-0x7F < h_exponent)
+              {
+                w_exponent = DATA04_GET_EXPONENT(weight_matrix[tensor_index + i]);
+
+                hw_exponent = h_exponent + w_exponent;
+
+                hw_mantissa = (0x00800000 | h_mantissa) + ((0x00800000 | h_mantissa) >> 1);
+
+                if (hw_mantissa & 0x01000000)
+                {
+                  hw_exponent++;
+                  hw_mantissa >>= 1;
+                }
+
+                hw.u32 = (hw_exponent + 0x7f) << 23 | (hw_mantissa & 0x7FFFFF);
+              }
+              else
+              {
+                hw.u32 = 0;
+              }
+
+              temp_data[i] = hw.f32;
+
               sum += temp_data[i];
             }
 
