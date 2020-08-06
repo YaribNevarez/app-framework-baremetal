@@ -21,3 +21,5 @@ The following is a list of the specialized hardware:
 
 ## Known issues
 * Input layer tx buffer in spike accelerator is not being updated causing misclassification after the first loaded input
+
+![Performance](https://github.com/YaribNevarez/app-framework-baremetal/blob/hw-accelerator-weight-float4/apps/sbs_app/test/performance/benchmark.png)
