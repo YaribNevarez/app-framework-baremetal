@@ -8,6 +8,9 @@
 #ifndef LIBS_C_UTILITIES_INC_CUSTOM_FLOAT_H_
 #define LIBS_C_UTILITIES_INC_CUSTOM_FLOAT_H_
 
+#define DATA16_GET_EXPONENT(x) ((0x60 | ((x) >> 11 )) - 0x7F)
+#define DATA16_GET_MANTISSA(x) ((0x800 | (0x7FF & (x))) << 12)
+
 #define DATA08_GET_EXPONENT(x) ((0x70 | ((x) >> 4  )) - 0x7F)
 #define DATA04_GET_EXPONENT(x) ((0x70 | (0x0F & (x))) - 0x7F)
 

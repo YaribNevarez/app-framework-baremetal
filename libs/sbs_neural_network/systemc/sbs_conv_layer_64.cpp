@@ -118,6 +118,9 @@ typedef union
 #define MAX_SPIKE_MATRIX_SIZE       (25*25)
 #define MAX_INPUT_SPIKE_MATRIX_SIZE (5*5)
 
+#define DATA16_GET_EXPONENT(x) ((0x60 | ((x) >> 11 )) - 0x7F)
+#define DATA16_GET_MANTISSA(x) ((0x800 | (0x7FF & (x))) << 12)
+
 #define DATA08_GET_EXPONENT(x) ((0x70 | ((x) >> 4  )) - 0x7F)
 #define DATA04_GET_EXPONENT(x) ((0x70 | (0x0F & (x))) - 0x7F)
 
@@ -187,6 +190,14 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
   static float state_vector[MAX_VECTOR_SIZE];
 //#pragma HLS ARRAY_PARTITION variable=state_vector complete dim=1
 
+  /////////////////////////////////////////////////////////////////////////////
+  ap_uint<32> state_vector_magnitude[MAX_VECTOR_SIZE];
+  ap_uint<32> random_value;
+  ap_int<8>   exponent;
+  ap_uint<32> mantissa;
+  ap_uint<32> sum_magnitude;
+  /////////////////////////////////////////////////////////////////////////////
+
 //  static float weight_vector[MAX_VECTOR_SIZE];
 //#pragma HLS ARRAY_PARTITION variable=weight_vector block factor=32 dim=1
 
@@ -195,7 +206,6 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
 
 
   float epsion_over_sum;
-  float random_value;
 
   Data32 stream_data;
   Data32 data;
@@ -266,28 +276,21 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
       break;
     case SBS_HW_INFERENCE:
       {
-        for (int ip_index = 0; ip_index < hwProfile.layerSize; ip_index++)
+        LAYER_UPDATE: for (int ip_index = 0; ip_index < hwProfile.layerSize; ip_index++)
         {
   #if MT19937_HW
           random_value = ((float) MT19937_rand (0)) / ((float) 0xFFFFFFFF);
   #else
   #pragma HLS pipeline
-
-  #if 32 <= CHANNEL_WIDTH
-          stream_data.u32 = stream_in.read ().data;
-  #else
-          stream_data.u32 = DATA16_TO_FLOAT32(stream_in.read ().data);
+          random_value = stream_in.read ().data;
   #endif
 
-          random_value = stream_data.f32;
-  #endif
-
-          for (int i = 0; i < hwProfile.vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
+          STATE_VECTOR_LOADING: for (int i = 0; i < hwProfile.vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
           {
   #pragma HLS pipeline
             input = stream_in.read ().data;
 
-            for (int j = 0; j < (CHANNEL_WIDTH / STATE_VECTOR_WIDTH); j++)
+            STATE_VECTOR_LOADING_UNROLL: for (int j = 0; j < (CHANNEL_WIDTH / STATE_VECTOR_WIDTH); j++)
             {
   #pragma HLS unroll
   #pragma HLS pipeline
@@ -296,20 +299,28 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
   #pragma HLS pipeline
                 data.u32 = DATA16_TO_FLOAT32(input >> (STATE_VECTOR_WIDTH * j));
                 state_vector[i + j] = data.f32;
+                /////////////////////////////////////////////////////////////////////////////
+                exponent = DATA16_GET_EXPONENT(input >> (STATE_VECTOR_WIDTH * j));
+                mantissa = DATA16_GET_MANTISSA(input >> (STATE_VECTOR_WIDTH * j));
+                if (exponent < 0)
+                  state_vector_magnitude[i + j] = mantissa >> -exponent;
+                else
+                  state_vector_magnitude[i + j] = mantissa << exponent;
+                /////////////////////////////////////////////////////////////////////////////
               }
             }
           }
 
-          sum = 0.0f;
-          for (unsigned short spikeID = 0; spikeID < hwProfile.vectorSize; spikeID++)
+          sum_magnitude = 0;
+          SPIKE_GENERATION: for (unsigned short spikeID = 0; spikeID < hwProfile.vectorSize; spikeID++)
           {
   #pragma HLS pipeline
-            if (sum < random_value)
+            if (sum_magnitude < random_value)
             {
   #pragma HLS pipeline
-              sum += state_vector[spikeID];
+              sum_magnitude += state_vector_magnitude[spikeID];
 
-              if (random_value <= sum || (spikeID == hwProfile.vectorSize - 1))
+              if (random_value <= sum_magnitude || (spikeID == hwProfile.vectorSize - 1))
               {
   #pragma HLS pipeline
                 spike_matrix[ip_index] = spikeID;

@@ -490,15 +490,7 @@ inline void Accelerator_giveStateVector (SbSUpdateAccelerator * accelerator,
   ASSERT (0 < accelerator->profile->stateBufferSize);
   ASSERT (state_vector != NULL);
 
-  if (accelerator->profile->vectorSize == 10)
-  {
-    *((float *) accelerator->txBufferCurrentPtr) = 0.0;
-  }
-  else
-  {
-    *((float *) accelerator->txBufferCurrentPtr) = ((float) MT19937_genrand ())
-        * (1.0 / (float) 0xFFFFFFFF);
-  }
+  *((uint32_t *) accelerator->txBufferCurrentPtr) = MT19937_genrand () >> 9;
 
   accelerator->txBufferCurrentPtr += sizeof(float) + accelerator->profile->randBufferPaddingSize;
 

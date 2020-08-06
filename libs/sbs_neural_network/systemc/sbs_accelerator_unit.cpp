@@ -109,6 +109,9 @@ typedef union
 #define MAX_VECTOR_SIZE       (1024)
 #define MAX_SPIKE_MATRIX_SIZE (60*60)
 
+#define DATA16_GET_EXPONENT(x) ((0x60 | ((x) >> 11 )) - 0x7F)
+#define DATA16_GET_MANTISSA(x) ((0x800 | (0x7FF & (x))) << 12)
+
 #define DATA16_TO_FLOAT32(d)  ((0xFFFF & (d)) ? (0x30000000 | (((unsigned int) (0xFFFF & (d))) << 12)) : 0)
 #define DATA08_TO_FLOAT32(d)  ((0x00FF & (d)) ? (0x38000000 | (((unsigned int) (0x00FF & (d))) << 19)) : 0)
 
@@ -151,6 +154,14 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
   static float state_vector[MAX_VECTOR_SIZE];
 //#pragma HLS array_partition variable=state_vector block factor=246
 
+  /////////////////////////////////////////////////////////////////////////////
+  ap_uint<32> state_vector_magnitude[MAX_VECTOR_SIZE];
+  ap_uint<32> random_value;
+  ap_int<8>   exponent;
+  ap_uint<32> mantissa;
+  ap_uint<32> sum_magnitude;
+  /////////////////////////////////////////////////////////////////////////////
+
   static float weight_vector[MAX_VECTOR_SIZE];
 //#pragma HLS array_partition variable=weight_vector block factor=246
 
@@ -158,7 +169,6 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
 //#pragma HLS array_partition variable=temp_data block factor=246
 
   static float epsion_over_sum;
-  static float random_value;
 
   static ap_uint<CHANNEL_WIDTH> input;
 
@@ -186,18 +196,10 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
     random_value = ((float) MT19937_rand (0)) / ((float) 0xFFFFFFFF);
 #else
 #pragma HLS pipeline
-
-#if 32 <= CHANNEL_WIDTH
-    register_B.u32 = stream_in.read ().data;
-#else
-    register_B.u32 = DATA16_TO_FLOAT32(stream_in.read ().data);
+    random_value = stream_in.read ().data;
 #endif
 
-    random_value = register_B.f32;
-
-#endif
-
-    for (int i = 0; i < vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
+    STATE_VECTOR_LOADING: for (int i = 0; i < vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
     {
 #pragma HLS pipeline
       input = stream_in.read ().data;
@@ -211,20 +213,28 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
 #pragma HLS pipeline
           register_B.u32 = DATA16_TO_FLOAT32(input >> (STATE_VECTOR_WIDTH * j));
           state_vector[i + j] = register_B.f32;
+          /////////////////////////////////////////////////////////////////////////////
+          exponent = DATA16_GET_EXPONENT(input >> (STATE_VECTOR_WIDTH * j));
+          mantissa = DATA16_GET_MANTISSA(input >> (STATE_VECTOR_WIDTH * j));
+          if (exponent < 0)
+            state_vector_magnitude[i + j] = mantissa >> -exponent;
+          else
+            state_vector_magnitude[i + j] = mantissa << exponent;
+          /////////////////////////////////////////////////////////////////////////////
         }
       }
     }
 
-    sum = 0.0f;
-    for (unsigned short spikeID = 0; spikeID < vectorSize; spikeID++)
+    sum_magnitude = 0;
+    SPIKE_GENERATION: for (unsigned short spikeID = 0; spikeID < vectorSize; spikeID++)
     {
 #pragma HLS pipeline
-      if (sum < random_value)
+      if (sum_magnitude < random_value)
       {
 #pragma HLS pipeline
-        sum += state_vector[spikeID];
+    	  sum_magnitude += state_vector_magnitude[spikeID];
 
-        if (random_value <= sum || (spikeID == vectorSize - 1))
+        if (random_value <= sum_magnitude || (spikeID == vectorSize - 1))
         {
 #pragma HLS pipeline
           spike_matrix[ip_index] = spikeID;
