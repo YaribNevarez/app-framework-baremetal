@@ -154,27 +154,23 @@ void sbs_spike_fixp (hls::stream<StreamChannel> &stream_in,
     }
 
     sum = 0;
-    for (short spikeID = 0; spikeID < vectorSize; spikeID++)
+    for (short spikeID = 0; (sum < random_value) && (spikeID < vectorSize); spikeID++)
     {
 #pragma HLS pipeline
-      if (sum < random_value)
+      sum += data[spikeID];
+      if ((random_value <= sum) || (spikeID == vectorSize - 1))
       {
 #pragma HLS pipeline
-        sum += data[spikeID];
-        if ((random_value <= sum) || (spikeID == vectorSize - 1))
+        channel.data =
+         (~(((ap_uint<CHANNEL_WIDTH> )  0xFFFF) << (SPIKE_VECTOR_WIDTH * (ip_index & SPIKE_COUNT_MASK))) & channel.data)
+        | (((ap_uint<CHANNEL_WIDTH> )  spikeID) << (SPIKE_VECTOR_WIDTH * (ip_index & SPIKE_COUNT_MASK)));
+
+        if (((ip_index & SPIKE_COUNT_MASK) == SPIKE_COUNT_MASK) || (ip_index == layerSize - 1))
         {
 #pragma HLS pipeline
-          channel.data =
-           (~(((ap_uint<CHANNEL_WIDTH> )  0xFFFF) << (SPIKE_VECTOR_WIDTH * (ip_index & SPIKE_COUNT_MASK))) & channel.data)
-          | (((ap_uint<CHANNEL_WIDTH> )  spikeID) << (SPIKE_VECTOR_WIDTH * (ip_index & SPIKE_COUNT_MASK)));
+          channel.last = (ip_index == layerSize - 1);
 
-          if (((ip_index & SPIKE_COUNT_MASK) == SPIKE_COUNT_MASK) || (ip_index == layerSize - 1))
-          {
-#pragma HLS pipeline
-            channel.last = (ip_index == layerSize - 1);
-
-            stream_out.write (channel);
-          }
+          stream_out.write (channel);
         }
       }
     }

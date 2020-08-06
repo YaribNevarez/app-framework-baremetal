@@ -312,19 +312,17 @@ unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
           }
 
           sum_magnitude = 0;
-          SPIKE_GENERATION: for (unsigned short spikeID = 0; spikeID < hwProfile.vectorSize; spikeID++)
+          SPIKE_GENERATION: for (unsigned short spikeID = 0;
+              (sum_magnitude < random_value) && (spikeID < hwProfile.vectorSize);
+              spikeID++)
           {
   #pragma HLS pipeline
-            if (sum_magnitude < random_value)
+            sum_magnitude += state_vector_magnitude[spikeID];
+
+            if ((random_value <= sum_magnitude) || (spikeID == hwProfile.vectorSize - 1))
             {
   #pragma HLS pipeline
-              sum_magnitude += state_vector_magnitude[spikeID];
-
-              if (random_value <= sum_magnitude || (spikeID == hwProfile.vectorSize - 1))
-              {
-  #pragma HLS pipeline
-                spike_matrix[ip_index] = spikeID;
-              }
+              spike_matrix[ip_index] = spikeID;
             }
           }
 

@@ -226,19 +226,16 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
     }
 
     sum_magnitude = 0;
-    SPIKE_GENERATION: for (unsigned short spikeID = 0; spikeID < vectorSize; spikeID++)
+    SPIKE_GENERATION: for (unsigned short spikeID = 0;
+        (sum_magnitude < random_value) && (spikeID < vectorSize); spikeID++)
     {
 #pragma HLS pipeline
-      if (sum_magnitude < random_value)
+      sum_magnitude += state_vector_magnitude[spikeID];
+
+      if (random_value <= sum_magnitude || (spikeID == vectorSize - 1))
       {
 #pragma HLS pipeline
-    	  sum_magnitude += state_vector_magnitude[spikeID];
-
-        if (random_value <= sum_magnitude || (spikeID == vectorSize - 1))
-        {
-#pragma HLS pipeline
-          spike_matrix[ip_index] = spikeID;
-        }
+        spike_matrix[ip_index] = spikeID;
       }
     }
 
