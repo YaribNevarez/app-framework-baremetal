@@ -143,7 +143,7 @@ typedef union
 #define WEIGHT_VECTOR_WIDTH   8
 #define SPIKE_VECTOR_WIDTH    16
 
-#define WEIGHT_BIT_WIDTH      4
+#define WEIGHT_BIT_WIDTH      5
 #define WEIGHT_MATRIX_SIZE    1600
 
 typedef ap_axis<CHANNEL_WIDTH, 2, 5, 6> StreamChannel;
@@ -219,13 +219,18 @@ unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
 
   unsigned int debug_index = 0;
 
+  /////////////////////////////////////////////////////////////////////////////
+  ap_uint<WEIGHT_BIT_WIDTH> weight;
+  
   ap_int<8>  w_exponent;
-  ap_int<8>  h_exponent;
-  ap_int<32> h_mantissa;
-  ap_int<8>  hw_exponent;
 
+  ap_int<8>  h_exponent;
+  ap_uint<32> h_mantissa;
+
+  ap_int<8>  hw_exponent;
   ap_uint<32> hw_mantissa;
 
+/////////////////////////////////////////////////////////////////////////////
 
   channel.keep = -1;
   channel.strb = -1;
@@ -269,7 +274,7 @@ unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
           {
 #pragma HLS unroll
 #pragma HLS pipeline
-            weight_matrix[i + j] = (0x0F) & (input >> ((WEIGHT_VECTOR_WIDTH * j) + WEIGHT_BIT_WIDTH));
+            weight_matrix[i + j] = input >> ((WEIGHT_VECTOR_WIDTH * j) + (WEIGHT_VECTOR_WIDTH - WEIGHT_BIT_WIDTH));
           }
         }
 
@@ -359,11 +364,20 @@ unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
               h_mantissa = DATA32_GET_MANTISSA(data.u32);
               if (-0x7F < h_exponent)
               {
-                w_exponent = DATA04_GET_EXPONENT(weight_matrix[tensor_index + i]);
+                weight = weight_matrix[tensor_index + i];
+
+                w_exponent = DATA04_GET_EXPONENT(weight >> 1);
 
                 hw_exponent = h_exponent + w_exponent;
 
-                hw_mantissa = h_mantissa + (h_mantissa >> 1);
+                if (0x01 & weight)
+                {
+                  hw_mantissa = h_mantissa + (h_mantissa >> 1);
+                }
+                else
+                {
+                  hw_mantissa = h_mantissa;
+                }
 
                 if (hw_mantissa & 0x01000000)
                 {

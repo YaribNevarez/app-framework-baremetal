@@ -87,6 +87,8 @@ typedef union
   float           f32;
 } Data32;
 
+#define MANTISSA_BIT_WIDTH    23
+#define MT19937_BIT_WIDTH     32
 
 #define CHANNEL_WIDTH         32
 #define STATE_VECTOR_WIDTH    16
@@ -97,6 +99,16 @@ typedef union
 typedef ap_axis<CHANNEL_WIDTH, 2, 5, 6> StreamChannel;
 
 #define MAX_VECTOR_SIZE   50
+
+#define BUILD_FLOAT(s, exponent, mantissa) ((0x80000000 & ((s) << 31)) | (0x7f800000 & (((exponent) + 0x7f) << 23)) | ((mantissa) & 0x7FFFFF))
+
+#define DATA08_GET_EXPONENT(x) ((0x70 | (0x0F & ((x) >> 4))) - 0x7F)
+
+#define DATA16_GET_EXPONENT(x) ((0x60 | ((x) >> 11 )) - 0x7F)
+#define DATA16_GET_MANTISSA(x) ((0x800 | (0x7FF & (x))) << 12)
+
+#define DATA32_GET_EXPONENT(x) ((0xFF & ((x) >> 23)) - 0x7F)
+#define DATA32_GET_MANTISSA(x) (0x00800000 | ((0x7FFFFF) & (x)))
 
 #define DATA16_TO_FLOAT32(d)  ((0xFFFF & (d)) ? (0x30000000 | (((unsigned int) (0xFFFF & (d))) << 12)) : 0)
 #define DATA08_TO_FLOAT32(d)  ((0x00FF & (d)) ? (0x38000000 | (((unsigned int) (0x00FF & (d))) << 19)) : 0)
@@ -117,41 +129,30 @@ void sbs_spike_unit (hls::stream<StreamChannel> &stream_in,
 #pragma HLS INTERFACE s_axilite port=vectorSize  bundle=CRTL_BUS
 #pragma HLS INTERFACE s_axilite port=return      bundle=CRTL_BUS
 
-  static float data[MAX_VECTOR_SIZE];
-#pragma HLS array_partition variable=data complete
+  /////////////////////////////////////////////////////////////////////////////
+  ap_uint<32> state_vector_magnitude[MAX_VECTOR_SIZE];
+  ap_uint<32> random_value;
+  ap_int<8>   exponent;
+  ap_uint<32> mantissa;
+  ap_uint<32> sum_magnitude;
+  /////////////////////////////////////////////////////////////////////////////
+#pragma HLS array_partition variable=state_vector_magnitude complete
 
   unsigned int debug_flags;
 
   static StreamChannel channel;
-  static float random_value;
 
   static ap_uint<CHANNEL_WIDTH> input;
   static Data32 register_B;
-
-  static float sum;
 
   channel.keep = -1;
   channel.strb = -1;
 
   for (int ip_index = 0; ip_index < layerSize; ip_index++)
   {
-#if MT19937_HW
-    random_value = ((float) MT19937_rand ()) / ((float) 0xFFFFFFFF);
-#else
-#pragma HLS pipeline
+    random_value = MT19937_rand () >> (MT19937_BIT_WIDTH - MANTISSA_BIT_WIDTH);
 
-
-#if 32 <= CHANNEL_WIDTH
-    register_B.u32 = stream_in.read ().data;
-#else
-    register_B.u32 = DATA16_TO_FLOAT32(stream_in.read ().data);
-#endif
-
-
-    random_value = register_B.f32;
-#endif
-
-    for (int index = 0; index < vectorSize; index += CHANNEL_WIDTH / STATE_VECTOR_WIDTH)
+    STATE_VECTOR_LOADING: for (int index = 0; index < vectorSize; index += CHANNEL_WIDTH / STATE_VECTOR_WIDTH)
     {
 #pragma HLS pipeline
       input = stream_in.read ().data;
@@ -163,34 +164,36 @@ void sbs_spike_unit (hls::stream<StreamChannel> &stream_in,
         if (index + i < vectorSize)
         {
 #pragma HLS pipeline
-          register_B.u32 = DATA16_TO_FLOAT32(input >> STATE_VECTOR_WIDTH * i);
-          data[index + i] = register_B.f32;
+          /////////////////////////////////////////////////////////////////////////////
+          exponent = DATA16_GET_EXPONENT(input >> (STATE_VECTOR_WIDTH * i));
+          mantissa = DATA16_GET_MANTISSA(input >> (STATE_VECTOR_WIDTH * i));
+          if (exponent < 0)
+            state_vector_magnitude[index + i] = mantissa >> -exponent;
+          else
+            state_vector_magnitude[index + i] = mantissa << exponent;
+          /////////////////////////////////////////////////////////////////////////////
         }
       }
     }
 
-    sum = 0.0f;
-    for (short spikeID = 0; spikeID < vectorSize; spikeID++)
+    sum_magnitude = 0;
+    SPIKE_GENERATION: for (short spikeID = 0; (sum_magnitude < random_value) && (spikeID < vectorSize); spikeID++)
     {
 #pragma HLS pipeline
-      if (sum < random_value)
+      sum_magnitude += state_vector_magnitude[spikeID];
+      if ((random_value <= sum_magnitude) || (spikeID == vectorSize - 1))
       {
 #pragma HLS pipeline
-        sum += data[spikeID];
-        if ((random_value <= sum) || (spikeID == vectorSize - 1))
+        channel.data =
+         (~(((ap_uint<CHANNEL_WIDTH> )  0xFFFF) << (SPIKE_VECTOR_WIDTH * (ip_index & SPIKE_COUNT_MASK))) & channel.data)
+        | (((ap_uint<CHANNEL_WIDTH> )  spikeID) << (SPIKE_VECTOR_WIDTH * (ip_index & SPIKE_COUNT_MASK)));
+
+        if (((ip_index & SPIKE_COUNT_MASK) == SPIKE_COUNT_MASK) || (ip_index == layerSize - 1))
         {
 #pragma HLS pipeline
-          channel.data =
-           (~(((ap_uint<CHANNEL_WIDTH> )  0xFFFF) << (SPIKE_VECTOR_WIDTH * (ip_index & SPIKE_COUNT_MASK))) & channel.data)
-          | (((ap_uint<CHANNEL_WIDTH> )  spikeID) << (SPIKE_VECTOR_WIDTH * (ip_index & SPIKE_COUNT_MASK)));
+          channel.last = (ip_index == layerSize - 1);
 
-          if (((ip_index & SPIKE_COUNT_MASK) == SPIKE_COUNT_MASK) || (ip_index == layerSize - 1))
-          {
-#pragma HLS pipeline
-            channel.last = (ip_index == layerSize - 1);
-
-            stream_out.write (channel);
-          }
+          stream_out.write (channel);
         }
       }
     }

@@ -43,9 +43,9 @@ SbsSettings SbsSettings_ =
     },
     .input_matrix_format =
     {
-        .representation = FIXED_POINT,
+        .representation = FLOAT,
         .size = sizeof(uint16_t),
-        .mantissa_bitlength = 0
+        .mantissa_bitlength = 11
     },
     .input_matrix_format_file_system =
     {

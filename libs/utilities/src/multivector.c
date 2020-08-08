@@ -34,11 +34,13 @@ typedef uint32_t M32Bit_1_1_50_32[1][1][50][32];
 typedef uint16_t M16Bit_1_1_50_32[1][1][50][32];
 typedef uint8_t  M8Bit_1_1_50_32[1][1][50][32];
 typedef uint32_t M32Bit_6_12_32[6][12][32];
+typedef uint16_t M16Bit_6_12_32[6][12][32];
 typedef uint32_t M32Bit_12_12_32[12][12][32];
 typedef uint16_t M16Bit_12_12_32[12][12][32];
 typedef uint32_t M32Bit_12_12[12][12];
 typedef uint16_t M16Bit_12_12[12][12];
 typedef uint32_t M32Bit_6_12[6][12];
+typedef uint16_t M16Bit_6_12[6][12];
 typedef uint32_t M32Bit_2_2_32_32[2][2][32][32];
 typedef uint16_t M16Bit_2_2_32_32[2][2][32][32];
 typedef uint8_t  M8Bit_2_2_32_32[2][2][32][32];
@@ -173,6 +175,12 @@ M32BitFormat M32BitFormat_list[] =
         .dimension_size = {6, 12, 32, 0}
     },
     {
+        .type_id = M16BIT_6_12_32_ID,
+        .data_type_size = sizeof(uint16_t),
+        .dimensionality = 3,
+        .dimension_size = {6, 12, 32, 0}
+    },
+    {
         .type_id = M32BIT_12_12_32_ID,
         .data_type_size = sizeof(uint32_t),
         .dimensionality = 3,
@@ -199,6 +207,12 @@ M32BitFormat M32BitFormat_list[] =
     {
         .type_id = M32BIT_6_12_ID,
         .data_type_size = sizeof(uint32_t),
+        .dimensionality = 2,
+        .dimension_size = {6, 12, 0, 0}
+    },
+    {
+        .type_id = M16BIT_6_12_ID,
+        .data_type_size = sizeof(uint16_t),
         .dimensionality = 2,
         .dimension_size = {6, 12, 0, 0}
     },
@@ -713,6 +727,8 @@ void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uin
       return &(*(M32Bit_1_1_50_32*) multivector->data)[row][column];
     case M32BIT_6_12_32_ID:
       return &(*(M32Bit_6_12_32*) multivector->data)[row][column];
+    case M16BIT_6_12_32_ID:
+      return &(*(M16Bit_6_12_32*) multivector->data)[row][column];
     case M32BIT_12_12_32_ID:
       return &(*(M32Bit_12_12_32*) multivector->data)[row][column];
     case M16BIT_12_12_32_ID:
@@ -723,6 +739,8 @@ void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uin
       return &(*(M16Bit_12_12*) multivector->data)[row][column];
     case M32BIT_6_12_ID:
       return &(*(M32Bit_6_12*) multivector->data)[row][column];
+    case M16BIT_6_12_ID:
+      return &(*(M16Bit_6_12*) multivector->data)[row][column];
     case M32BIT_2_2_32_32_ID:
       return &(*(M32Bit_2_2_32_32*) multivector->data)[row][column];
     case M32BIT_8_8_64_ID:
@@ -800,6 +818,8 @@ void inline * Multivector_3DAccess (Multivector * multivector, uint16_t row, uin
         return &(*(M8Bit_1_1_50_32*) multivector->data)[row][column][position];
     case M32BIT_6_12_32_ID:
       return &(*(M32Bit_6_12_32*) multivector->data)[row][column][position];
+    case M16BIT_6_12_32_ID:
+      return &(*(M16Bit_6_12_32*) multivector->data)[row][column][position];
     case M32BIT_2_2_32_32_ID:
       return &(*(M32Bit_2_2_32_32*) multivector->data)[row][column][position];
     case M16BIT_2_2_32_32_ID:
