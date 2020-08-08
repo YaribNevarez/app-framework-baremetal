@@ -558,7 +558,6 @@ static void SbsBaseLayer_updateSw (SbsBaseLayer * layer, SbsBaseLayer * spike_la
     WeightShift layer_weight_shift = layer->weight_shift;
 
     Event_start (layer->event);
-    //while (!spike_layer->partition_array[0]->accelerator->rxDone);
 
     kernel_row_pos = 0, layer_row = 0;
     for (i = 0; i < layer->num_partitions; i ++)

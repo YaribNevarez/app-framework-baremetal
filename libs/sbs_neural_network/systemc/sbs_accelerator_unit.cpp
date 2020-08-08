@@ -109,8 +109,15 @@ typedef union
 #define MAX_VECTOR_SIZE       (1024)
 #define MAX_SPIKE_MATRIX_SIZE (60*60)
 
+#define BUILD_FLOAT(s, exponent, mantissa) ((0x80000000 & ((s) << 31)) | (0x7f800000 & (((exponent) + 0x7f) << 23)) | ((mantissa) & 0x7FFFFF))
+
+#define DATA08_GET_EXPONENT(x) ((0x70 | (0x0F & ((x) >> 4))) - 0x7F)
+
 #define DATA16_GET_EXPONENT(x) ((0x60 | ((x) >> 11 )) - 0x7F)
 #define DATA16_GET_MANTISSA(x) ((0x800 | (0x7FF & (x))) << 12)
+
+#define DATA32_GET_EXPONENT(x) ((0xFF & ((x) >> 23)) - 0x7F)
+#define DATA32_GET_MANTISSA(x) (0x00800000 | ((0x7FFFFF) & (x)))
 
 #define DATA16_TO_FLOAT32(d)  ((0xFFFF & (d)) ? (0x30000000 | (((unsigned int) (0xFFFF & (d))) << 12)) : 0)
 #define DATA08_TO_FLOAT32(d)  ((0x00FF & (d)) ? (0x38000000 | (((unsigned int) (0x00FF & (d))) << 19)) : 0)
@@ -162,7 +169,7 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
   ap_uint<32> sum_magnitude;
   /////////////////////////////////////////////////////////////////////////////
 
-  static float weight_vector[MAX_VECTOR_SIZE];
+  static ap_uint<WEIGHT_VECTOR_WIDTH> weight_vector[MAX_VECTOR_SIZE];
 //#pragma HLS array_partition variable=weight_vector block factor=246
 
   static float temp_data[MAX_VECTOR_SIZE];
@@ -174,11 +181,25 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
 
   static Data32 register_A;
   static Data32 register_B;
+  static Data32 data;
+  Data32 hw;
 
   float reverse_epsilon = 1.0f / (1.0f + epsilon);
   static float sum;
 
   unsigned int debug_index = 0;
+  /////////////////////////////////////////////////////////////////////////////
+  ap_int<32> w_exponent;
+
+  ap_int<32> h_exponent;
+  ap_int<32> h_mantissa;
+
+  ap_int<32> hw_exponent;
+  ap_uint<32> hw_mantissa;
+
+  ap_uint<32> magnitude;
+  ap_int<32> w;
+  /////////////////////////////////////////////////////////////////////////////
 
   channel.keep = -1;
   channel.strb = -1;
@@ -254,24 +275,68 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
           if (i + j < vectorSize)
           {
 #pragma HLS pipeline
-            register_B.u32 = DATA08_TO_FLOAT32(input >> (WEIGHT_VECTOR_WIDTH * j));
-            weight_vector[i + j] = register_B.f32;
+            weight_vector[i + j] = 0xFF & (input >> (WEIGHT_VECTOR_WIDTH * j));
           }
         }
       }
 
-      sum = 0.0f;
-      for (int i = 0; i < vectorSize; i++)
+      sum_magnitude = 0;
+      HW_MUL: for (int i = 0; i < vectorSize; i++)
       {
 #pragma HLS pipeline
-        temp_data[i] = state_vector[i] * weight_vector[i];
-        sum += temp_data[i];
+        data.f32 = state_vector[i];
+        h_exponent = DATA32_GET_EXPONENT(data.u32);
+        h_mantissa = DATA32_GET_MANTISSA(data.u32);
+        if (-0x7F < h_exponent)
+        {
+          w = weight_vector[i];
+          w_exponent = DATA08_GET_EXPONENT(w);
+
+          hw_exponent = h_exponent + w_exponent;
+
+          if (0x08 & w)
+          {
+            hw_mantissa = h_mantissa + (h_mantissa >> 1);
+          }
+          else
+          {
+            hw_mantissa = h_mantissa;
+          }
+
+          if (hw_mantissa & 0x01000000)
+          {
+            hw_exponent++;
+            hw_mantissa >>= 1;
+          }
+
+          hw.u32 = BUILD_FLOAT (0, hw_exponent, hw_mantissa);
+
+          if (hw_exponent < 0)
+            sum_magnitude += hw_mantissa >> -hw_exponent;
+          else
+            sum_magnitude += hw_mantissa << hw_exponent;
+        }
+        else
+        {
+          hw.u32 = 0;
+        }
+
+        temp_data[i] = hw.f32;
       }
 
-      if (NEGLECTING_CONSTANT < sum)
+      if (sum_magnitude)
       {
 #pragma HLS pipeline
-        epsion_over_sum = epsilon / sum;
+
+        NORMALIZE_SUM: for (exponent = 0; !(0x800000 & sum_magnitude); exponent++)
+        { // Normalize
+#pragma HLS pipeline
+          sum_magnitude <<= 1;
+        }
+
+        data.u32 = BUILD_FLOAT(0, -exponent, sum_magnitude);
+
+        epsion_over_sum = epsilon / data.f32;
         for (int i = 0; i < vectorSize; i++)
         {
 #pragma HLS pipeline

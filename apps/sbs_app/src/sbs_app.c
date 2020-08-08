@@ -173,13 +173,13 @@ SbSHardwareConfig SbSHardwareConfig_list[] =
     }
   },
 #endif
-#ifdef HW_CONVOLUTION_LAYER_3
-  { .hwDriver      = &SbsHardware_convLayer64,
+#ifdef HW_POOLING_LAYER_2
+  { .hwDriver      = &SbsHardware_poolingLayer,
     .dmaDriver     = &DMAHardware_mover,
-    .layerAssign   = HW_CONVOLUTION_LAYER_3,
-    .hwDeviceID    = XPAR_SBS_CONV_LAYER_64_2_DEVICE_ID,
+    .layerAssign   = HW_POOLING_LAYER_2,
+    .hwDeviceID    = XPAR_SBS_POOLING_LAYER_2_DEVICE_ID,
     .dmaDeviceID   = XPAR_AXI_DMA_7_DEVICE_ID,
-    .hwIntVecID    = XPAR_FABRIC_SBS_CONV_LAYER_64_2_INTERRUPT_INTR,
+    .hwIntVecID    = XPAR_FABRIC_SBS_POOLING_LAYER_2_INTERRUPT_INTR,
     .dmaTxIntVecID = 0,
     .dmaRxIntVecID = 0,
     .channelSize   = 4,

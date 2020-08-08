@@ -173,9 +173,7 @@ unsigned int sbs_pooling_layer (hls::stream<StreamChannel> &stream_in,
 
   float reverse_epsilon = 1.0f / (1.0f + epsilon);
   float epsilon_reverse_epsilon = epsilon * reverse_epsilon;
-  float weight = 1.0f / ((float) kernelSize);
-  float sum = 0.0;
-  float h;
+  Data32 h;
   unsigned short input_spike = 0;
 
   unsigned int debug_index = 0;
@@ -260,37 +258,19 @@ unsigned int sbs_pooling_layer (hls::stream<StreamChannel> &stream_in,
 #pragma HLS pipeline
       input_spike = input_spike_matrix[batch];
 
-      h = state_vector[input_spike];
-
-      if (h != 0)
+      for (int i = 0; i < vectorSize; i++)
       {
 #pragma HLS pipeline
-        sum = h * weight;
-      }
-      else
-      {
-#pragma HLS pipeline
-        sum = 0;
-      }
-
-
-      if (NEGLECTING_CONSTANT < sum)
-      {
-#pragma HLS pipeline
-        for (int i = 0; i < vectorSize; i++)
+        h.f32 = state_vector[i];
+        if (input_spike == i)
         {
 #pragma HLS pipeline
-          h = state_vector[i];
-          if (input_spike == i)
-          {
+          state_vector[i] = reverse_epsilon * h.f32 + epsilon_reverse_epsilon;
+        }
+        else if (h.u32 != 0)
+        {
 #pragma HLS pipeline
-            state_vector[i] = reverse_epsilon * h + epsilon_reverse_epsilon;
-          }
-          else if (h != 0)
-          {
-#pragma HLS pipeline
-            state_vector[i] = reverse_epsilon * h;
-          }
+          state_vector[i] = reverse_epsilon * h.f32;
         }
       }
     }

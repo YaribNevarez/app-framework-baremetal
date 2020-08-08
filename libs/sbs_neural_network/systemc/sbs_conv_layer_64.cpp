@@ -118,14 +118,16 @@ typedef union
 #define MAX_SPIKE_MATRIX_SIZE       (25*25)
 #define MAX_INPUT_SPIKE_MATRIX_SIZE (5*5)
 
+#define BUILD_FLOAT(s, exponent, mantissa) ((0x80000000 & ((s) << 31)) | (0x7f800000 & (((exponent) + 0x7f) << 23)) | ((mantissa) & 0x7FFFFF))
+
 #define DATA16_GET_EXPONENT(x) ((0x60 | ((x) >> 11 )) - 0x7F)
 #define DATA16_GET_MANTISSA(x) ((0x800 | (0x7FF & (x))) << 12)
 
-#define DATA08_GET_EXPONENT(x) ((0x70 | ((x) >> 4  )) - 0x7F)
+#define DATA08_GET_EXPONENT(x) ((0x70 | (0x0F & ((x) >> 4))) - 0x7F)
 #define DATA04_GET_EXPONENT(x) ((0x70 | (0x0F & (x))) - 0x7F)
 
 #define DATA32_GET_EXPONENT(x) ((0xFF & ((x) >> 23)) - 0x7F)
-#define DATA32_GET_MANTISSA(x) ((0x7FFFFF) & (x))
+#define DATA32_GET_MANTISSA(x) (0x00800000 | ((0x7FFFFF) & (x)))
 
 #define DATA16_TO_FLOAT32(d)  ((0xFFFF & (d)) ? (0x30000000 | (((unsigned int) (0xFFFF & (d))) << 12)) : 0)
 #define DATA08_TO_FLOAT32(d)  ((0x00FF & (d)) ? (0x38000000 | (((unsigned int) (0x00FF & (d))) << 19)) : 0)
@@ -217,13 +219,17 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
 
   unsigned int debug_index = 0;
 
-  ap_int<8> w_exponent;
+  /////////////////////////////////////////////////////////////////////////////
+  ap_int<8>   w_exponent;
 
-  ap_int<8> h_exponent;
-  ap_int<32> h_mantissa;
+  ap_int<8>   h_exponent;
+  ap_uint<32> h_mantissa;
 
-  ap_int<8> hw_exponent;
+  ap_int<8>   hw_exponent;
   ap_uint<32> hw_mantissa;
+
+  ap_uint<32> magnitude;
+  /////////////////////////////////////////////////////////////////////////////
 
   channel.keep = -1;
   channel.strb = -1;
@@ -348,7 +354,7 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
   #pragma HLS pipeline
             int tensor_index = input_spike_matrix[batch] * hwProfile.vectorSize + weight_matrix_index;
 
-            sum = 0.0f;
+            sum_magnitude = 0;
             HW_MUL: for (int i = 0; i < hwProfile.vectorSize; i++)
             {
 #pragma HLS pipeline
@@ -361,7 +367,7 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
 
                 hw_exponent = h_exponent + w_exponent;
 
-                hw_mantissa = (0x00800000 | h_mantissa) + ((0x00800000 | h_mantissa) >> 1);
+                hw_mantissa = h_mantissa + (h_mantissa >> 1);
 
                 if (hw_mantissa & 0x01000000)
                 {
@@ -369,7 +375,12 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
                   hw_mantissa >>= 1;
                 }
 
-                hw.u32 = (hw_exponent + 0x7f) << 23 | (hw_mantissa & 0x7FFFFF);
+                hw.u32 = BUILD_FLOAT(0, hw_exponent, hw_mantissa);
+
+                if (hw_exponent < 0)
+                  sum_magnitude += hw_mantissa >> -hw_exponent;
+                else
+                  sum_magnitude += hw_mantissa << hw_exponent;
               }
               else
               {
@@ -377,14 +388,21 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
               }
 
               temp_data[i] = hw.f32;
-
-              sum += temp_data[i];
             }
 
-            if (NEGLECTING_CONSTANT < sum)
+            if (sum_magnitude)
             {
   #pragma HLS pipeline
-              epsion_over_sum = hwProfile.epsilon / sum;
+
+              NORMALIZE_SUM: for (exponent = 0; !(0x800000 & sum_magnitude); exponent++)
+              { // Normalize
+  #pragma HLS pipeline
+                sum_magnitude <<= 1;
+              }
+
+              data.u32 = BUILD_FLOAT(0, -exponent, sum_magnitude);
+
+              epsion_over_sum = hwProfile.epsilon / data.f32;
               low_pass_epsilon = reverse_epsilon * epsion_over_sum;
               update_loop: for (int i = 0; i < hwProfile.vectorSize; i++)
               {
