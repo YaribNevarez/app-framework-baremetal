@@ -57,6 +57,8 @@ typedef struct
 
   void      (*Set_mode)       (void *InstancePtr, SbsHwMode mode);
   uint32_t  (*Get_mode)       (void *InstancePtr);
+  void      (*Set_flags)      (void *InstancePtr, uint32_t Data);
+  uint32_t  (*Get_flags)      (void *InstancePtr);
   void      (*Set_layerSize)  (void *InstancePtr, uint32_t Data);
   uint32_t  (*Get_layerSize)  (void *InstancePtr);
   void      (*Set_kernelSize) (void *InstancePtr, uint32_t Data);

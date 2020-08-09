@@ -143,7 +143,7 @@ typedef union
 #define WEIGHT_VECTOR_WIDTH   8
 #define SPIKE_VECTOR_WIDTH    16
 
-#define WEIGHT_BIT_WIDTH      5
+#define WEIGHT_BIT_WIDTH      8
 #define WEIGHT_MATRIX_SIZE    52000
 
 typedef ap_axis<CHANNEL_WIDTH, 2, 5, 6> StreamChannel;
@@ -162,11 +162,14 @@ typedef struct
 
 unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
                                     hls::stream<StreamChannel> &stream_out,
+                                    int flags,
                                     int * debug,
                                     SbsHwMode mode)
 {
 #pragma HLS INTERFACE axis      port=stream_in
 #pragma HLS INTERFACE axis      port=stream_out
+
+#pragma HLS INTERFACE s_axilite port=flags       bundle=CRTL_BUS
 
 //#pragma HLS INTERFACE m_axi     port=debug       offset=slave    bundle=DEBUG
 #pragma HLS INTERFACE s_axilite port=debug       bundle=CRTL_BUS
@@ -221,17 +224,21 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
 
   /////////////////////////////////////////////////////////////////////////////
   ap_uint<WEIGHT_BIT_WIDTH> weight;
+  
+  ap_uint<4> weight_and_mask;
+  ap_uint<4> weight_or_mask;
 
-  ap_int<8>   w_exponent;
+  ap_int<8>  w_exponent;
 
-  ap_int<8>   h_exponent;
+  ap_int<8>  h_exponent;
   ap_uint<32> h_mantissa;
 
-  ap_int<8>   hw_exponent;
+  ap_int<8>  hw_exponent;
   ap_uint<32> hw_mantissa;
+/////////////////////////////////////////////////////////////////////////////
 
-  ap_uint<32> magnitude;
-  /////////////////////////////////////////////////////////////////////////////
+  weight_and_mask = (0xF & flags);
+  weight_or_mask = 0xF & (flags >> 4);
 
   channel.keep = -1;
   channel.strb = -1;
@@ -367,17 +374,60 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
               {
                 weight = weight_matrix[tensor_index + i];
 
-                w_exponent = DATA04_GET_EXPONENT(weight >> 1);
+                w_exponent = DATA08_GET_EXPONENT(weight);
 
                 hw_exponent = h_exponent + w_exponent;
 
-                if (0x01 & weight)
+                switch ((weight_and_mask & weight) | weight_or_mask)
                 {
-                  hw_mantissa = h_mantissa + (h_mantissa >> 1);
-                }
-                else
-                {
-                  hw_mantissa = h_mantissa;
+                  case 0x0:
+                    hw_mantissa = h_mantissa;
+                    break;
+                  case 0x1:
+                    hw_mantissa = h_mantissa + (h_mantissa >> 4);
+                    break;
+                  case 0x2:
+                    hw_mantissa = h_mantissa + (h_mantissa >> 3);
+                    break;
+                  case 0x3:
+                    hw_mantissa = h_mantissa + (h_mantissa >> 3) + (h_mantissa >> 4);
+                    break;
+                  case 0x4:
+                    hw_mantissa = h_mantissa + (h_mantissa >> 2);
+                    break;
+                  case 0x5:
+                    hw_mantissa = h_mantissa + (h_mantissa >> 2) + (h_mantissa >> 4);
+                    break;
+                  case 0x6:
+                    hw_mantissa = h_mantissa + (h_mantissa >> 2) + (h_mantissa >> 3);
+                    break;
+                  case 0x7:
+                    hw_mantissa = h_mantissa + (h_mantissa >> 2) + (h_mantissa >> 3) + (h_mantissa >> 4);
+                    break;
+                  case 0x8:
+                    hw_mantissa = h_mantissa + (h_mantissa >> 1);
+                    break;
+                  case 0x9:
+                    hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 4);
+                    break;
+                  case 0xA:
+                    hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 3);
+                    break;
+                  case 0xB:
+                    hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 3) + (h_mantissa >> 4);
+                    break;
+                  case 0xC:
+                    hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 2);
+                    break;
+                  case 0xD:
+                    hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 2) + (h_mantissa >> 4);
+                    break;
+                  case 0xE:
+                    hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 2) + (h_mantissa >> 3);
+                    break;
+                  case 0xF:
+                    hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 2) + (h_mantissa >> 3) + (h_mantissa >> 4);
+                    break;
                 }
 
                 if (hw_mantissa & 0x01000000)

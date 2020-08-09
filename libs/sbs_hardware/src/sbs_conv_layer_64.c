@@ -64,6 +64,8 @@ SbsHardware SbsHardware_convLayer64 =
 
   .Set_mode =       (void (*) (void *, SbsHwMode))  XSbs_conv_layer_64_Set_mode,
   .Get_mode =       (uint32_t(*) (void *))          XSbs_conv_layer_64_Get_mode,
+  .Set_flags =      (void (*) (void *, uint32_t ))  XSbs_conv_layer_64_Set_flags,
+  .Get_flags =      (uint32_t(*) (void *))          XSbs_conv_layer_64_Get_flags,
   .Set_layerSize =  (void (*) (void *, uint32_t ))  NULL,
   .Get_layerSize =  (uint32_t(*) (void *))          NULL,
   .Set_kernelSize = (void (*) (void *, uint32_t ))  NULL,

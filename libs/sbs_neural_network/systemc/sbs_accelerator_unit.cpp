@@ -294,13 +294,61 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
 
           hw_exponent = h_exponent + w_exponent;
 
-          if (0x08 & w)
+          switch (0x0F & w)
           {
-            hw_mantissa = h_mantissa + (h_mantissa >> 1);
-          }
-          else
-          {
-            hw_mantissa = h_mantissa;
+            case 0x0:
+              hw_mantissa = h_mantissa;
+              break;
+            case 0x1:
+              hw_mantissa = h_mantissa + (h_mantissa >> 4);
+              break;
+            case 0x2:
+              hw_mantissa = h_mantissa + (h_mantissa >> 3);
+              break;
+            case 0x3:
+              hw_mantissa = h_mantissa + (h_mantissa >> 3) + (h_mantissa >> 4);
+              break;
+            case 0x4:
+              hw_mantissa = h_mantissa + (h_mantissa >> 2);
+              break;
+            case 0x5:
+              hw_mantissa = h_mantissa + (h_mantissa >> 2) + (h_mantissa >> 4);
+              break;
+            case 0x6:
+              hw_mantissa = h_mantissa + (h_mantissa >> 2) + (h_mantissa >> 3);
+              break;
+            case 0x7:
+              hw_mantissa = h_mantissa + (h_mantissa >> 2) + (h_mantissa >> 3)
+                  + (h_mantissa >> 4);
+              break;
+            case 0x8:
+              hw_mantissa = h_mantissa + (h_mantissa >> 1);
+              break;
+            case 0x9:
+              hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 4);
+              break;
+            case 0xA:
+              hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 3);
+              break;
+            case 0xB:
+              hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 3)
+                  + (h_mantissa >> 4);
+              break;
+            case 0xC:
+              hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 2);
+              break;
+            case 0xD:
+              hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 2)
+                  + (h_mantissa >> 4);
+              break;
+            case 0xE:
+              hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 2)
+                  + (h_mantissa >> 3);
+              break;
+            case 0xF:
+              hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 2)
+                  + (h_mantissa >> 3) + (h_mantissa >> 4);
+              break;
           }
 
           if (hw_mantissa & 0x01000000)

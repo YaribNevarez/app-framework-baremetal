@@ -405,6 +405,7 @@ Result Accelerator_loadCoefficients (SbSUpdateAccelerator * accelerator,
     while (!accelerator->acceleratorReady);
 
     accelerator->hardwareConfig->profile = profile;
+    accelerator->hardwareConfig->hwDriver->Set_flags(accelerator->updateHardware, 0xF);
     accelerator->hardwareConfig->hwDriver->Set_mode (accelerator->updateHardware, SBS_HW_INITIALIZE);
 
     accelerator->acceleratorReady = 0;
