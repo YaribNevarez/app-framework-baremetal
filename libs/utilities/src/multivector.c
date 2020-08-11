@@ -59,11 +59,13 @@ typedef uint32_t M32Bit_5_5_32_64[5][5][32][64];
 typedef uint16_t M16Bit_5_5_32_64[5][5][32][64];
 typedef uint8_t  M8Bit_5_5_32_64[5][5][32][64];
 typedef uint32_t M32Bit_2_4_64[2][4][64];
+typedef uint16_t M16Bit_2_4_64[2][4][64];
 typedef uint32_t M32Bit_4_4_64[4][4][64];
 typedef uint16_t M16Bit_4_4_64[4][4][64];
 typedef uint32_t M32Bit_4_4[4][4];
 typedef uint16_t M16Bit_4_4[4][4];
 typedef uint32_t M32Bit_2_4[2][4];
+typedef uint16_t M16Bit_2_4[2][4];
 typedef uint32_t M32Bit_2_2_64_64[2][2][64][64];
 typedef uint16_t M16Bit_2_2_64_64[2][2][64][64];
 typedef uint8_t  M8Bit_2_2_64_64[2][2][64][64];
@@ -331,6 +333,12 @@ M32BitFormat M32BitFormat_list[] =
         .dimension_size = {2, 4, 64, 0}
     },
     {
+        .type_id = M16BIT_2_4_64_ID,
+        .data_type_size = sizeof(uint16_t),
+        .dimensionality = 3,
+        .dimension_size = {2, 4, 64, 0}
+    },
+    {
         .type_id = M32BIT_4_4_64_ID,
         .data_type_size = sizeof(uint32_t),
         .dimensionality = 3,
@@ -363,6 +371,12 @@ M32BitFormat M32BitFormat_list[] =
     {
         .type_id = M32BIT_2_4_ID,
         .data_type_size = sizeof(uint32_t),
+        .dimensionality = 2,
+        .dimension_size = {2, 4, 0, 0}
+    },
+    {
+        .type_id = M16BIT_2_4_ID,
+        .data_type_size = sizeof(uint16_t),
         .dimensionality = 2,
         .dimension_size = {2, 4, 0, 0}
     },
@@ -763,6 +777,8 @@ void inline * Multivector_2DAccess (Multivector * multivector, uint16_t row, uin
       return &(*(M32Bit_5_5_32_64*) multivector->data)[row][column];
     case M32BIT_2_4_64_ID:
       return &(*(M32Bit_2_4_64*) multivector->data)[row][column];
+    case M16BIT_2_4_64_ID:
+      return &(*(M16Bit_2_4_64*) multivector->data)[row][column];
     case M32BIT_4_4_64_ID:
       return &(*(M32Bit_4_4_64*) multivector->data)[row][column];
     case M16BIT_4_4_64_ID:
@@ -836,6 +852,8 @@ void inline * Multivector_3DAccess (Multivector * multivector, uint16_t row, uin
       return &(*(M8Bit_5_5_32_64*) multivector->data)[row][column][position];
     case M32BIT_2_4_64_ID:
       return &(*(M32Bit_2_4_64*) multivector->data)[row][column][position];
+    case M16BIT_2_4_64_ID:
+      return &(*(M16Bit_2_4_64*) multivector->data)[row][column][position];
     case M32BIT_2_2_64_64_ID:
       return &(*(M32Bit_2_2_64_64*) multivector->data)[row][column][position];
     case M16BIT_2_2_64_64_ID:

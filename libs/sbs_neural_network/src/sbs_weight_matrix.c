@@ -76,10 +76,23 @@ SbsWeightMatrix SbsWeightMatrix_new (uint16_t rows,
         Multivector_getHistogram (weight_watrix, &histogram);
         if (histogram.bin_array_len < 32)
         {
-          for (int i = 0; i < histogram.bin_array_len; i ++)
+          printf ("\n%s = ", file_name);
+
+          if (histogram.bin_array[0])
           {
-            printf ("'-%d':%.2f, ", i, 100.0 * ((float) histogram.bin_array[i]) / ((float) histogram.total_samples));
+            printf ("Error, out of range (denormalized)\n");
           }
+
+          printf ("{ ");
+          for (int i = 1; i < histogram.bin_array_len; i++)
+          {
+            printf (
+                "'$2^{-%d}$':%.2f%s",
+                i,
+                100.0 * ((float) histogram.bin_array[i]) / ((float) histogram.total_samples),
+                (i < histogram.bin_array_len - 1) ? ", " : "");
+          }
+          printf (" }");
 
           printf ("\n");
         }
