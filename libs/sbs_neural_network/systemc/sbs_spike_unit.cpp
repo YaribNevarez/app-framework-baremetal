@@ -130,11 +130,11 @@ void sbs_spike_unit (hls::stream<StreamChannel> &stream_in,
 #pragma HLS INTERFACE s_axilite port=return      bundle=CRTL_BUS
 
   /////////////////////////////////////////////////////////////////////////////
-  ap_uint<32> state_vector_magnitude[MAX_VECTOR_SIZE];
-  ap_uint<32> random_value;
+  ap_uint<64> state_vector_magnitude[MAX_VECTOR_SIZE];
+  ap_uint<64> random_value;
   ap_int<8>   exponent;
-  ap_uint<32> mantissa;
-  ap_uint<32> sum_magnitude;
+  ap_uint<64> mantissa;
+  ap_uint<64> sum_magnitude;
   /////////////////////////////////////////////////////////////////////////////
 #pragma HLS array_partition variable=state_vector_magnitude complete
 
@@ -150,7 +150,7 @@ void sbs_spike_unit (hls::stream<StreamChannel> &stream_in,
 
   for (int ip_index = 0; ip_index < layerSize; ip_index++)
   {
-    random_value = MT19937_rand () >> (MT19937_BIT_WIDTH - MANTISSA_BIT_WIDTH);
+    random_value = ((ap_uint<64> ) MT19937_rand ()) << (32 - (MT19937_BIT_WIDTH - MANTISSA_BIT_WIDTH));
 
     STATE_VECTOR_LOADING: for (int index = 0; index < vectorSize; index += CHANNEL_WIDTH / STATE_VECTOR_WIDTH)
     {
@@ -166,7 +166,7 @@ void sbs_spike_unit (hls::stream<StreamChannel> &stream_in,
 #pragma HLS pipeline
           /////////////////////////////////////////////////////////////////////////////
           exponent = DATA16_GET_EXPONENT(input >> (STATE_VECTOR_WIDTH * i));
-          mantissa = DATA16_GET_MANTISSA(input >> (STATE_VECTOR_WIDTH * i));
+          mantissa = ((ap_uint<64> ) DATA16_GET_MANTISSA(input >> (STATE_VECTOR_WIDTH * i))) << 32;
           if (exponent < 0)
             state_vector_magnitude[index + i] = mantissa >> -exponent;
           else

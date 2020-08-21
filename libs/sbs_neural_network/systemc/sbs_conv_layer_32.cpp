@@ -160,6 +160,10 @@ typedef struct
   int weightDepth;
 } SbsHardwareProfile;
 
+
+#define UPDATE_CUSTOM_FLOAT true
+#define SPIKE_CUSTOM_FLOAT  false
+
 unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
                                     hls::stream<StreamChannel> &stream_out,
                                     int flags,
@@ -196,11 +200,11 @@ unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
 //#pragma HLS ARRAY_PARTITION variable=state_vector complete dim=1
 
   /////////////////////////////////////////////////////////////////////////////
-  ap_uint<32> state_vector_magnitude[MAX_VECTOR_SIZE];
-  ap_uint<32> random_value;
+  ap_uint<64> state_vector_magnitude[MAX_VECTOR_SIZE];
+  ap_uint<64> random_value;
   ap_int<8>   exponent;
-  ap_uint<32> mantissa;
-  ap_uint<32> sum_magnitude;
+  ap_uint<64> mantissa;
+  ap_uint<64> sum_magnitude;
   /////////////////////////////////////////////////////////////////////////////
 
 //  static float weight_vector[MAX_VECTOR_SIZE];
@@ -214,11 +218,15 @@ unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
 
   Data32 stream_data;
   Data32 data;
+  Data32 weight_data;
   Data32 hw;
 
   static float reverse_epsilon;
   static float low_pass_epsilon;
-  float sum;
+  Data32 sum;
+  Data32 sum_spike;
+  Data32 random_value_float;
+  unsigned short spikeID;
 
   unsigned int debug_index = 0;
 
@@ -231,10 +239,10 @@ unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
   ap_int<8>  w_exponent;
 
   ap_int<8>  h_exponent;
-  ap_uint<32> h_mantissa;
+  ap_uint<64> h_mantissa;
 
   ap_int<8>  hw_exponent;
-  ap_uint<32> hw_mantissa;
+  ap_uint<64> hw_mantissa;
 /////////////////////////////////////////////////////////////////////////////
 
   weight_and_mask = (0xF & flags);
@@ -297,7 +305,11 @@ unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
           random_value = ((float) MT19937_rand (0)) / ((float) 0xFFFFFFFF);
   #else
   #pragma HLS pipeline
-          random_value = stream_in.read ().data;
+#if SPIKE_CUSTOM_FLOAT
+          random_value = ((ap_uint<64> ) stream_in.read ().data) << (32 - 9);
+#else
+          random_value_float.u32 = stream_in.read ().data;
+#endif
   #endif
 
           STATE_VECTOR_LOADING: for (int i = 0; i < hwProfile.vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
@@ -314,32 +326,39 @@ unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
   #pragma HLS pipeline
                 data.u32 = DATA16_TO_FLOAT32(input >> (STATE_VECTOR_WIDTH * j));
                 state_vector[i + j] = data.f32;
-                /////////////////////////////////////////////////////////////////////////////
+#if SPIKE_CUSTOM_FLOAT
                 exponent = DATA16_GET_EXPONENT(input >> (STATE_VECTOR_WIDTH * j));
-                mantissa = DATA16_GET_MANTISSA(input >> (STATE_VECTOR_WIDTH * j));
+                mantissa = ((ap_uint<64> ) DATA16_GET_MANTISSA(input >> (STATE_VECTOR_WIDTH * j))) << 32;
                 if (exponent < 0)
                   state_vector_magnitude[i + j] = mantissa >> -exponent;
                 else
                   state_vector_magnitude[i + j] = mantissa << exponent;
-                /////////////////////////////////////////////////////////////////////////////
+#endif
               }
             }
           }
 
+#if SPIKE_CUSTOM_FLOAT
           sum_magnitude = 0;
-          SPIKE_GENERATION: for (unsigned short spikeID = 0;
+          SPIKE_GENERATION: for (spikeID = 0;
               (sum_magnitude < random_value) && (spikeID < hwProfile.vectorSize);
               spikeID++)
           {
   #pragma HLS pipeline
             sum_magnitude += state_vector_magnitude[spikeID];
-
-            if ((random_value <= sum_magnitude) || (spikeID == hwProfile.vectorSize - 1))
-            {
-  #pragma HLS pipeline
-              spike_matrix[ip_index] = spikeID;
-            }
           }
+#else
+          sum_spike.u32 = 0;
+          SPIKE_GENERATION: for (spikeID = 0;
+              (sum_spike.f32 < random_value_float.f32) && (spikeID < hwProfile.vectorSize);
+              spikeID++)
+          {
+  #pragma HLS pipeline
+            sum_spike.f32 += state_vector[spikeID];
+          }
+#endif
+
+          spike_matrix[ip_index] = (0 < spikeID) ? spikeID - 1 : 0;
 
           for (int i = 0; i < hwProfile.kernelSize; i += (CHANNEL_WIDTH / SPIKE_VECTOR_WIDTH))
           {
@@ -364,84 +383,44 @@ unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
             int tensor_index = input_spike_matrix[batch] * hwProfile.vectorSize + weight_matrix_index;
 
             sum_magnitude = 0;
+            sum.u32 = 0;
             HW_MUL: for (int i = 0; i < hwProfile.vectorSize; i++)
             {
 #pragma HLS pipeline
               data.f32 = state_vector[i];
-              h_exponent = DATA32_GET_EXPONENT(data.u32);
-              h_mantissa = DATA32_GET_MANTISSA(data.u32);
-              if (-0x7F < h_exponent)
+
+              if (data.u32)
               {
                 weight = weight_matrix[tensor_index + i];
+#if UPDATE_CUSTOM_FLOAT
+                h_exponent = DATA32_GET_EXPONENT(data.u32);
+                h_mantissa = DATA32_GET_MANTISSA(data.u32);
 
                 w_exponent = DATA08_GET_EXPONENT(weight);
 
                 hw_exponent = h_exponent + w_exponent;
 
-                switch ((weight_and_mask & weight) | weight_or_mask)
-                {
-                  case 0x0:
-                    hw_mantissa = h_mantissa;
-                    break;
-                  case 0x1:
-                    hw_mantissa = h_mantissa + (h_mantissa >> 4);
-                    break;
-                  case 0x2:
-                    hw_mantissa = h_mantissa + (h_mantissa >> 3);
-                    break;
-                  case 0x3:
-                    hw_mantissa = h_mantissa + (h_mantissa >> 3) + (h_mantissa >> 4);
-                    break;
-                  case 0x4:
-                    hw_mantissa = h_mantissa + (h_mantissa >> 2);
-                    break;
-                  case 0x5:
-                    hw_mantissa = h_mantissa + (h_mantissa >> 2) + (h_mantissa >> 4);
-                    break;
-                  case 0x6:
-                    hw_mantissa = h_mantissa + (h_mantissa >> 2) + (h_mantissa >> 3);
-                    break;
-                  case 0x7:
-                    hw_mantissa = h_mantissa + (h_mantissa >> 2) + (h_mantissa >> 3) + (h_mantissa >> 4);
-                    break;
-                  case 0x8:
-                    hw_mantissa = h_mantissa + (h_mantissa >> 1);
-                    break;
-                  case 0x9:
-                    hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 4);
-                    break;
-                  case 0xA:
-                    hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 3);
-                    break;
-                  case 0xB:
-                    hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 3) + (h_mantissa >> 4);
-                    break;
-                  case 0xC:
-                    hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 2);
-                    break;
-                  case 0xD:
-                    hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 2) + (h_mantissa >> 4);
-                    break;
-                  case 0xE:
-                    hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 2) + (h_mantissa >> 3);
-                    break;
-                  case 0xF:
-                    hw_mantissa = h_mantissa + (h_mantissa >> 1) + (h_mantissa >> 2) + (h_mantissa >> 3) + (h_mantissa >> 4);
-                    break;
-                }
+                hw_mantissa = (h_mantissa << (32 - 4)) * (0x10 | (0x0F & weight));
 
-                if (hw_mantissa & 0x01000000)
+                if (hw_mantissa & 0x0100000000000000)
                 {
                   hw_exponent++;
                   hw_mantissa >>= 1;
                 }
 
-                hw.u32 = BUILD_FLOAT(0, hw_exponent, hw_mantissa);
+                hw.u32 = BUILD_FLOAT(0, hw_exponent, hw_mantissa >> 32);
 
                 if (hw_exponent < 0)
                   sum_magnitude += hw_mantissa >> -hw_exponent;
                 else
                   sum_magnitude += hw_mantissa << hw_exponent;
+#else
+                weight_data.u32 = DATA08_TO_FLOAT32(weight);
+
+                hw.f32 = data.f32 * weight_data.f32;
+
+                sum.f32 += hw.f32;
+#endif
               }
               else
               {
@@ -450,20 +429,25 @@ unsigned int sbs_conv_layer_32 (hls::stream<StreamChannel> &stream_in,
 
               temp_data[i] = hw.f32;
             }
-
+#if UPDATE_CUSTOM_FLOAT
             if (sum_magnitude)
+#else
+            if (sum.u32)
+#endif
             {
   #pragma HLS pipeline
 
-              NORMALIZE_SUM: for (exponent = 0; !(0x800000 & sum_magnitude); exponent++)
+#if UPDATE_CUSTOM_FLOAT
+              NORMALIZE_SUM: for (exponent = 0; !(0x80000000000000 & sum_magnitude); exponent++)
               { // Normalize
   #pragma HLS pipeline
                 sum_magnitude <<= 1;
               }
 
-              data.u32 = BUILD_FLOAT(0, -exponent, sum_magnitude);
+              sum.u32 = BUILD_FLOAT(0, -exponent, sum_magnitude >> 32);
+#endif
 
-              epsion_over_sum = hwProfile.epsilon / data.f32;
+              epsion_over_sum = hwProfile.epsilon / sum.f32;
               low_pass_epsilon = reverse_epsilon * epsion_over_sum;
               update_loop: for (int i = 0; i < hwProfile.vectorSize; i++)
               {

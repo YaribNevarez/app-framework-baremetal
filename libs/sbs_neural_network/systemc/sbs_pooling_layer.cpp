@@ -128,6 +128,8 @@ typedef union
 
 typedef ap_axis<CHANNEL_WIDTH, 2, 5, 6> StreamChannel;
 
+#define SPIKE_CUSTOM_FLOAT  false
+
 unsigned int sbs_pooling_layer (hls::stream<StreamChannel> &stream_in,
                                 hls::stream<StreamChannel> &stream_out,
                                 int * debug,
@@ -159,11 +161,15 @@ unsigned int sbs_pooling_layer (hls::stream<StreamChannel> &stream_in,
 #pragma HLS array_partition variable=state_vector block factor=1
 
   /////////////////////////////////////////////////////////////////////////////
-  ap_uint<32> state_vector_magnitude[MAX_VECTOR_SIZE];
-  ap_uint<32> random_value;
+  ap_uint<64> state_vector_magnitude[MAX_VECTOR_SIZE];
+  ap_uint<64> random_value;
   ap_int<8>   exponent;
-  ap_uint<32> mantissa;
-  ap_uint<32> sum_magnitude;
+  ap_uint<64> mantissa;
+  ap_uint<64> sum_magnitude;
+
+  Data32 sum_spike;
+  Data32 random_value_float;
+  unsigned short spikeID;
   /////////////////////////////////////////////////////////////////////////////
 
   static ap_uint<CHANNEL_WIDTH> input;
@@ -195,7 +201,11 @@ unsigned int sbs_pooling_layer (hls::stream<StreamChannel> &stream_in,
 #else
 #pragma HLS pipeline
 
-    random_value = stream_in.read ().data;
+#if SPIKE_CUSTOM_FLOAT
+    random_value = ((ap_uint<64> ) stream_in.read ().data) << (32 - 9);
+#else
+    random_value_float.u32 = stream_in.read ().data;
+#endif
 
 #endif
 
@@ -212,31 +222,38 @@ unsigned int sbs_pooling_layer (hls::stream<StreamChannel> &stream_in,
 #pragma HLS pipeline
           register_B.u32 = DATA16_TO_FLOAT32(input >> (STATE_VECTOR_WIDTH * j));
           state_vector[i + j] = register_B.f32;
-          /////////////////////////////////////////////////////////////////////////////
+#if SPIKE_CUSTOM_FLOAT
           exponent = DATA16_GET_EXPONENT(input >> (STATE_VECTOR_WIDTH * j));
-          mantissa = DATA16_GET_MANTISSA(input >> (STATE_VECTOR_WIDTH * j));
+          mantissa = ((ap_uint<64> ) DATA16_GET_MANTISSA(input >> (STATE_VECTOR_WIDTH * j))) << 32;
           if (exponent < 0)
             state_vector_magnitude[i + j] = mantissa >> -exponent;
           else
             state_vector_magnitude[i + j] = mantissa << exponent;
-          /////////////////////////////////////////////////////////////////////////////
+#endif
         }
       }
     }
 
+#if SPIKE_CUSTOM_FLOAT
     sum_magnitude = 0;
-    SPIKE_GENERATION: for (unsigned short spikeID = 0;
+    SPIKE_GENERATION: for (spikeID = 0;
         (sum_magnitude < random_value) && (spikeID < vectorSize); spikeID++)
     {
 #pragma HLS pipeline
       sum_magnitude += state_vector_magnitude[spikeID];
-
-      if (random_value <= sum_magnitude || (spikeID == vectorSize - 1))
-      {
-#pragma HLS pipeline
-        spike_matrix[ip_index] = spikeID;
-      }
     }
+#else
+    sum_spike.u32 = 0;
+    SPIKE_GENERATION: for (spikeID = 0;
+        (sum_spike.f32 < random_value_float.f32) && (spikeID < vectorSize);
+        spikeID++)
+    {
+#pragma HLS pipeline
+      sum_spike.f32 += state_vector[spikeID];
+    }
+#endif
+
+    spike_matrix[ip_index] = (0 < spikeID) ? spikeID - 1 : 0;
 
     for (int i = 0; i < kernelSize; i += (CHANNEL_WIDTH / SPIKE_VECTOR_WIDTH))
     {
