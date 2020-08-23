@@ -247,6 +247,12 @@ typedef struct
   float result_accuracy;
 } SbsStatistics;
 
+typedef struct
+{
+  char path[80];
+  SbsStatistics statistics_array[20];
+} SbsBatchStatistics;
+
 #if SBS_TAKE_ACCURACY_STATISTICS
 static SbsStatistics statistics[] =
   {
@@ -295,38 +301,138 @@ static SbsStatistics statistics[] =
       .number_of_spikes = 1200
     },
   };
-#else
-static SbsStatistics statistics[] =
-  {
-    { .input_pattern_first = SBS_INPUT_PATTERN_FIRST,
-      .input_pattern_last = SBS_INPUT_PATTERN_LAST,
-      .number_of_spikes = 1000
+
+static SbsBatchStatistics batch_statistics[] =
+{
+    { .path = "/MNIST/n_00/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_05/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_10/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_15/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_20/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_25/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_30/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_35/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_40/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_45/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_50/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_55/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_60/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_65/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_70/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_75/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_80/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_85/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_90/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_95/Input%d.bin",
+      .statistics_array = {{0}}
+    },
+    { .path = "/MNIST/n_100/Input%d.bin",
+      .statistics_array = {{0}}
     }
-  };
+};
+
+#else
+
+static SbsStatistics statistics[] =
+{
+  { .input_pattern_first = SBS_INPUT_PATTERN_FIRST,
+    .input_pattern_last = SBS_INPUT_PATTERN_LAST,
+    .number_of_spikes = 1000
+  }
+};
+
+static SbsBatchStatistics batch_statistics[] =
+{
+    { .path = "/MNIST/n_70/Input%d.bin",
+      .statistics_array = {{0}}
+    }
+};
+
 #endif //TAKE_ACCURACY_STATISTICS
+
+
+void SbsStatistics_clean ()
+{
+  for (int i = 0; i < sizeof(statistics) / sizeof(SbsStatistics); i++)
+  {
+    statistics[i].result_correct_inferences = 0;
+    statistics[i].result_total_inferences = 0;
+    statistics[i].result_accuracy = 0;
+  }
+}
+
+void SbsBatchStatistics_takeBatch (int batch)
+{
+  memcpy (&batch_statistics[batch].statistics_array, statistics, sizeof(statistics));
+}
 
 static void SnnApp_printStatistics ()
 {
   int number_of_samples = sizeof(statistics) / sizeof(SbsStatistics);
-  printf ("\nspikes = [");
+  int number_of_batches = sizeof(batch_statistics) / sizeof(SbsBatchStatistics);
 
-  for (int loop = 0; loop < number_of_samples; loop++)
+  for (int batch = 0; batch < number_of_batches; batch ++)
   {
-    printf (" %d%c", statistics[loop].number_of_spikes,
-            (loop + 1 < number_of_samples) ? ',' : ' ');
+    printf ("\n%s", batch_statistics[batch].path);
+    printf ("\nspikes = [");
+
+    for (int loop = 0; loop < number_of_samples; loop++)
+    {
+      printf (" %d%c", batch_statistics[batch].statistics_array[loop].number_of_spikes,
+              (loop + 1 < number_of_samples) ? ',' : ' ');
+    }
+
+    printf ("]\n");
+
+    printf ("\naccuracy = [");
+
+    for (int loop = 0; loop < number_of_samples; loop++)
+    {
+      printf (" %.2f%c", batch_statistics[batch].statistics_array[loop].result_accuracy,
+              (loop + 1 < number_of_samples) ? ',' : ' ');
+    }
+
+    printf ("]\n");
+    printf ("______________________________________________\n");
   }
-
-  printf ("]\n");
-
-  printf ("\naccuracy = [");
-
-  for (int loop = 0; loop < number_of_samples; loop++)
-  {
-    printf (" %.2f%c", statistics[loop].result_accuracy,
-            (loop + 1 < number_of_samples) ? ',' : ' ');
-  }
-
-  printf ("]\n");
 }
 
 
@@ -338,6 +444,7 @@ Result SnnApp_run (void)
   uint16_t output_vector_size = 10;
   uint8_t input_label;
   uint8_t output_label;
+  Timer * timer;
   Result result;
 
   // ********** Create SBS Neural Network **********
@@ -470,75 +577,88 @@ Result SnnApp_run (void)
 
   printf ("\n Inference ...\n");
 
-  for (int loop = 0; loop < sizeof(statistics) / sizeof(SbsStatistics); loop++)
+  timer = Timer_new (1);
+
+  Timer_start(timer);
+
+  for (int batch = 0; batch < sizeof(batch_statistics) / sizeof(SbsBatchStatistics); batch++)
   {
-    statistics[loop].result_accuracy = 0;
-    statistics[loop].result_correct_inferences = 0;
-    statistics[loop].result_total_inferences = 0;
-
-    for (pattern_index = statistics[loop].input_pattern_first;
-         pattern_index <= statistics[loop].input_pattern_last;
-         pattern_index++)
+    for (int loop = 0; loop < sizeof(statistics) / sizeof(SbsStatistics); loop++)
     {
-      sprintf (string_text,
-               SBS_INPUT_PATTERN_FORMAT_NAME,
-               pattern_index);
+      statistics[loop].result_accuracy = 0;
+      statistics[loop].result_correct_inferences = 0;
+      statistics[loop].result_total_inferences = 0;
 
-      result = network->loadInput (network, string_text);
-
-      if (result != OK)
+      for (pattern_index = statistics[loop].input_pattern_first;
+           pattern_index <= statistics[loop].input_pattern_last;
+           pattern_index++)
       {
-        printf ("\nError: loading pattern '%s'\n", string_text);
-        continue;
+        sprintf (string_text,
+                 batch_statistics[batch].path,
+                 pattern_index);
+
+        result = network->loadInput (network, string_text);
+
+        if (result != OK)
+        {
+          printf ("\nError: loading pattern '%s'\n", string_text);
+          continue;
+        }
+
+        printf ("\nSpikes: %d\n", statistics[loop].number_of_spikes);
+        network->updateCycle (network, statistics[loop].number_of_spikes);
+
+        statistics[loop].result_total_inferences ++;
+
+        output_label = network->getInferredOutput (network);
+        input_label = network->getInputLabel (network);
+
+        if (output_label == input_label)
+        {
+          statistics[loop].result_correct_inferences ++;
+          printf ("\nPASS\n");
+        }
+        else
+        {
+          printf ("\nMisclassification [label = %d]\n", input_label);
+        }
+
+        statistics[loop].result_accuracy =
+            ((float) statistics[loop].result_correct_inferences)
+                / ((float) statistics[loop].result_total_inferences);
+
+        output_vector_size = sizeof(output_vector) / sizeof(float);
+        network->getOutputVector (network, output_vector, output_vector_size);
+
+        while (output_vector_size--)
+        {
+          float h = output_vector[output_vector_size];  //Ensure data alignment
+          printf ("[%d] = %f\n", output_vector_size, h);
+        }
+
+        printf ("Accuracy: %.2f (%d/%d)\n",
+                statistics[loop].result_accuracy,
+                statistics[loop].result_correct_inferences,
+                statistics[loop].result_total_inferences);
+
+        printf ("Loop: %d, pattern: %d ( '%s' )\n", loop, pattern_index, string_text);
+
+        //network->printStatistics (network);
+
+        printf ("\n________________________________________________________________\n");
       }
-
-      printf ("\nSpikes: %d\n", statistics[loop].number_of_spikes);
-      network->updateCycle (network, statistics[loop].number_of_spikes);
-
-      statistics[loop].result_total_inferences ++;
-
-      output_label = network->getInferredOutput (network);
-      input_label = network->getInputLabel (network);
-
-      if (output_label == input_label)
-      {
-        statistics[loop].result_correct_inferences ++;
-        printf ("\nPASS\n");
-      }
-      else
-      {
-        printf ("\nMisclassification [label = %d]\n", input_label);
-      }
-
-      statistics[loop].result_accuracy =
-          ((float) statistics[loop].result_correct_inferences)
-              / ((float) statistics[loop].result_total_inferences);
-
-      output_vector_size = sizeof(output_vector) / sizeof(float);
-      network->getOutputVector (network, output_vector, output_vector_size);
-
-      while (output_vector_size--)
-      {
-        float h = output_vector[output_vector_size];  //Ensure data alignment
-        printf ("[%d] = %f\n", output_vector_size, h);
-      }
-
-      printf ("Accuracy: %.2f (%d/%d)\n",
-              statistics[loop].result_accuracy,
-              statistics[loop].result_correct_inferences,
-              statistics[loop].result_total_inferences);
-
-      printf ("Loop: %d, pattern: %d ( '%s' )\n", loop, pattern_index, string_text);
-
-      //network->printStatistics (network);
-
-      printf ("\n________________________________________________________________\n");
     }
+    SbsBatchStatistics_takeBatch (batch);
+    SbsStatistics_clean ();
   }
+
+  printf ("\nTime: %f Minutes\n", Timer_getCurrentTime(timer)/60);
+
+  SnnApp_printStatistics ();
 
   printf ("\nEND\n");
 
-  SnnApp_printStatistics ();
+  Timer_delete(&timer);
 
   network->delete (&network);
 

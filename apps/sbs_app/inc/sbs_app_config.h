@@ -27,7 +27,7 @@
 
 // TYPEDEFS AND DEFINES --------------------------------------------------------
 
-#define SBS_INPUT_PATTERN_FORMAT_NAME "/MNIST/Pattern/Input%d.bin"
+
 #define SBS_INPUT_PATTERN_FIRST       1
 #define SBS_INPUT_PATTERN_LAST        100
 

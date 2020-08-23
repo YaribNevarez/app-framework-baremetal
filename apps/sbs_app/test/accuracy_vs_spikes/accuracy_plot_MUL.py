@@ -15,6 +15,12 @@ plt.plot(x, y2, label="Simulation. Float8. Custom logic")
 y8 = [ 0.20, 0.79, 0.96, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00 ]
 plt.plot(x, y8, label="FPGA @ 200MHz. Float8. Custom logic")
 
+yf4 = [ 0.16, 0.63, 0.82, 0.96, 0.99, 1.00, 0.98, 0.99, 1.00, 0.99, 0.99 ]
+plt.plot(x, yf4, label="FPGA @ 200MHz. Float4. Custom logic")
+
+yf5 = [ 0.20, 0.77, 0.95, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00 ]
+plt.plot(x, yf5, label="FPGA @ 200MHz. Float5. Custom logic")
+
 ###############
 #y21 = [ 0.10, 0.19, 0.22, 0.32, 0.47, 0.65, 0.74, 0.86, 0.90, 0.92, 0.96 ]
 #plt.plot(x, y21, label="FPGA. Float4")
