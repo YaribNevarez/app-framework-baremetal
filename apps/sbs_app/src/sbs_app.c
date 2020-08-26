@@ -249,7 +249,9 @@ typedef struct
 
 typedef struct
 {
+  float noise;
   char path[80];
+  char label[80];
   SbsStatistics statistics_array[20];
 } SbsBatchStatistics;
 
@@ -304,67 +306,110 @@ static SbsStatistics statistics[] =
 
 static SbsBatchStatistics batch_statistics[] =
 {
-    { .path = "/MNIST/n_00/Input%d.bin",
+    {
+      .noise = 0,
+      .path = "/MNIST/n_00/Input%d.bin",
+      .label = "0% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_05/Input%d.bin",
+    { .noise = 0.05,
+      .path = "/MNIST/n_05/Input%d.bin",
+      .label = "5% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_10/Input%d.bin",
+    { .noise = 0.10,
+      .path = "/MNIST/n_10/Input%d.bin",
+      .label = "10% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_15/Input%d.bin",
+    { .noise = 0.15,
+      .path = "/MNIST/n_15/Input%d.bin",
+      .label = "15% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_20/Input%d.bin",
+    { .noise = 0.20,
+      .path = "/MNIST/n_20/Input%d.bin",
+      .label = "20% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_25/Input%d.bin",
+    { .noise = 0.25,
+      .path = "/MNIST/n_25/Input%d.bin",
+      .label = "25% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_30/Input%d.bin",
+    { .noise = 0.30,
+      .path = "/MNIST/n_30/Input%d.bin",
+      .label = "30% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_35/Input%d.bin",
+    { .noise = 0.35,
+      .path = "/MNIST/n_35/Input%d.bin",
+      .label = "35% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_40/Input%d.bin",
+    { .noise = 0.40,
+      .path = "/MNIST/n_40/Input%d.bin",
+      .label = "40% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_45/Input%d.bin",
+    { .noise = 0.45,
+      .path = "/MNIST/n_45/Input%d.bin",
+      .label = "45% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_50/Input%d.bin",
+    { .noise = 0.50,
+      .path = "/MNIST/n_50/Input%d.bin",
+      .label = "50% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_55/Input%d.bin",
+    { .noise = 0.55,
+      .path = "/MNIST/n_55/Input%d.bin",
+      .label = "55% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_60/Input%d.bin",
+    { .noise = 0.60,
+      .path = "/MNIST/n_60/Input%d.bin",
+      .label = "60% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_65/Input%d.bin",
+    { .noise = 0.65,
+      .path = "/MNIST/n_65/Input%d.bin",
+      .label = "65% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_70/Input%d.bin",
+    { .noise = 0.70,
+      .path = "/MNIST/n_70/Input%d.bin",
+      .label = "70% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_75/Input%d.bin",
+    { .noise = 0.75,
+      .path = "/MNIST/n_75/Input%d.bin",
+      .label = "75% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_80/Input%d.bin",
+    { .noise = 0.80,
+      .path = "/MNIST/n_80/Input%d.bin",
+      .label = "80% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_85/Input%d.bin",
+    { .noise = 0.85,
+      .path = "/MNIST/n_85/Input%d.bin",
+      .label = "85% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_90/Input%d.bin",
+    { .noise = 0.90,
+      .path = "/MNIST/n_90/Input%d.bin",
+      .label = "90% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_95/Input%d.bin",
+    { .noise = 0.95,
+      .path = "/MNIST/n_95/Input%d.bin",
+      .label = "95% Noise",
       .statistics_array = {{0}}
     },
-    { .path = "/MNIST/n_100/Input%d.bin",
+    { .noise = 1.00,
+      .path = "/MNIST/n_100/Input%d.bin",
+      .label = "100% Noise",
       .statistics_array = {{0}}
     }
 };
@@ -381,9 +426,11 @@ static SbsStatistics statistics[] =
 
 static SbsBatchStatistics batch_statistics[] =
 {
-    { .path = "/MNIST/n_70/Input%d.bin",
+    { .noise = 0.50,
+      .path = "/MNIST/n_50/Input%d.bin",
+      .label = "50% Noise",
       .statistics_array = {{0}}
-    }
+    },
 };
 
 #endif //TAKE_ACCURACY_STATISTICS
@@ -409,30 +456,89 @@ static void SnnApp_printStatistics ()
   int number_of_samples = sizeof(statistics) / sizeof(SbsStatistics);
   int number_of_batches = sizeof(batch_statistics) / sizeof(SbsBatchStatistics);
 
+  printf ("#________SBS_ACCURACY_PLOT__________________________________________\n");
+
+  printf ("import matplotlib.pyplot as pyplot\n\n\n");
+
+  printf ("#________Accuracy_Vs_Spikes_________________________________________\n\n");
+
   for (int batch = 0; batch < number_of_batches; batch ++)
   {
-    printf ("\n%s", batch_statistics[batch].path);
-    printf ("\nspikes = [");
+    printf ("#%s\n", batch_statistics[batch].label);
 
+    printf ("spikes_%d = [", batch);
     for (int loop = 0; loop < number_of_samples; loop++)
     {
       printf (" %d%c", batch_statistics[batch].statistics_array[loop].number_of_spikes,
               (loop + 1 < number_of_samples) ? ',' : ' ');
     }
-
     printf ("]\n");
 
-    printf ("\naccuracy = [");
-
+    printf ("accuracy_%d = [", batch);
     for (int loop = 0; loop < number_of_samples; loop++)
     {
       printf (" %.2f%c", batch_statistics[batch].statistics_array[loop].result_accuracy,
               (loop + 1 < number_of_samples) ? ',' : ' ');
     }
-
     printf ("]\n");
-    printf ("______________________________________________\n");
+
+    printf ("pyplot.plot(spikes_%d, accuracy_%d, label=\"%s\")\n", batch, batch, batch_statistics[batch].label);
+
+    printf ("#______________________________________________\n\n");
   }
+
+  printf ("pyplot.xlabel('Spikes')\n");
+  printf ("pyplot.ylabel('Accuracy')\n");
+
+  printf ("pyplot.title('Inference')\n");
+
+  printf ("pyplot.legend()\n");
+  printf ("pyplot.grid()\n");
+
+  printf ("pyplot.show()\n\n\n\n");
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+
+  printf ("#________Accuracy_Vs_Noise__________________________________________\n\n");
+
+  for (int loop = 0; loop < number_of_samples; loop++)
+  {
+    printf ("#spikes = %d\n", batch_statistics[0].statistics_array[loop].number_of_spikes);
+
+    printf ("noise_%d = [", loop);
+    for (int batch = 0; batch < number_of_batches; batch ++)
+    {
+      printf (" %.2f%c", batch_statistics[batch].noise,
+              (batch + 1 < number_of_batches) ? ',' : ' ');
+    }
+    printf ("]\n");
+
+    printf ("accuracy_%d = [", loop);
+    for (int batch = 0; batch < number_of_batches; batch ++)
+    {
+      printf (" %.2f%c", batch_statistics[batch].statistics_array[loop].result_accuracy,
+              (batch + 1 < number_of_batches) ? ',' : ' ');
+    }
+    printf ("]\n");
+
+    printf ("pyplot.plot(noise_%d, accuracy_%d, label=\"%d Spikes\")\n", loop, loop, batch_statistics[0].statistics_array[loop].number_of_spikes);
+
+    printf ("#______________________________________________\n\n");
+  }
+
+  printf ("pyplot.xlabel('Noise')\n");
+  printf ("pyplot.ylabel('Accuracy')\n");
+
+  printf ("pyplot.title('Inference')\n");
+
+  printf ("pyplot.legend()\n");
+  printf ("pyplot.grid()\n");
+
+  printf ("pyplot.show()\n\n");
+
+  printf ("#________END__________________________________________\n\n");
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
 }
 
 
