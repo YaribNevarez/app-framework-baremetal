@@ -306,109 +306,108 @@ static SbsStatistics statistics[] =
 
 static SbsBatchStatistics batch_statistics[] =
 {
-    {
-      .noise = 0,
-      .path = "/MNIST/n_00/Input%d.bin",
+    { .noise = 0,
+      .path = "/MNIST/N_0/In%d.bin",
       .label = "0% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 0.05,
-      .path = "/MNIST/n_05/Input%d.bin",
+      .path = "/MNIST/N_5/In%d.bin",
       .label = "5% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 0.10,
-      .path = "/MNIST/n_10/Input%d.bin",
+      .path = "/MNIST/N_10/In%d.bin",
       .label = "10% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 0.15,
-      .path = "/MNIST/n_15/Input%d.bin",
+      .path = "/MNIST/N_15/In%d.bin",
       .label = "15% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 0.20,
-      .path = "/MNIST/n_20/Input%d.bin",
+      .path = "/MNIST/N_20/In%d.bin",
       .label = "20% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 0.25,
-      .path = "/MNIST/n_25/Input%d.bin",
+      .path = "/MNIST/N_25/In%d.bin",
       .label = "25% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 0.30,
-      .path = "/MNIST/n_30/Input%d.bin",
+      .path = "/MNIST/N_30/In%d.bin",
       .label = "30% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 0.35,
-      .path = "/MNIST/n_35/Input%d.bin",
+      .path = "/MNIST/N_35/In%d.bin",
       .label = "35% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 0.40,
-      .path = "/MNIST/n_40/Input%d.bin",
+      .path = "/MNIST/N_40/In%d.bin",
       .label = "40% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 0.45,
-      .path = "/MNIST/n_45/Input%d.bin",
+      .path = "/MNIST/N_45/In%d.bin",
       .label = "45% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 0.50,
-      .path = "/MNIST/n_50/Input%d.bin",
+      .path = "/MNIST/N_50/In%d.bin",
       .label = "50% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 0.55,
-      .path = "/MNIST/n_55/Input%d.bin",
+      .path = "/MNIST/N_55/In%d.bin",
       .label = "55% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 0.60,
-      .path = "/MNIST/n_60/Input%d.bin",
+      .path = "/MNIST/N_60/In%d.bin",
       .label = "60% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 0.65,
-      .path = "/MNIST/n_65/Input%d.bin",
+      .path = "/MNIST/N_65/In%d.bin",
       .label = "65% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 0.70,
-      .path = "/MNIST/n_70/Input%d.bin",
+      .path = "/MNIST/N_70/In%d.bin",
       .label = "70% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 0.75,
-      .path = "/MNIST/n_75/Input%d.bin",
+      .path = "/MNIST/N_75/In%d.bin",
       .label = "75% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 0.80,
-      .path = "/MNIST/n_80/Input%d.bin",
+      .path = "/MNIST/N_80/In%d.bin",
       .label = "80% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 0.85,
-      .path = "/MNIST/n_85/Input%d.bin",
+      .path = "/MNIST/N_85/In%d.bin",
       .label = "85% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 0.90,
-      .path = "/MNIST/n_90/Input%d.bin",
+      .path = "/MNIST/N_90/In%d.bin",
       .label = "90% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 0.95,
-      .path = "/MNIST/n_95/Input%d.bin",
+      .path = "/MNIST/N_95/In%d.bin",
       .label = "95% Noise",
       .statistics_array = {{0}}
     },
     { .noise = 1.00,
-      .path = "/MNIST/n_100/Input%d.bin",
+      .path = "/MNIST/N_100/In%d.bin",
       .label = "100% Noise",
       .statistics_array = {{0}}
     }
@@ -418,17 +417,17 @@ static SbsBatchStatistics batch_statistics[] =
 
 static SbsStatistics statistics[] =
 {
-  { .input_pattern_first = SBS_INPUT_PATTERN_FIRST,
-    .input_pattern_last = SBS_INPUT_PATTERN_LAST,
+  { .input_pattern_first = 0,
+    .input_pattern_last = 9999,
     .number_of_spikes = 1000
   }
 };
 
 static SbsBatchStatistics batch_statistics[] =
 {
-    { .noise = 0.50,
-      .path = "/MNIST/n_50/Input%d.bin",
-      .label = "50% Noise",
+    { .noise = 0.25,
+      .path = "/MNIST/N_25/In%d.bin",
+      .label = "25% Noise",
       .statistics_array = {{0}}
     },
 };

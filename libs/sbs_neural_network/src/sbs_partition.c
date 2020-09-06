@@ -330,7 +330,7 @@ Result SbsLayerPartition_loadInput (SbsLayerPartition * partition,
       if (good_reading_flag)
       {
         rc = f_read (&fil, input_label, sizeof(uint8_t), &read_result);
-        (*input_label)--;
+
         good_reading_flag = read_result == sizeof(uint8_t);
 
         result = Multivector_copy (partition->state_matrix, fs_matrix);
