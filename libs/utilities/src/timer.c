@@ -5,6 +5,7 @@
  *      Author: Yarib Nevarez
  */
 /***************************** Include Files *********************************/
+#ifdef TIMER
 #include "timer.h"
 #include "miscellaneous.h"
 
@@ -99,3 +100,4 @@ double Timer_getSample(Timer * timer, uint8_t index)
                       / ((double) COUNTS_PER_SECOND);
   return sample;
 }
+#endif /* TIMER */

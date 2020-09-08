@@ -7,6 +7,8 @@
 #ifndef LIBS_UTILITIES_TIMER_H_
 #define LIBS_UTILITIES_TIMER_H_
 
+#ifdef TIMER
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,5 +44,5 @@ double  Timer_getSample       (Timer * timer, uint8_t index);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
+#endif /* TIMER */
 #endif /* LIBS_UTILITIES_TIMER_H_ */
