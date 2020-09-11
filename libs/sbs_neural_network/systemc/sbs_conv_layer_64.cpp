@@ -2,6 +2,13 @@
 #include <ap_int.h>
 #include "hls_stream.h"
 
+
+#define UPDATE_CUSTOM_FLOAT       true
+#define SPIKE_CUSTOM_FLOAT        false
+
+#define WEIGHT_EXPONENT_BIT_WIDTH 4
+#define WEIGHT_MANTISSA_BIT_WIDTH 1
+
 #define MT19937_HW false
 
 #if MT19937_HW
@@ -123,7 +130,8 @@ typedef union
 #define DATA16_GET_EXPONENT(x) ((0x60 | ((x) >> 11 )) - 0x7F)
 #define DATA16_GET_MANTISSA(x) ((0x800 | (0x7FF & (x))) << 12)
 
-#define DATA08_GET_EXPONENT(x) ((0x70 | (0x0F & ((x) >> 4))) - 0x7F)
+#define DATA08_GET_EXPONENT(x) ((0x70 | (0x0F & ((x) >> WEIGHT_MANTISSA_BIT_WIDTH))) - 0x7F)
+
 #define DATA04_GET_EXPONENT(x) ((0x70 | (0x0F & (x))) - 0x7F)
 
 #define DATA32_GET_EXPONENT(x) ((0xFF & ((x) >> 23)) - 0x7F)
@@ -143,7 +151,7 @@ typedef union
 #define WEIGHT_VECTOR_WIDTH   8
 #define SPIKE_VECTOR_WIDTH    16
 
-#define WEIGHT_BIT_WIDTH      8
+#define WEIGHT_BIT_WIDTH      (WEIGHT_EXPONENT_BIT_WIDTH + WEIGHT_MANTISSA_BIT_WIDTH)
 #define WEIGHT_MATRIX_SIZE    52000
 
 typedef ap_axis<CHANNEL_WIDTH, 2, 5, 6> StreamChannel;
@@ -159,10 +167,6 @@ typedef struct
   int weightColumns;
   int weightDepth;
 } SbsHardwareProfile;
-
-
-#define UPDATE_CUSTOM_FLOAT true
-#define SPIKE_CUSTOM_FLOAT  false
 
 unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
                                     hls::stream<StreamChannel> &stream_out,
@@ -237,6 +241,7 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
   ap_uint<4> weight_or_mask;
 
   ap_int<8>  w_exponent;
+  ap_uint<5>  w_mantissa;
 
   ap_int<8>  h_exponent;
   ap_uint<64> h_mantissa;
@@ -397,10 +402,11 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
                 h_mantissa = DATA32_GET_MANTISSA(data.u32);
 
                 w_exponent = DATA08_GET_EXPONENT(weight);
+                w_mantissa = 0x10 | (0xF & ((weight & ((1 << WEIGHT_MANTISSA_BIT_WIDTH) - 1)) << (4 - WEIGHT_MANTISSA_BIT_WIDTH)));
 
                 hw_exponent = h_exponent + w_exponent;
 
-                hw_mantissa = (h_mantissa << (32 - 4)) * (0x10 | (0x0F & weight));
+                hw_mantissa = (h_mantissa << (32 - 4)) * w_mantissa;
 
                 if (hw_mantissa & 0x0100000000000000)
                 {
