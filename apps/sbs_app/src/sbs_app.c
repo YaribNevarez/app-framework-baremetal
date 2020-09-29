@@ -425,9 +425,9 @@ static SbsStatistics statistics[] =
 
 static SbsBatchStatistics batch_statistics[] =
 {
-    { .noise = 0.00,
-      .path = "/MNIST/N_0/In%d.bin",
-      .label = "0% Noise",
+    { .noise = 0.50,
+      .path = "/MNIST/N_50/In%d.bin",
+      .label = "50% Noise",
       .statistics_array = {{0}}
     },
 };

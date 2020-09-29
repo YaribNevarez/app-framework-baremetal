@@ -7,7 +7,7 @@
 #define SPIKE_CUSTOM_FLOAT        false
 
 #define WEIGHT_EXPONENT_BIT_WIDTH 4
-#define WEIGHT_MANTISSA_BIT_WIDTH 1
+#define WEIGHT_MANTISSA_BIT_WIDTH 4
 
 #define MT19937_HW false
 
@@ -287,7 +287,7 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
 
         reverse_epsilon = 1.0f / (1.0f + hwProfile.epsilon);
 
-        for (int i = 0; i < data_size; i += (CHANNEL_WIDTH / WEIGHT_VECTOR_WIDTH))
+        WEIGHT_LOADING: for (int i = 0; i < data_size; i += (CHANNEL_WIDTH / WEIGHT_VECTOR_WIDTH))
         {
 #pragma HLS pipeline
           input = stream_in.read ().data;
@@ -317,7 +317,7 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
 #endif
   #endif
 
-          STATE_VECTOR_LOADING: for (int i = 0; i < hwProfile.vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
+          VECTOR_INPUT: for (int i = 0; i < hwProfile.vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
           {
   #pragma HLS pipeline
             input = stream_in.read ().data;
@@ -345,7 +345,7 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
 
 #if SPIKE_CUSTOM_FLOAT
           sum_magnitude = 0;
-          SPIKE_GENERATION: for (spikeID = 0;
+          SPIKE_FIRE: for (spikeID = 0;
               (sum_magnitude < random_value) && (spikeID < hwProfile.vectorSize);
               spikeID++)
           {
@@ -354,7 +354,7 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
           }
 #else
           sum_spike.u32 = 0;
-          SPIKE_GENERATION: for (spikeID = 0;
+          SPIKE_FIRE: for (spikeID = 0;
               (sum_spike.f32 < random_value_float.f32) && (spikeID < hwProfile.vectorSize);
               spikeID++)
           {
@@ -365,7 +365,7 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
 
           spike_matrix[ip_index] = (0 < spikeID) ? spikeID - 1 : 0;
 
-          for (int i = 0; i < hwProfile.kernelSize; i += (CHANNEL_WIDTH / SPIKE_VECTOR_WIDTH))
+          SPIKE_INPUT_BATCH: for (int i = 0; i < hwProfile.kernelSize; i += (CHANNEL_WIDTH / SPIKE_VECTOR_WIDTH))
           {
   #pragma HLS pipeline
             input = stream_in.read ().data;
@@ -380,7 +380,7 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
             }
           }
 
-          for (int batch = 0, weight_matrix_index = 0;
+          BATCH_UPDATE: for (int batch = 0, weight_matrix_index = 0;
                batch < hwProfile.kernelSize;
                batch++, weight_matrix_index += weightDepthSize)
           {
@@ -389,7 +389,7 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
 
             sum_magnitude = 0;
             sum.u32 = 0;
-            HW_MUL: for (int i = 0; i < hwProfile.vectorSize; i++)
+            DOT_PRODUCT: for (int i = 0; i < hwProfile.vectorSize; i++)
             {
 #pragma HLS pipeline
               data.f32 = state_vector[i];
@@ -455,7 +455,7 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
 
               epsion_over_sum = hwProfile.epsilon / sum.f32;
               low_pass_epsilon = reverse_epsilon * epsion_over_sum;
-              update_loop: for (int i = 0; i < hwProfile.vectorSize; i++)
+              VECTOR_UPDATE: for (int i = 0; i < hwProfile.vectorSize; i++)
               {
   #pragma HLS pipeline
                 state_vector[i] = reverse_epsilon * state_vector[i] + low_pass_epsilon * temp_data[i];
@@ -464,7 +464,7 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
           }
 
 
-          for (int i = 0; i < hwProfile.vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
+          VECTOR_OUTPUT: for (int i = 0; i < hwProfile.vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
           {
   #pragma HLS pipeline
             for (int j = 0; j < (CHANNEL_WIDTH / STATE_VECTOR_WIDTH); j++)
@@ -482,7 +482,7 @@ unsigned int sbs_conv_layer_64 (hls::stream<StreamChannel> &stream_in,
           }
         }
 
-        for (int i = 0; i < hwProfile.layerSize; i += (CHANNEL_WIDTH / SPIKE_VECTOR_WIDTH))
+        SPIKE_OUTPUT: for (int i = 0; i < hwProfile.layerSize; i += (CHANNEL_WIDTH / SPIKE_VECTOR_WIDTH))
         {
   #pragma HLS pipeline
           for (int j = 0; j < (CHANNEL_WIDTH / SPIKE_VECTOR_WIDTH); j++)

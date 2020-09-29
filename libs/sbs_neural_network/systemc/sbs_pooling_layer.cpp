@@ -194,7 +194,7 @@ unsigned int sbs_pooling_layer (hls::stream<StreamChannel> &stream_in,
   }
 #endif
 
-  for (int ip_index = 0; ip_index < layerSize; ip_index++)
+  LAYER_UPDATE: for (int ip_index = 0; ip_index < layerSize; ip_index++)
   {
 #if MT19937_HW
     random_value = ((float) MT19937_rand (0)) / ((float) 0xFFFFFFFF);
@@ -209,7 +209,7 @@ unsigned int sbs_pooling_layer (hls::stream<StreamChannel> &stream_in,
 
 #endif
 
-    STATE_VECTOR_LOADING: for (int i = 0; i < vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
+    VECTOR_INPUT: for (int i = 0; i < vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
     {
 #pragma HLS pipeline
       input = stream_in.read ().data;
@@ -255,7 +255,7 @@ unsigned int sbs_pooling_layer (hls::stream<StreamChannel> &stream_in,
 
     spike_matrix[ip_index] = (0 < spikeID) ? spikeID - 1 : 0;
 
-    for (int i = 0; i < kernelSize; i += (CHANNEL_WIDTH / SPIKE_VECTOR_WIDTH))
+    SPIKE_INPUT_BATCH: for (int i = 0; i < kernelSize; i += (CHANNEL_WIDTH / SPIKE_VECTOR_WIDTH))
     {
 #pragma HLS pipeline
       input = stream_in.read ().data;
@@ -270,12 +270,12 @@ unsigned int sbs_pooling_layer (hls::stream<StreamChannel> &stream_in,
       }
     }
 
-    for (int batch = 0; batch < kernelSize; batch++)
+    BATCH_UPDATE: for (int batch = 0; batch < kernelSize; batch++)
     {
 #pragma HLS pipeline
       input_spike = input_spike_matrix[batch];
 
-      for (int i = 0; i < vectorSize; i++)
+      VECTOR_UPDATE: for (int i = 0; i < vectorSize; i++)
       {
 #pragma HLS pipeline
         h.f32 = state_vector[i];
@@ -292,7 +292,7 @@ unsigned int sbs_pooling_layer (hls::stream<StreamChannel> &stream_in,
       }
     }
 
-    for (int i = 0; i < vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
+    VECTOR_OUTPUT: for (int i = 0; i < vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
     {
 #pragma HLS pipeline
       for (int j = 0; j < (CHANNEL_WIDTH / STATE_VECTOR_WIDTH); j++)
@@ -310,7 +310,7 @@ unsigned int sbs_pooling_layer (hls::stream<StreamChannel> &stream_in,
     }
   }
 
-  for (int i = 0; i < layerSize; i += (CHANNEL_WIDTH / SPIKE_VECTOR_WIDTH))
+  SPIKE_OUTPUT: for (int i = 0; i < layerSize; i += (CHANNEL_WIDTH / SPIKE_VECTOR_WIDTH))
   {
 #pragma HLS pipeline
     for (int j = 0; j < (CHANNEL_WIDTH / SPIKE_VECTOR_WIDTH); j++)

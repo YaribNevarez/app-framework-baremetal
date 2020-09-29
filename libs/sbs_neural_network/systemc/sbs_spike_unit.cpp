@@ -43,21 +43,21 @@ static unsigned int MT19937_rand (void)
     if (mti == N + 1)
     {
 	  mt[0] = MT19937_SEED & 0xffffffff;
-	  for (mti = 1; mti < N; mti++)
+	  MT19937_INITIALIZE_A:for (mti = 1; mti < N; mti++)
 	  {
 #pragma HLS pipeline
 		mt[mti] = (69069 * mt[mti - 1]) & 0xffffffff;
 	  }
     }
 
-    for (kk = 0; kk < N - M; kk++)
+    MT19937_INITIALIZE_B: for (kk = 0; kk < N - M; kk++)
     {
 #pragma HLS pipeline
       y = (mt[kk] & UPPER_MASK) | (mt[kk + 1] & LOWER_MASK);
       mt[kk] = mt[kk + M] ^ (y >> 1) ^ mag01[y & 0x1];
     }
 
-    for (; kk < N - 1; kk++)
+    MT19937_INITIALIZE_C: for (; kk < N - 1; kk++)
     {
 #pragma HLS pipeline
       y = (mt[kk] & UPPER_MASK) | (mt[kk + 1] & LOWER_MASK);
@@ -148,11 +148,11 @@ void sbs_spike_unit (hls::stream<StreamChannel> &stream_in,
   channel.keep = -1;
   channel.strb = -1;
 
-  for (int ip_index = 0; ip_index < layerSize; ip_index++)
+  LAYER_SPIKE: for (int ip_index = 0; ip_index < layerSize; ip_index++)
   {
     random_value = ((ap_uint<64> ) MT19937_rand ()) << (32 - (MT19937_BIT_WIDTH - MANTISSA_BIT_WIDTH));
 
-    STATE_VECTOR_LOADING: for (int index = 0; index < vectorSize; index += CHANNEL_WIDTH / STATE_VECTOR_WIDTH)
+    VECTOR_INPUT: for (int index = 0; index < vectorSize; index += CHANNEL_WIDTH / STATE_VECTOR_WIDTH)
     {
 #pragma HLS pipeline
       input = stream_in.read ().data;
@@ -177,7 +177,7 @@ void sbs_spike_unit (hls::stream<StreamChannel> &stream_in,
     }
 
     sum_magnitude = 0;
-    SPIKE_GENERATION: for (short spikeID = 0; (sum_magnitude < random_value) && (spikeID < vectorSize); spikeID++)
+    SPIKE_OUTPUT: for (short spikeID = 0; (sum_magnitude < random_value) && (spikeID < vectorSize); spikeID++)
     {
 #pragma HLS pipeline
       sum_magnitude += state_vector_magnitude[spikeID];

@@ -219,7 +219,7 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
   }
 #endif
 
-  for (int ip_index = 0; ip_index < layerSize; ip_index++)
+  LAYER_UPDATE: for (int ip_index = 0; ip_index < layerSize; ip_index++)
   {
 #if MT19937_HW
     random_value = ((float) MT19937_rand (0)) / ((float) 0xFFFFFFFF);
@@ -234,7 +234,7 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
 
 #endif
 
-    STATE_VECTOR_LOADING: for (int i = 0; i < vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
+    VECTOR_INPUT: for (int i = 0; i < vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
     {
 #pragma HLS pipeline
       input = stream_in.read ().data;
@@ -262,7 +262,7 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
 
 #if SPIKE_CUSTOM_FLOAT
     sum_magnitude = 0;
-    SPIKE_GENERATION: for (spikeID = 0;
+    SPIKE_FIRE: for (spikeID = 0;
         (sum_magnitude < random_value) && (spikeID < vectorSize); spikeID++)
     {
 #pragma HLS pipeline
@@ -270,7 +270,7 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
     }
 #else
     sum_spike.u32 = 0;
-    SPIKE_GENERATION: for (spikeID = 0;
+    SPIKE_FIRE: for (spikeID = 0;
         (sum_spike.f32 < random_value_float.f32) && (spikeID < vectorSize);
         spikeID++)
     {
@@ -281,10 +281,10 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
 
     spike_matrix[ip_index] = (0 < spikeID) ? spikeID - 1 : 0;
 
-    for (int batch = 0; batch < kernelSize; batch++)
+    BATCH_UPDATE: for (int batch = 0; batch < kernelSize; batch++)
     {
 #pragma HLS pipeline
-      for (int i = 0; i < vectorSize; i += (CHANNEL_WIDTH / WEIGHT_VECTOR_WIDTH))
+      WEIGHT_INPUT: for (int i = 0; i < vectorSize; i += (CHANNEL_WIDTH / WEIGHT_VECTOR_WIDTH))
       {
 #pragma HLS pipeline
         input = stream_in.read ().data;
@@ -303,7 +303,7 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
 
       sum_magnitude = 0;
       sum.u32 = 0;
-      HW_MUL: for (int i = 0; i < vectorSize; i++)
+      DOT_PRODUCT: for (int i = 0; i < vectorSize; i++)
       {
 #pragma HLS pipeline
         data.f32 = state_vector[i];
@@ -370,7 +370,7 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
 #endif
 
         epsion_over_sum = epsilon / sum.f32;
-        for (int i = 0; i < vectorSize; i++)
+        VECTOR_UPDATE: for (int i = 0; i < vectorSize; i++)
         {
 #pragma HLS pipeline
           state_vector[i] = reverse_epsilon * (state_vector[i] + temp_data[i] * epsion_over_sum);
@@ -379,7 +379,7 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
     }
 
 
-    for (int i = 0; i < vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
+    VECTOR_OUTPUT: for (int i = 0; i < vectorSize; i += (CHANNEL_WIDTH / STATE_VECTOR_WIDTH))
     {
 #pragma HLS pipeline
       for (int j = 0; j < (CHANNEL_WIDTH / STATE_VECTOR_WIDTH); j++)
@@ -398,7 +398,7 @@ unsigned int sbs_accelerator_unit (hls::stream<StreamChannel> &stream_in,
     }
   }
 
-  for (int i = 0; i < layerSize; i += (CHANNEL_WIDTH / SPIKE_VECTOR_WIDTH))
+  SPIKE_OUTPUT: for (int i = 0; i < layerSize; i += (CHANNEL_WIDTH / SPIKE_VECTOR_WIDTH))
   {
 #pragma HLS pipeline
     for (int j = 0; j < (CHANNEL_WIDTH / SPIKE_VECTOR_WIDTH); j++)
