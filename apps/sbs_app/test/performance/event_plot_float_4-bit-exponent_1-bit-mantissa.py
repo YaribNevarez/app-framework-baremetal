@@ -5,8 +5,8 @@ fig, (ax1, ax2) = plt.subplots(2, 1)
 
 fig.suptitle('Performance')
 
-begin   = np.array([0.000, 0.001, 0.053, 0.057, 0.710, 0.714, 0.842, 0.845, 0.968, 0.973, 1.255, 1.258, 1.534, 1.538, 1.573, 1.577, 1.665, 1.669])
-latency = np.array([1.674, 0.055, 0.264, 0.655, 1.271, 0.130, 1.074, 0.126, 1.106, 0.285, 1.179, 0.278, 1.176, 0.037, 0.488, 0.091, 0.388, 0.004])
+begin   = np.array([0.000, 0.001, 0.053, 0.057, 0.710, 0.714, 0.841, 0.844, 0.966, 0.971, 1.253, 1.256, 1.532, 1.536, 1.570, 1.574, 1.663, 1.667])
+latency = np.array([1.672, 0.055, 0.307, 0.655, 1.309, 0.130, 1.098, 0.125, 1.098, 0.284, 1.199, 0.278, 1.184, 0.037, 0.484, 0.091, 0.438, 0.003])
 event   = ["SbS_Network", "HX_IN_Software", "HX_IN_Hardware", "H1_CONV_Software", "H1_CONV_Hardware", "H2_POOL_Software", "H2_POOL_Hardware", "H2_POOL_Software", "H2_POOL_Hardware", "H3_CONV_Software", "H3_CONV_Hardware", "H3_CONV_Software", "H3_CONV_Hardware", "H4_POOL_Software", "H4_POOL_Hardware", "H5_DENSE_Software", "H5_DENSE_Hardware", "HY_OUT_Software"]
 colors = ["#94c4df", "#4a98c9", "#1864ab", "#4a98c9", "#1864ab", "#4a98c9", "#1864ab", "#4a98c9", "#1864ab", "#4a98c9", "#1864ab", "#4a98c9", "#1864ab", "#4a98c9", "#1864ab", "#4a98c9", "#1864ab", "#4a98c9"]
 
@@ -23,9 +23,9 @@ ax1.tick_params(axis='both', which='minor', labelsize=1)
 plt.xlabel("Schedule (mS)")
 plt.ylabel("Task")
 
-data = [[ 0.001, 0.057, 0.714, 0.845, 0.973, 1.258, 1.538, 1.577, 1.669],
-        [ 0.055, 0.655, 0.130, 0.126, 0.285, 0.278, 0.037, 0.091, 0.004],
-        [ 0.264, 1.271, 1.074, 1.106, 1.179, 1.176, 0.488, 0.388, 0.000]]
+data = [[ 0.001, 0.057, 0.714, 0.844, 0.971, 1.256, 1.536, 1.574, 1.667],
+        [ 0.055, 0.655, 0.130, 0.125, 0.284, 0.278, 0.037, 0.091, 0.003],
+        [ 0.307, 1.309, 1.098, 1.098, 1.199, 1.184, 0.484, 0.438, 0.000]]
 
 columns = ("HX_IN", "H1_CONV", "H2_POOL", "H2_POOL", "H3_CONV", "H3_CONV", "H4_POOL", "H5_DENSE", "HY_OUT")
 rows = ["Hardware", "Software", "II OFFSET"]

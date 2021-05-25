@@ -7,7 +7,7 @@
 #define SPIKE_CUSTOM_FLOAT        false
 
 #define WEIGHT_EXPONENT_BIT_WIDTH 4
-#define WEIGHT_MANTISSA_BIT_WIDTH 4
+#define WEIGHT_MANTISSA_BIT_WIDTH 0
 
 #define MT19937_HW false
 

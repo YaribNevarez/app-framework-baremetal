@@ -129,7 +129,7 @@ typedef union
 
 #define CHANNEL_WIDTH         32
 #define STATE_VECTOR_WIDTH    16
-#define WEIGHT_VECTOR_WIDTH   8
+#define WEIGHT_VECTOR_WIDTH   4
 #define SPIKE_VECTOR_WIDTH    16
 
 typedef ap_axis<CHANNEL_WIDTH, 2, 5, 6> StreamChannel;
